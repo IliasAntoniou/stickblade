@@ -1,3 +1,6 @@
+// anim.js: the player's pose each frame. Picks a target pose (tp) from the current state, then blends the real pose towards it.
+// Purely visual. Nothing here affects gameplay.
+
 import { TAU, clamp, lerp, damp, easeOut, _a } from './util.js';
 import { placeShadow } from './world.js';
 import { POSE_KEYS, BASE, GUARD, applyPose } from './stickman.js';

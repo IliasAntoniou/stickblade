@@ -1,3 +1,7 @@
+// input.js: keyboard and mouse.
+// keys = held down right now.  pressed = went down this frame (emptied after every update).
+// Mouse buttons show up in pressed as 'M0' (left) and 'M2' (right).
+
 import { clamp, $ } from './util.js';
 import { renderer } from './core.js';
 import { toast } from './fx.js';
@@ -31,6 +35,8 @@ addEventListener('wheel', e => { setCamDist(clamp(camDist + Math.sign(e.deltaY) 
 export const overlay = $('overlay');
 $('sens').addEventListener('input', e => { sens = +e.target.value; });
 $('sens').addEventListener('click', e => e.stopPropagation());
+// Clicking the menu captures the mouse ("pointer lock"). Esc releases it, and that is also how pausing works:
+// the game only runs while the mouse is captured.
 overlay.addEventListener('click', () => {
   const r = renderer.domElement.requestPointerLock();
   if (r && r.catch) r.catch(() => {});

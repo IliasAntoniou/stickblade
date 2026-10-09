@@ -1,3 +1,7 @@
+// classes/lancer.js: Lancer, long spear, pole vault and big leaps.
+// Functions here START a skill. A skill that lasts a while carries on in update.js (the case named after its state)
+// and gets its pose in anim.js.
+
 import { _a, _b, _c, _fx } from '../util.js';
 import { groundAt } from '../world.js';
 import { setWeapon } from '../stickman.js';
@@ -10,6 +14,7 @@ import { camFwdH, camFacingYaw, lockTarget, aimPoint, handPos } from '../camera.
 import { inDir, hasIn, hsp } from '../update.js';
 
 // ---------- Lancer ----------
+// RMB: pole vault, a very high jump. Only from the ground.
 export function lnVault() {
   if (!(P.grounded || P.coyote > 0)) return;
   P.cd.m2 = CL.skills.m2.cd; P.atk.on = false;
@@ -19,6 +24,7 @@ export function lnVault() {
   P.yaw = P.yawT = Math.atan2(_a.x, _a.z);
   spawnRing(_fx.copy(P.pos).setY(P.pos.y + 0.05), 0.3, 2.2, 0.3, CL.color); burst(_fx, 8, 6, 1);
 }
+// Q: throw the spear. Press again to teleport to it and blast.
 export function lnJavelin() {
   if (P.jav) {
     const m = P.jav; _a.copy(P.pos);
@@ -36,29 +42,34 @@ export function lnJavelin() {
     if (P.jav) setWeapon(player, 'none');
   }
 }
+// E: run forward pushing dummies along.
 export function lnCharge() {
   P.cd.e = CL.skills.e.cd; P.atk.on = false;
   if (hasIn) P.skDir.copy(inDir); else camFwdH(P.skDir);
   setState('pcharge'); P.ghostT = 0;
   P.yaw = P.yawT = Math.atan2(P.skDir.x, P.skDir.z);
 }
+// R: leap up, then dive onto the crosshair.
 export function lnDragoon() {
   P.cd.r = CL.skills.r.cd; P.atk.on = false;
   setState('dragoonUp'); P.vel.y = 26; P.vel.x *= 0.3; P.vel.z *= 0.3; P.grounded = false;
   spawnRing(_fx.copy(P.pos).setY(P.pos.y + 0.05), 0.3, 2.5, 0.3, CL.color);
 }
+// Where the dive will land (at most 38 units away).
 export function diveTarget(out) {
   if (lockTarget) out.copy(lockTarget.pos); else aimPoint(out);
   const dx = out.x - P.pos.x, dz = out.z - P.pos.z, d = Math.hypot(dx, dz);
   if (d > 38) { out.x = P.pos.x + dx / d * 38; out.z = P.pos.z + dz / d * 38; out.y = groundAt(out.x, out.z, P.pos.y); }
   return out;
 }
+// F: spin that launches everything around.
 export function lnSweep() {
   P.cd.f = CL.skills.f.cd; P.atk.on = false; setState('sweep');
   spawnRing(_fx.copy(P.pos).setY(P.pos.y + 1.1), 1, 3.9, 0.25, CL.color);
   hitArea(P.pos.x, P.pos.y, P.pos.z, 3.9, 16, 3, 12.5, false, 0.05, false);
 }
 
+// Class definition. The fields are explained in blade.js.
 CLASSES.lancer = {
   id: 'lancer', name: 'Lancer', color: 0x3ddc84, weapon: 'spear', style: 'thrust', run: 9.5, airJumps: 1,
   desc: 'Long spear, pole vault and huge leaps.', quote: 'Reach further. Then leap further still.', lmb: 'Thrust',

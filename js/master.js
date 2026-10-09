@@ -1,3 +1,5 @@
+// master.js: Master Sen (the figure next to the start) and his dialog menu: change class, start a challenge, get a tip.
+
 import * as THREE from 'three';
 import { V3, pick, $, save } from './util.js';
 import { scene } from './core.js';
@@ -44,6 +46,8 @@ export const TIPS = [
   'Throw a dummy hard into a wall and it takes extra damage.',
 ];
 export function fmtBest(c) { const b = save.best[c.id]; return b ? `best ${b.toFixed(2)}s` : 'not completed yet'; }
+// Draw the current dialog page. Each option is { label, sub (small text), act (what choosing it does) }.
+// Number keys pick one; that check is in update.js.
 export function renderDlg(text) {
   let opts = [];
   if (dlg.page === 'main') {

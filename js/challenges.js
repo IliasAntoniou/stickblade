@@ -1,3 +1,6 @@
+// challenges.js: the timed challenges Master Sen gives. CH lists them, updateChallenge checks every frame whether
+// the goal is met, and best times are saved.
+
 import * as THREE from 'three';
 import { _a, _fx, $, save, persist } from './util.js';
 import { scene } from './core.js';
@@ -8,6 +11,7 @@ import { respawnPlayer } from './player.js';
 import { closeDlg } from './master.js';
 
 // ================= challenges =================
+// Sky Rings course: ring positions in order, as [x, y, z].
 export const RING_PTS = [[0, 2.5, 2], [-12, 7, -4], [-22, 12.5, 2], [-20, 13, -14], [0, 15, -30], [12, 11, -12], [18, 16, 4], [40, 7.5, 8], [28, 12, 24], [0, 3, 24]];
 export const courseGeo = new THREE.TorusGeometry(2.0, 0.13, 8, 36);
 export const courseRings = RING_PTS.map((p, i) => {
@@ -23,6 +27,7 @@ export const CH = [
   { id: 'combo', name: 'Combo 50', desc: 'Land a 50-hit combo without dropping it' },
 ];
 export const chalEl = $('chal');
+// Reset the dummies and the player, then count down from 3.
 export function startChallenge(c) {
   closeDlg();
   for (const d of dummies) d.respawn(false);
@@ -37,6 +42,7 @@ export function endChallenge() {
   for (const r of courseRings) r.visible = false;
   chalEl.style.display = 'none';
 }
+// Goal reached: save the time if it is a new best.
 export function finishChallenge() {
   const c = chal.cur, t = chal.t, old = save.best[c.id], isBest = !old || t < old;
   if (isBest) { save.best[c.id] = t; persist(); }
@@ -44,6 +50,7 @@ export function finishChallenge() {
   spawnRing(_fx.copy(P.pos).setY(P.pos.y + 0.05), 0.5, 6, 0.6, 0xffd23f); burst(_fx.setY(P.pos.y + 1), 30, 12);
   endChallenge();
 }
+// Once per frame: run the countdown or the timer, and test the goal of the current challenge.
 export function updateChallenge(dt) {
   const c = chal.cur; if (!c) return;
   if (chal.phase === 'count') {

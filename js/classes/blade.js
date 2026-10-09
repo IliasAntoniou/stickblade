@@ -1,3 +1,7 @@
+// classes/blade.js: Blademaster, sword and grapple hook.
+// Functions here START a skill. A skill that lasts a while carries on in update.js (the case named after its state)
+// and gets its pose in anim.js.
+
 import { _a, _b, _c, _fx } from '../util.js';
 import { solidMeshes } from '../world.js';
 import { spawnArc, spawnRing } from '../fx.js';
@@ -8,6 +12,7 @@ import { camDir, camFwdH, facing, camFacingYaw, lockTarget, aimHit, raycaster, s
 import { inDir, hasIn } from '../update.js';
 
 // ---------- Blademaster ----------
+// RMB: pull towards the locked dummy, or the wall under the crosshair.
 export function bmGrapple() {
   if (P.state === 'grapple') return;
   if (lockTarget && lockTarget.pos.distanceTo(P.pos) < 45) { P.gTarget = lockTarget; lockTarget.chest(P.gPoint); }
@@ -17,6 +22,7 @@ export function bmGrapple() {
   ropeMesh.visible = hookMesh.visible = true;
   if (P.grounded) P.vel.y = Math.max(P.vel.y, 6);
 }
+// Q: teleport behind the locked dummy and strike. With no target, blink 14 units forward.
 export function bmBlink() {
   P.cd.q = CL.skills.q.cd;
   _a.copy(P.pos);
@@ -45,16 +51,19 @@ export function bmBlink() {
   P.airJumps = P.airJumpsMax;
   spawnRing(_fx.copy(P.pos).setY(P.pos.y + 1), 0.3, 2, 0.25, CL.color);
 }
+// E: spinning dash that hits repeatedly.
 export function bmCyclone() {
   P.cd.e = CL.skills.e.cd; P.atk.on = false;
   if (hasIn) P.skDir.copy(inDir); else camFwdH(P.skDir);
   setState('cyclone'); P.tick = 0; P.ghostT = 0;
   P.yaw = P.yawT = Math.atan2(P.skDir.x, P.skDir.z);
 }
+// R: hop (if on the ground), then dive and blast.
 export function bmSlam() {
   P.cd.r = CL.skills.r.cd; P.atk.on = false;
   if (P.grounded) { setState('slamUp'); P.vel.y = 13; } else setState('slamDown');
 }
+// F: uppercut that launches dummies into the air.
 export function bmRising() {
   P.cd.f = CL.skills.f.cd; P.atk.on = false;
   P.yaw = P.yawT = camFacingYaw(); facing(_a);
@@ -68,6 +77,11 @@ export function bmRising() {
   }
 }
 
+// The class definition. run = running speed, airJumps = extra jumps in the air.
+// atk = the basic combo, one row per hit: dur = length of the swing (s), a0..a1 = the part of it that can hit,
+//   dmg = damage, kb = knockback, off = how far in front the hit is centred, rad = its radius, heavy = finisher, lunge = step forward.
+// skills: n = name on the HUD, cd = cooldown (s), fn = runs when the key is pressed,
+//   alt = HUD label while a second press does something else, hold = the button is held, not tapped.
 CLASSES.blade = {
   id: 'blade', name: 'Blademaster', color: 0x00e5ff, weapon: 'sword', style: 'slash', run: 9.5, airJumps: 1,
   desc: 'Sword and grapple hook. The all-rounder.', quote: 'The sword is simple. That is why it is hard.', lmb: 'Slash',

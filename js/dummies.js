@@ -1,3 +1,8 @@
+// dummies.js: the things you hit. One Dummy class for every type; `type` switches the behaviour:
+//   basic = stands still, shield = blocks hits from the front, flying = circles in the air, fighter = attacks the player.
+// Also the damage functions every attack goes through: hitDummy (one target) and hitArea (everything in a circle).
+// NOTE: per-type behaviour is still if-checks inside Dummy. It moves into DTYPE in the dummy-types phase.
+
 import * as THREE from 'three';
 import { V3, TAU, clamp, damp, angDiff, angDamp, _hv, _dv } from './util.js';
 import { scene, camera } from './core.js';
@@ -12,12 +17,14 @@ import { update } from './update.js';
 export const barBgGeo = new THREE.PlaneGeometry(1.24, 0.15);
 export const barFgGeo = new THREE.PlaneGeometry(1, 0.1).translate(0.5, 0, 0);
 export const barBgMat = new THREE.MeshBasicMaterial({ color: 0x14171c, transparent: true, opacity: 0.7, depthWrite: false });
+// Colour and health per type.
 export const DTYPE = {
   basic: { color: 0xd8573c, hp: 600 },
   shield: { color: 0x8796a8, hp: 700 },
   flying: { color: 0x2fa4d9, hp: 400 },
   fighter: { color: 0x7b52e0, hp: 900 },
 };
+// True if a dummy standing at p would be inside a wall.
 export function dummyBlocked(p) {
   for (const s of solids) if (p.x + 0.3 > s.min.x && p.x - 0.3 < s.max.x && p.z + 0.3 > s.min.z && p.z - 0.3 < s.max.z && p.y + 1.8 > s.min.y && p.y + 0.4 < s.max.y) return true;
   return false;
@@ -58,22 +65,29 @@ export class Dummy {
     this.shadow = makeShadow();
     if (type === 'flying') this.path(this.pos);
   }
+  // A point at chest height: where hits land and where lock-on aims.
   chest(out) { return out.set(this.pos.x, this.pos.y + 1.25, this.pos.z); }
+  // Flying dummies: where on its circle it should be right now.
   path(out) {
     const a = T * 0.5 + this.phase;
     return out.set(this.base.x + Math.cos(a) * this.radius, this.base.y + Math.sin(a * 2.2) * 0.8, this.base.z + Math.sin(a) * this.radius);
   }
+  // Fighters: drop the current attack and hide the red warning marks.
   cancelAtk() { if (this.type !== 'fighter') return; this.ai = 'idle'; this.aiCd = 1.2; this.warnRing.visible = this.warnLine.visible = false; }
+  // Cannot act for t seconds.
   stun(t) { this.stunT = Math.max(this.stunT, t); this.cancelAtk(); }
+  // A heavy hit during a fighter's wind-up cancels the attack.
   interrupt() {
     if (this.type !== 'fighter' || (this.ai !== 'windSlam' && this.ai !== 'windLunge')) return;
     this.stun(0.7); this.chest(_dv); _dv.y += 0.7; spawnText(_dv, 'INTERRUPTED', 'dodge');
   }
+  // Thrown hard into a wall: extra damage.
   splat() {
     if (this.dead) return;
     dealDamage(this, 20, true, 0.06, 'SPLAT');
     if (this.hp <= 0) this.ko(-this.vel.x, -this.vel.z);
   }
+  // Knocked out: fly off in direction (kx, kz), come back 1.8 s later.
   ko(kx, kz) {
     this.dead = true; this.deadT = 1.8; this.hp = 0; this.floatT = 0; this.cancelAtk();
     const l = Math.hypot(kx, kz) || 1;
@@ -81,12 +95,14 @@ export class Dummy {
     this.chest(_dv); _dv.y += 0.6; spawnText(_dv, 'K.O.', 'ko'); burst(_dv, 20, 12); shake(0.4);
     if (chal.phase === 'run') chal.kos++;
   }
+  // Back to full health at its home spot. poof = show the ring effect.
   respawn(poof = true) {
     this.dead = false; this.hp = this.maxHp; this.vel.set(0, 0, 0);
     if (this.type === 'flying') this.path(this.pos); else this.pos.copy(this.anchor);
     this.sinceHit = 99; this.tx = this.tz = this.tvx = this.tvz = 0; this.spin = 0; this.floatT = 0; this.stunT = 0; this.cancelAtk();
     if (poof) spawnRing(_dv.copy(this.pos).setY(this.pos.y + 0.05), 0.2, 2.2, 0.35, DTYPE[this.type].color);
   }
+  // Once per frame: movement, gravity, drifting back to its spot, healing, health bar, shadow.
   update(dt) {
     const ty = this.type, flying = ty === 'flying';
     if (this.patrol) this.anchor.x = this.base.x + Math.sin(T * 0.55) * this.patrol;
@@ -145,6 +161,10 @@ export class Dummy {
     this.bar.visible = !this.dead;
     placeShadow(this.shadow, this.pos.x, this.pos.y, this.pos.z);
   }
+  // Fighter brain. A small state machine kept in this.ai:
+  //   idle -> windSlam (red ring, 0.75 s) -> recover               when the player is close
+  //   idle -> windLunge (red line, 0.6 s) -> lunge -> recover      when the player is further away
+  // The red marks are the warning. Damage only happens when the wind-up ends.
   fighterAI(dt, gy) {
     const dx = P.pos.x - this.pos.x, dz = P.pos.z - this.pos.z, dist = Math.hypot(dx, dz) || 0.001, dy = P.pos.y - this.pos.y;
     const leash = Math.hypot(this.pos.x - this.anchor.x, this.pos.z - this.anchor.z);
@@ -207,6 +227,7 @@ export class Dummy {
   }
 }
 
+// Every dummy on the map: type, x, y, z, options (patrol = side-to-side distance, radius = size of a flying circle).
 export const dummies = [
   new Dummy('basic', -5, 0, -4), new Dummy('basic', 0, 0, -7), new Dummy('basic', 5, 0, -4),
   new Dummy('basic', 0, 0, -17, { patrol: 10 }),
@@ -218,12 +239,16 @@ export const dummies = [
   new Dummy('fighter', -26, 0, -4), new Dummy('fighter', 30, 0, -18),
 ];
 
+// Take health off a dummy and play the feedback (number, sparks, hitstop, shake, combo).
+// Call hitDummy instead unless you really want to skip blocking and knockback.
 export function dealDamage(d, dmg, heavy, stop, label) {
   d.hp -= dmg; d.sinceHit = 0; d.flash = 1;
   d.chest(_hv); spawnText(_hv, label ? label + ' ' + dmg : dmg, heavy ? 'big' : ''); burst(_hv, heavy ? 14 : 7, heavy ? 11 : 8);
   addHitstop(stop ?? (heavy ? 0.08 : 0.04)); shake(heavy ? 0.35 : 0.12);
   addHit(dmg);
 }
+// Hit one dummy. kx, kz = knockback push. up = upward launch speed. heavy = big hit (interrupts fighters).
+// stop = hitstop seconds (null = default). src = where the hit comes from (for shield blocking). top = true ignores shields.
 // returns true if the hit landed (shield dummies block from the front)
 export function hitDummy(d, dmg, kx, kz, up, heavy = false, stop = null, src = P.pos, top = false) {
   if (d.dead) return false;
@@ -248,6 +273,7 @@ export function hitDummy(d, dmg, kx, kz, up, heavy = false, stop = null, src = P
   return true;
 }
 // hit everything in a circle around a point
+// rad = radius, kb = knockback, falloff 0..1 = how much weaker the hit is at the edge of the circle.
 export function hitArea(cx, cy, cz, rad, dmg, kb, up, heavy, stop, top, falloff = 0) {
   for (const d of dummies) {
     if (d.dead) continue;

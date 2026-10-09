@@ -1,3 +1,6 @@
+// hud.js: the on-screen display. Skill bar with cooldowns, health bar, combo counter, crosshair, lock-on ring, stats line.
+// The HTML and CSS for it are in index.html.
+
 import { clamp, $ } from './util.js';
 import { camera } from './core.js';
 import { projV } from './fx.js';
@@ -10,6 +13,7 @@ import { locked } from './input.js';
 // ================= HUD =================
 export const skEl = $('skills');
 export let SK = [];
+// Rebuild the skill bar for the current class (called by setClass).
 export function buildSkillBar() {
   skEl.innerHTML = ''; const S = CL.skills;
   const defs = [
@@ -27,6 +31,7 @@ export function buildSkillBar() {
 }
 export const statsEl = $('stats'), comboEl = $('combo'), crossEl = $('cross'), lockEl = $('lock'), hpFill = $('hp').querySelector('.fill'), promptEl = $('prompt');
 export let fpsAcc = 0, fpsN = 0, fps = 0, hudT = 0;
+// Once per frame: cooldown fills, crosshair, lock-on ring, combo, health. The stats line refreshes ten times a second.
 export function updateHud(rdt) {
   for (const s of SK) {
     let frac = 0, txt = '';
