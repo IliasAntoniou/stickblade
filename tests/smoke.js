@@ -103,6 +103,69 @@ check('master dialog', () => {
 check('class is saved', () => JSON.parse(localStorage.getItem('stickblade.v2')).cls === 'ninja');
 SB.setClass('blade');
 
+// tuning: each number has to change the game for real, and reset has to undo it
+const TUNE = SB.TUNE;
+function jumpApex() {
+  reset(); pressed.add('Space');
+  let top = 0;
+  for (let i = 0; i < 120; i++) { run(1); top = Math.max(top, P.pos.y); }
+  return top;
+}
+function hitFor100() {
+  reset();
+  const d = dummies[0], hp = d.hp;
+  SB.hitDummy(d, 100, 0, 0, 0, false, null, P.pos, true);
+  return hp - d.hp;
+}
+check('tune jump power', () => {
+  const normal = jumpApex(); TUNE.jump = 26; const high = jumpApex(); SB.resetTuning(); const back = jumpApex();
+  return high > normal * 2 && Math.abs(back - normal) < 0.2;
+});
+check('tune gravity', () => { const normal = jumpApex(); TUNE.gravity = 72; const low = jumpApex(); SB.resetTuning(); return low < normal * 0.7; });
+check('tune damage dealt', () => { TUNE.dmgMult = 3; const dmg = hitFor100(); SB.resetTuning(); return dmg > 250 && hitFor100() < 120; });
+check('tune dummy health', () => {
+  TUNE.dummyHpMult = 2; SB.applyTune();
+  const ok = dummies.every(d => d.maxHp === SB.DTYPE[d.type].hp * 2);
+  SB.resetTuning();
+  return ok && dummies.every(d => d.maxHp === SB.DTYPE[d.type].hp);
+});
+check('tune cannot be hit', () => { reset(); TUNE.god = true; SB.hurtPlayer(50, dummies[0].pos, dummies[0]); const ok = P.hp === P.maxHp; SB.resetTuning(); return ok; });
+check('tune damage taken', () => { reset(); TUNE.dmgTaken = 2; SB.hurtPlayer(10, dummies[0].pos, dummies[0]); const ok = P.hp === P.maxHp - 20; SB.resetTuning(); return ok; });
+check('tune max health', () => { reset(); TUNE.maxHp = 50; SB.applyTune(); const ok = P.maxHp === 50 && P.hp === 50; SB.resetTuning(); return ok && P.maxHp === 100; });
+check('tune no cooldowns', () => { SB.setClass('blade'); reset(); TUNE.cdMult = 0; press('KeyQ', 3); const ok = P.cd.q === 0; SB.resetTuning(); return ok; });
+check('tune dash charges', () => {
+  reset(); TUNE.dashCharges = 1; SB.applyTune(); SB.updateHud(DT);
+  const ok = P.dashCharges === 1;
+  TUNE.dashCharges = 5; TUNE.dashCd = 0; run(10); SB.updateHud(DT);
+  const filled = P.dashCharges === 5;
+  SB.resetTuning(); SB.updateHud(DT);
+  return ok && filled && P.dashCharges === 2;
+});
+check('tune extra air jumps', () => { SB.setClass('blade'); TUNE.extraAirJumps = 2; SB.applyTune(); const ok = P.airJumpsMax === 3; SB.resetTuning(); return ok && P.airJumpsMax === 1; });
+check('tune run speed', () => {
+  const speed = () => { reset(); SB.keys.add('KeyW'); run(60); SB.keys.delete('KeyW'); return Math.hypot(P.vel.x, P.vel.z); };
+  const normal = speed(); TUNE.runMult = 2; const fast = speed(); SB.resetTuning();
+  return fast > normal * 1.8;
+});
+// the panel itself: move a slider, use the per-row reset, change a class number, then "Reset all"
+check('tuning panel', () => {
+  SB.setClass('blade');
+  const panel = document.getElementById('tune');
+  const rowOf = text => [...panel.querySelectorAll('.tr')].find(r => r.querySelector('.tl').textContent.startsWith(text));
+  const slide = (row, v) => { const i = row.querySelector('input'); i.value = v; i.dispatchEvent(new Event('input')); };
+  const jump = rowOf('Jump power');
+  slide(jump, 20);
+  if (TUNE.jump !== 20 || !jump.classList.contains('chg')) return false;
+  jump.querySelector('.tx').click();
+  if (TUNE.jump !== 13 || jump.classList.contains('chg')) return false;
+  slide(rowOf('Hit 1 damage'), 99);
+  slide(rowOf('Q Blink Strike cooldown'), 1);
+  if (SB.CL.atk[0].dmg !== 99 || SB.CL.skills.q.cd !== 1) return false;
+  slide(rowOf('Run speed ×'), 2);
+  panel.querySelector('.ra').click();
+  return SB.CL.atk[0].dmg === 12 && SB.CL.skills.q.cd === 4 && TUNE.runMult === 1 && !panel.querySelector('.tr.chg');
+});
+
 log.push(fails.length ? 'SMOKE FAIL (' + fails.length + ')' : 'SMOKE PASS', ...fails);
 const pre = document.createElement('pre');
 pre.id = 'smoke'; pre.textContent = log.join('\n');

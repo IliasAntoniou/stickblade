@@ -8,7 +8,7 @@ import { scene } from './core.js';
 import { solids, ARENA, makeShadow } from './world.js';
 import { makeStickman, setWeapon, BASE } from './stickman.js';
 import { spawnArc, ringGeo, spawnRing, burst, spawnGhost, beamGeo, spawnBeam, spawnText, centerMsg, shake, addHitstop, flashHurt } from './fx.js';
-import { T, P, CL, dlg, chal, SPAWN, combo } from './state.js';
+import { T, P, CL, dlg, chal, SPAWN, combo, TUNE } from './state.js';
 import { dummies, hitDummy, hitArea } from './dummies.js';
 import { killProj } from './projectiles.js';
 import { camDir, facing, camFacingYaw, setCamYaw, setCamPitch } from './camera.js';
@@ -43,10 +43,7 @@ Object.assign(P, {
   hp: 100, maxHp: 100, hurtT: 99, iframes: 0, blocking: false, blockStart: -9,
   smokeT: 0, dmgMult: 1, floatT: 0, clone: null, mark: null, jav: null, lmbHeld: 0, kunaiT: 0, chargeK: 0,
 });
-// Movement tuning. Distances are world units (a stickman is about 1.9 tall), speeds are units per second, times are seconds.
-// JUMP, AIRJUMP = upward speed of a jump (higher = jumps higher).  GRAV = pull downwards (higher = snappier, shorter jumps).
-// DASH_SPEED x DASH_TIME = dash distance.  DASH_CD = seconds to regain a charge.  DASH_MAX = number of charges.
-export const JUMP = 13, AIRJUMP = 12.5, GRAV = 36, DASH_SPEED = 34, DASH_TIME = 0.17, DASH_CD = 1.1, DASH_MAX = 2;
+// Jump, gravity, dash and health numbers are in TUNE (state.js) so the tuning panel can change them.
 // PR, PH = the player's collision radius and height.  FLIP_T = length of a somersault.  REWIND_CD = Rewind cooldown.
 export const PR = 0.32, PH = 1.75, FLIP_T = 0.42, REWIND_CD = 8;
 // States that other actions cannot cancel.
@@ -140,13 +137,14 @@ export function isInvuln() { return P.iframes > 0 || P.state === 'dash' || P.sta
 // The player is hit for dmg from position src. attacker (optional) is the dummy, needed for the monk's parry.
 export function hurtPlayer(dmg, src, attacker) {
   if (dlg.open || chal.phase === 'count') return;
+  if (TUNE.god) return;
   _hp.copy(P.pos); _hp.y += 1.5;
   if (isInvuln()) { spawnText(_hp, 'DODGE', 'dodge'); return; }
   if (P.blocking) {
     if (T - P.blockStart < 0.3 && attacker) { parry(attacker); return; }
     dmg *= 0.2; spawnText(_hp, 'BLOCK', 'block');
   }
-  dmg = Math.round(dmg);
+  dmg = Math.round(dmg * TUNE.dmgTaken);
   P.hp -= dmg; P.hurtT = 0; flashHurt(); shake(0.45);
   _hp.y += 0.3; spawnText(_hp, '-' + dmg, 'hurt');
   const dx = P.pos.x - src.x, dz = P.pos.z - src.z, l = Math.hypot(dx, dz) || 1;
@@ -230,7 +228,7 @@ export function attackVfx() {
 export function startDash() {
   if (hasIn && !(inZ > 0 && inX === 0)) P.dashDir.copy(inDir);
   else { camDir(P.dashDir); P.dashDir.y = clamp(P.dashDir.y, -0.5, 0.6); if (P.grounded && P.dashDir.y < 0) P.dashDir.y = 0; P.dashDir.normalize(); }
-  if (P.dashCharges === DASH_MAX) P.dashRecharge = DASH_CD;
+  if (P.dashCharges === TUNE.dashCharges) P.dashRecharge = TUNE.dashCd;
   P.dashCharges--; P.atk.on = false;
   setState('dash'); P.ghostT = 0;
   P.yaw = P.yawT = Math.atan2(P.dashDir.x, P.dashDir.z);

@@ -8,7 +8,8 @@ import './lancer.js';
 import { _fx, $, save, persist } from '../util.js';
 import { setWeapon } from '../stickman.js';
 import { spawnRing, burst, toast } from '../fx.js';
-import { P, CL, CLASSES, setCL } from '../state.js';
+import { P, CL, CLASSES, TUNE, setCL } from '../state.js';
+import { refreshTuning } from '../tuning.js';
 import { projAccent } from '../projectiles.js';
 import { bladeMat, player, cloneSm, setState, cleanupClassObjects } from '../player.js';
 import { buildSkillBar } from '../hud.js';
@@ -23,8 +24,9 @@ export function setClass(id, announce = true) {
   bladeMat.color.setHex(CL.color); projAccent.color.setHex(CL.color);
   setWeapon(player, CL.weapon); setWeapon(cloneSm, CL.weapon);
   for (const k in P.cd) P.cd[k] = 0;
-  P.run = CL.run; P.airJumpsMax = CL.airJumps; P.airJumps = CL.airJumps; P.atk.on = false; P.atk.lastCombo = 0;
+  P.run = CL.run; P.airJumpsMax = CL.airJumps + TUNE.extraAirJumps; P.airJumps = P.airJumpsMax; P.atk.on = false; P.atk.lastCombo = 0;
   buildSkillBar();
+  refreshTuning();    // the panel's last section lists this class's numbers
   $('hp').querySelector('.cls').textContent = CL.name.toUpperCase();
   save.cls = CL.id; persist();
   if (announce) {

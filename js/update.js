@@ -5,10 +5,10 @@
 
 import { V3, TAU, clamp, lerp, damp, angDamp, _a, _b, _c, _d, _fx } from './util.js';
 import { spawnArc, spawnRing, burst, spawnGhost, centerMsg } from './fx.js';
-import { T, P, CL, dlg, chal, addT, tickCombo, resetDamage } from './state.js';
+import { T, P, CL, dlg, chal, TUNE, addT, tickCombo, resetDamage } from './state.js';
 import { dummies, hitDummy } from './dummies.js';
 import { updateProjs } from './projectiles.js';
-import { playerMat, player, diveMark, JUMP, AIRJUMP, GRAV, DASH_SPEED, DASH_TIME, DASH_CD, DASH_MAX, FLIP_T, LOCKED, integrate, setState, startAttack, attackHits, attackVfx, startDash, startSlide, doRewind, groundImpact } from './player.js';
+import { playerMat, player, diveMark, FLIP_T, LOCKED, integrate, setState, startAttack, attackHits, attackVfx, startDash, startSlide, doRewind, groundImpact } from './player.js';
 import { camPitch, camFwdH, camRight, facing, camFacingYaw } from './camera.js';
 import { removeClone, throwKunai } from './classes/ninja.js';
 import { mkPalmRelease } from './classes/monk.js';
@@ -25,10 +25,12 @@ export let hasIn = false, inX = 0, inZ = 0, hsp = 0, inputOn = true;
 // ================= update =================
 export function update(dt) {
   addT(dt); P.st += dt;
-  for (const k in P.cd) P.cd[k] = Math.max(0, P.cd[k] - dt);
-  if (P.dashCharges < DASH_MAX) { P.dashRecharge -= dt; if (P.dashRecharge <= 0) { P.dashCharges++; P.dashRecharge = P.dashCharges < DASH_MAX ? DASH_CD : 0; } }
+  // Cooldowns tick faster or slower with TUNE.cdMult; at 0 they clear at once.
+  const cdStep = TUNE.cdMult > 0 ? dt / TUNE.cdMult : Infinity;
+  for (const k in P.cd) P.cd[k] = Math.max(0, P.cd[k] - cdStep);
+  if (P.dashCharges < TUNE.dashCharges) { P.dashRecharge -= dt; if (P.dashRecharge <= 0) { P.dashCharges++; P.dashRecharge = P.dashCharges < TUNE.dashCharges ? TUNE.dashCd : 0; } }
   P.iframes = Math.max(0, P.iframes - dt); P.wallrunCd = Math.max(0, P.wallrunCd - dt);
-  P.hurtT += dt; if (P.hurtT > 3 && P.hp < P.maxHp) P.hp = Math.min(P.maxHp, P.hp + 12 * dt);
+  P.hurtT += dt; if (P.hurtT > 3 && P.hp < P.maxHp) P.hp = Math.min(P.maxHp, P.hp + TUNE.hpRegen * dt);
   if (P.smokeT > 0) { P.smokeT -= dt; if (P.smokeT <= 0) P.dmgMult = 1; }
   if (P.clone) { P.clone.life -= dt; if (P.clone.life <= 0) { burst(_fx.copy(P.clone.pos).setY(P.clone.pos.y + 1), 8, 4, 1); removeClone(); P.cd.q = CL.skills.q.cd; } }
 
@@ -82,7 +84,7 @@ export function update(dt) {
   switch (P.state) {
     case 'normal': {
       let hx = P.vel.x, hz = P.vel.z; const spd = hsp;
-      const run = P.run * (P.smokeT > 0 ? 1.35 : 1) * (P.blocking ? 0.35 : 1);
+      const run = P.run * TUNE.runMult * (P.smokeT > 0 ? 1.35 : 1) * (P.blocking ? 0.35 : 1);
       if (P.grounded) {
         if (spd > run + 0.3 && !P.atk.on) {
           const m = damp(spd, run, hasIn ? 2.2 : 6, dt);
@@ -97,20 +99,20 @@ export function update(dt) {
         hx = lerp(hx, inDir.x * m, k); hz = lerp(hz, inDir.z * m, k);
       }
       P.vel.x = hx; P.vel.z = hz;
-      let g = GRAV * (P.vel.y < 0 ? 1.35 : 1);
+      let g = TUNE.gravity * (P.vel.y < 0 ? 1.35 : 1);
       if (P.atk.on && !P.grounded) { g *= 0.25; if (P.vel.y < -2) P.vel.y = -2; }
       if (P.wallT > 0 && !P.grounded && P.vel.y < -5) P.vel.y = -5;
       if (P.floatT > 0) { P.floatT -= dt; g = 0; P.vel.y = damp(P.vel.y, 0, 4, dt); if (P.grounded) P.floatT = 0; }
       P.grav = g;
       if (P.jumpBuf > 0) {
         let jumped = true;
-        if (P.grounded || P.coyote > 0) { P.vel.y = JUMP; }
+        if (P.grounded || P.coyote > 0) { P.vel.y = TUNE.jump; }
         else if (P.wallT > 0) {
           P.vel.x = P.wallN.x * 11 + (hasIn ? inDir.x * 3 : 0); P.vel.z = P.wallN.z * 11 + (hasIn ? inDir.z * 3 : 0); P.vel.y = 13.5;
           P.yaw = P.yawT = Math.atan2(P.vel.x, P.vel.z); P.flip = FLIP_T; P.wallT = 0;
           spawnRing(_fx.copy(P.pos).setY(P.pos.y + 0.9).addScaledVector(P.wallN, -0.3), 0.2, 1, 0.2);
         } else if (P.airJumps > 0) {
-          P.airJumps--; P.vel.y = AIRJUMP; P.floatT = 0;
+          P.airJumps--; P.vel.y = TUNE.airJump; P.floatT = 0;
           if (hasIn) { const s = Math.max(run, hsp); P.vel.x = inDir.x * s; P.vel.z = inDir.z * s; }
           P.flip = FLIP_T; spawnRing(_fx.copy(P.pos), 0.2, 1.4, 0.25, CL.color);
         } else jumped = false;
@@ -120,26 +122,26 @@ export function update(dt) {
       break;
     }
     case 'dash': {
-      P.vel.copy(P.dashDir).multiplyScalar(DASH_SPEED); P.grav = 0;
+      P.vel.copy(P.dashDir).multiplyScalar(TUNE.dashSpeed); P.grav = 0;
       P.ghostT -= dt; if (P.ghostT <= 0) { P.ghostT = 0.028; spawnGhost(player, CL.color); }
       if (P.jumpBuf > 0 && (P.grounded || P.coyote > 0 || P.airJumps > 0)) {
         if (!(P.grounded || P.coyote > 0)) P.airJumps--;
         setState('normal'); P.vel.copy(P.dashDir).multiplyScalar(19);
-        P.vel.y = JUMP; P.jumpBuf = 0; P.coyote = 0; P.flip = FLIP_T;
-      } else if (P.st >= DASH_TIME) {
+        P.vel.y = TUNE.jump; P.jumpBuf = 0; P.coyote = 0; P.flip = FLIP_T;
+      } else if (P.st >= TUNE.dashTime) {
         setState('normal'); P.vel.copy(P.dashDir).multiplyScalar(15); if (P.vel.y > 0) P.vel.y *= 0.55;
       }
       break;
     }
     case 'slide': {
-      P.grav = GRAV;
+      P.grav = TUNE.gravity;
       const s = hsp * Math.exp(-0.9 * dt);
       _c.set(P.vel.x, 0, P.vel.z).normalize();
       if (hasIn) _c.lerp(inDir, 1 - Math.exp(-2.5 * dt)).normalize();
       P.vel.x = _c.x * s; P.vel.z = _c.z * s; P.yawT = Math.atan2(_c.x, _c.z);
       P.ghostT -= dt; if (P.ghostT <= 0 && s > 12) { P.ghostT = 0.06; spawnGhost(player, CL.color, null, 0.18); }
       if (P.jumpBuf > 0 && (P.grounded || P.coyote > 0)) {
-        const m = Math.min(s * 1.1, 26); P.vel.x = _c.x * m; P.vel.z = _c.z * m; P.vel.y = JUMP;
+        const m = Math.min(s * 1.1, 26); P.vel.x = _c.x * m; P.vel.z = _c.z * m; P.vel.y = TUNE.jump;
         P.jumpBuf = 0; P.coyote = 0; setState('normal');
       } else if ((!keys.has('KeyC') && P.st > 0.25) || P.st > 1.1 || s < 3.5 || (!P.grounded && P.coyote <= 0)) setState('normal');
       break;
@@ -151,7 +153,7 @@ export function update(dt) {
       const dist = _c.length(); _c.divideScalar(dist || 1);
       P.vel.addScaledVector(_c, 85 * dt).multiplyScalar(Math.exp(-1.0 * dt));
       if (P.vel.length() > 40) P.vel.setLength(40);
-      P.grav = GRAV * 0.3; P.yawT = Math.atan2(_c.x, _c.z);
+      P.grav = TUNE.gravity * 0.3; P.yawT = Math.atan2(_c.x, _c.z);
       if (P.jumpBuf > 0) { setState('normal'); P.vel.y = Math.max(P.vel.y, 0) + 9; P.jumpBuf = 0; P.flip = FLIP_T; }
       else if (dist < (P.gTarget ? 2.4 : 1.6)) { const t = P.gTarget; setState('normal'); if (t) P.vel.multiplyScalar(0.25); P.vel.y = Math.max(P.vel.y, 6); }
       else if (!rmb || P.st > 2.5) setState('normal');
@@ -174,7 +176,7 @@ export function update(dt) {
       break;
     }
     case 'slamUp': {
-      P.grav = GRAV; P.vel.x *= Math.exp(-6 * dt); P.vel.z *= Math.exp(-6 * dt);
+      P.grav = TUNE.gravity; P.vel.x *= Math.exp(-6 * dt); P.vel.z *= Math.exp(-6 * dt);
       if (P.st > 0.24) setState('slamDown');
       break;
     }
@@ -185,7 +187,7 @@ export function update(dt) {
       break;
     }
     case 'rising': {
-      P.grav = GRAV * 0.9; P.vel.x *= Math.exp(-3 * dt); P.vel.z *= Math.exp(-3 * dt);
+      P.grav = TUNE.gravity * 0.9; P.vel.x *= Math.exp(-3 * dt); P.vel.z *= Math.exp(-3 * dt);
       if (P.st > 0.32) setState('normal');
       break;
     }
@@ -220,7 +222,7 @@ export function update(dt) {
       break;
     }
     case 'charge': {
-      P.chargeK = clamp(P.st / 1.2, 0, 1); P.grav = GRAV;
+      P.chargeK = clamp(P.st / 1.2, 0, 1); P.grav = TUNE.gravity;
       const k = 1 - Math.exp(-12 * dt);
       P.vel.x = lerp(P.vel.x, inDir.x * 3, k); P.vel.z = lerp(P.vel.z, inDir.z * 3, k);
       P.yawT = camFacingYaw();
@@ -230,7 +232,7 @@ export function update(dt) {
       break;
     }
     case 'palm': {
-      P.grav = GRAV; P.vel.x *= Math.exp(-8 * dt); P.vel.z *= Math.exp(-8 * dt);
+      P.grav = TUNE.gravity; P.vel.x *= Math.exp(-8 * dt); P.vel.z *= Math.exp(-8 * dt);
       if (P.st > 0.25) setState('normal');
       break;
     }
@@ -253,12 +255,12 @@ export function update(dt) {
     }
     // ----- lancer -----
     case 'vault': {
-      P.grav = GRAV;
+      P.grav = TUNE.gravity;
       if (P.st > 0.3) { setState('normal'); P.flip = FLIP_T; }
       break;
     }
     case 'pcharge': {
-      P.vel.x = P.skDir.x * 26; P.vel.z = P.skDir.z * 26; P.grav = GRAV;
+      P.vel.x = P.skDir.x * 26; P.vel.z = P.skDir.z * 26; P.grav = TUNE.gravity;
       P.ghostT -= dt; if (P.ghostT <= 0) { P.ghostT = 0.04; spawnGhost(player, CL.color, null, 0.2); }
       const cx = P.pos.x + P.skDir.x * 1.3, cz = P.pos.z + P.skDir.z * 1.3;
       for (const d of dummies) {
@@ -276,7 +278,7 @@ export function update(dt) {
       break;
     }
     case 'dragoonUp': {
-      P.grav = GRAV; diveTarget(P.dTarget);
+      P.grav = TUNE.gravity; diveTarget(P.dTarget);
       diveMark.visible = true; diveMark.position.set(P.dTarget.x, P.dTarget.y + 0.06, P.dTarget.z); diveMark.scale.setScalar(2 + Math.sin(T * 12) * 0.2);
       if (P.st > 0.45 && P.vel.y < 8) setState('dragoonDown');
       break;
@@ -289,7 +291,7 @@ export function update(dt) {
       break;
     }
     case 'sweep': {
-      P.grav = GRAV * 0.6; P.vel.x *= Math.exp(-5 * dt); P.vel.z *= Math.exp(-5 * dt);
+      P.grav = TUNE.gravity * 0.6; P.vel.x *= Math.exp(-5 * dt); P.vel.z *= Math.exp(-5 * dt);
       P.spin = (P.st / 0.32) * TAU;
       if (P.st > 0.32) setState('normal');
       break;

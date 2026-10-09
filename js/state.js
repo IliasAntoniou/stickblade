@@ -17,7 +17,36 @@ export const SPAWN = new V3(0, 0, 14);
 // combo = hits in the current chain. comboT = seconds before the chain drops. totalDmg and dmgLog feed the stats line.
 export let combo = 0, comboT = 0, totalDmg = 0;
 export const dmgLog = [];
-export const CLASSES = {};    // filled in by the files in classes/
+export const CLASSES = {};
+
+// TUNE: the numbers the tuning panel (tuning.js) can change while playing. The game reads them live.
+// TUNE_DEFAULTS is what "Reset all" goes back to. To make a tested value permanent, change it here.
+// Distances are world units (a stickman is about 1.9 tall), speeds are units per second, times are seconds.
+export const TUNE_DEFAULTS = {
+  runMult: 1,           // multiplies every class's run speed
+  jump: 13,             // upward speed of a ground jump (higher = jumps higher)
+  airJump: 12.5,        // upward speed of a jump in the air
+  gravity: 36,          // pull downwards (higher = snappier, shorter jumps)
+  extraAirJumps: 0,     // added to every class's air jumps
+  dashSpeed: 34,        // dashSpeed x dashTime = dash distance
+  dashTime: 0.17,
+  dashCd: 1.1,          // seconds to regain a dash charge
+  dashCharges: 2,
+  maxHp: 100,           // player health
+  hpRegen: 12,          // health per second, starting 3 s after the last hit
+  dmgTaken: 1,          // multiplies damage the player takes
+  god: false,           // true = the player cannot be hit
+  cdMult: 1,            // multiplies skill cooldowns (0 = no cooldowns)
+  dmgMult: 1,           // multiplies damage the player deals
+  kbMult: 1,            // multiplies knockback on dummies
+  hitstopMult: 1,       // multiplies the slow-motion freeze when a hit lands
+  shakeMult: 1,         // multiplies screen shake
+  dummyHpMult: 1,       // multiplies every dummy's health
+  dummyRegen: true,     // dummies heal when left alone
+  fightersAttack: true, // false = purple fighters stay passive
+  timeScale: 1,         // game speed (0.5 = slow motion)
+};
+export const TUNE = { ...TUNE_DEFAULTS };    // filled in by the files in classes/
 
 // setters for other modules (an imported `let` is read-only)
 export function addT(dt) { T += dt; }

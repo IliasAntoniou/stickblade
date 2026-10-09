@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { V3, lerp, easeOut, _bv, UP, $ } from './util.js';
 import { scene, camera } from './core.js';
 import { makeStickman, copyPose } from './stickman.js';
-import { P } from './state.js';
+import { P, TUNE } from './state.js';
 
 // ================= FX =================
 export const arcH = new THREE.RingGeometry(1.0, 2.4, 28, 1, Math.PI, Math.PI);
@@ -107,7 +107,7 @@ export function toast(html, dur = 3.5) { toastEl.innerHTML = html; toastEl.style
 // shakeAmt = how hard the camera is shaking.  hitstop = seconds of slow motion left after a hit (the impact freeze).
 // hurtFlash = strength of the red screen edge when the player is hit.
 export let shakeAmt = 0, hitstop = 0, hurtFlash = 0;
-export const shake = v => { shakeAmt = Math.max(shakeAmt, v); };
+export const shake = v => { shakeAmt = Math.max(shakeAmt, v * TUNE.shakeMult); };
 
 // ================= fx update =================
 export const projV = new V3();
@@ -163,7 +163,7 @@ export function updateDomFx(rdt) {
 export const hurtEl = $('hurt');
 
 // setters for other modules (an imported `let` is read-only)
-export function addHitstop(v) { hitstop = Math.max(hitstop, v); }
+export function addHitstop(v) { hitstop = Math.max(hitstop, v * TUNE.hitstopMult); }
 export function tickHitstop(rdt) { hitstop -= rdt; }
 export function decayShake(rdt) { shakeAmt *= Math.exp(-10 * rdt); }
 export function flashHurt() { hurtFlash = 1; }

@@ -65,6 +65,25 @@
   .dn.dodge{color:#00e5ff;font-size:22px}
   .dn.hurt{color:#ff4d4d;font-size:26px}
   .dn.gold{color:#ffd23f;font-size:32px}
+  #tune{position:fixed;right:12px;top:12px;bottom:12px;width:310px;z-index:30;display:flex;flex-direction:column;background:rgba(20,23,28,.96);color:#e8eef3;border-radius:12px;font-size:12px;box-shadow:0 12px 40px rgba(0,0,0,.4)}
+  #tune.min{bottom:auto}
+  #tune.min .tb,#tune.min .tf{display:none}
+  #tune .th{padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:baseline}
+  #tune .th b{letter-spacing:3px;color:#00e5ff;font-size:13px}
+  #tune .th span{color:#7d8c99;font-size:11px}
+  #tune .tb{flex:1;overflow-y:auto;padding:0 10px 6px}
+  #tune .tg{margin:10px 4px 4px;color:#ffd23f;font-weight:800;letter-spacing:1px;font-size:11px;text-transform:uppercase}
+  #tune .tr{display:grid;grid-template-columns:1fr 84px 36px 20px;gap:6px;align-items:center;padding:2px 4px;border-radius:5px}
+  #tune .tr.chg{background:rgba(255,210,63,.13)}
+  #tune .tr.chg .tv{color:#ffd23f;font-weight:700}
+  #tune .tv{text-align:right;font-variant-numeric:tabular-nums}
+  #tune input[type=range]{width:84px;margin:0}
+  #tune input[type=checkbox]{justify-self:start}
+  #tune .tx{background:none;border:0;color:#7d8c99;cursor:pointer;padding:0;font-size:13px;visibility:hidden}
+  #tune .tr.chg .tx{visibility:visible}
+  #tune .tf{padding:10px;display:flex;gap:8px}
+  #tune .tf button{flex:1;padding:7px;border:0;border-radius:7px;background:#2a3038;color:#e8eef3;font-weight:700;cursor:pointer}
+  #tune .tf button:hover{background:#39424d}
   #hint{position:fixed;right:14px;top:12px;color:#1b1f25;font-size:12px;opacity:.7;pointer-events:none;text-align:right;line-height:1.5}
 </style>
 </head>
@@ -80,6 +99,7 @@
       <b>LMB / RMB</b><span>Class attack / class move</span> <b>Q E R F</b><span>Class skills</span>
       <b>G</b><span>Talk to Master Sen</span>     <b>P</b><span>Quit challenge</span>
       <b>T</b><span>Reset dummies</span>         <b>WHEEL</b><span>Camera zoom</span>
+      <b>TAB / ESC</b><span>Pause · tuning panel</span>
     </div>
     <div class="tips">
       <b>Master Sen</b> stands next to where you start. Talk to him (G) to change class or start a challenge.<br>
@@ -103,7 +123,7 @@
 <div id="toast"></div>
 <div id="hurt"></div>
 <div id="dmg"></div>
-<div id="hint">G: talk to master · T: reset dummies<br>P: quit challenge · Esc: pause</div>
+<div id="hint">G: talk to master · T: reset dummies<br>P: quit challenge · Tab: pause + tuning</div>
 
 <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
 <script type="module" src="js/main.js"></script>
