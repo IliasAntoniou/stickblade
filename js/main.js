@@ -24,6 +24,7 @@ import { animatePlayer } from './anim.js';
 import { updateHud } from './hud.js';
 import { initTuning, applyTune, resetTuning } from './tuning.js';
 import { initProgress, rankOf, startTrial, unlockAll, resetProgress } from './progress.js';
+import { DOJO, dojo, enterDojo, leaveDojo, setupTrial, clearTrial } from './dojo.js';
 
 // ================= loop =================
 const DEBUG = new URLSearchParams(location.search).get('debug');    // null when absent
@@ -60,8 +61,14 @@ animatePlayer(0.016);
 if (DEBUG !== null) {
   overlay.style.display = 'none';
   window.SB = { P, dummies, DTYPE, CLASSES, CLASS_ORDER, CH, chal, dlg, keys, pressed, scene, master, setClass, startChallenge, endChallenge,
-    hurtPlayer, respawnPlayer, hitDummy, setMouse, step, updateCamera, updateHud, TUNE, applyTune, resetTuning, rankOf, startTrial, unlockAll, resetProgress, setHitSrc, totalDmg: () => totalDmg,
+    hurtPlayer, respawnPlayer, hitDummy, setMouse, step, updateCamera, updateHud, TUNE, applyTune, resetTuning, rankOf, startTrial, unlockAll, resetProgress, setHitSrc, DOJO, dojo, enterDojo, leaveDojo, setupTrial, clearTrial, totalDmg: () => totalDmg,
     get T() { return T; }, get CL() { return CL; } };
   if (DEBUG === 'smoke') import('../tests/smoke.js');
+  // ?debug=hall:blade-r1 goes straight to the training hall dressed for that trial, to look at a layout.
+  if (DEBUG.startsWith('hall:')) {
+    const wanted = CLASSES.blade.trials.find(t => t.id === DEBUG.slice(5));
+    enterDojo();
+    if (wanted) setupTrial(wanted);
+  }
 }
 frame();

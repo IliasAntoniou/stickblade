@@ -58,6 +58,7 @@
   #center small{font-size:22px;display:block}
   #toast{position:fixed;left:50%;top:20%;transform:translateX(-50%);background:rgba(20,23,28,.88);color:#fff;padding:10px 18px;border-radius:10px;font-size:15px;opacity:0;transition:opacity .3s;pointer-events:none;max-width:80vw;text-align:center}
   #toast b{color:#ffd23f}
+  #flash{position:fixed;inset:0;pointer-events:none;background:#fff;opacity:0;z-index:15}
   #hurt{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(255,0,0,0) 55%,rgba(220,20,40,.6) 100%);opacity:0}
   #dmg{position:fixed;inset:0;pointer-events:none;overflow:hidden}
   .dn{position:absolute;left:0;top:0;font-weight:900;color:#fff;font-size:20px;-webkit-text-stroke:1px #111;text-shadow:0 2px 0 #111;will-change:transform,opacity;display:none;white-space:nowrap}
@@ -127,6 +128,7 @@
 <div id="center"></div>
 <div id="toast"></div>
 <div id="hurt"></div>
+<div id="flash"></div>
 <div id="dmg"></div>
 <div id="hint">G: talk to master · T: reset dummies<br>P: quit challenge · Tab: pause + tuning</div>
 

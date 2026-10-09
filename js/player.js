@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { V3, clamp, _a, _b, _c, _fx, _hp } from './util.js';
 import { scene } from './core.js';
-import { solids, ARENA, makeShadow } from './world.js';
+import { solids, area, makeShadow } from './world.js';
 import { makeStickman, setWeapon, BASE } from './stickman.js';
 import { spawnArc, ringGeo, spawnRing, burst, spawnGhost, beamGeo, spawnBeam, spawnText, centerMsg, shake, addHitstop, flashHurt } from './fx.js';
 import { T, P, CL, dlg, chal, SPAWN, combo, TUNE, setHitSrc } from './state.js';
@@ -98,8 +98,8 @@ export function integrate(dt) {
     const dy = P.vel.y * h; moveAxis('y', dy <= 0 ? Math.min(dy, -0.0005) : dy);
     if (P.pos.y <= 0) { P.pos.y = 0; if (P.vel.y < 0) P.vel.y = 0; P.grounded = true; }
   }
-  const lim = ARENA - PR - 0.05;
-  P.pos.x = clamp(P.pos.x, -lim, lim); P.pos.z = clamp(P.pos.z, -lim, lim);
+  const lim = area.half - PR - 0.05;
+  P.pos.x = clamp(P.pos.x, area.cx - lim, area.cx + lim); P.pos.z = clamp(P.pos.z, area.cz - lim, area.cz + lim);
   if (P.grounded) {
     P.coyote = 0.1; P.airJumps = P.airJumpsMax;
     if (!was) { P.justLanded = true; spawnRing(_fx.copy(P.pos).setY(P.pos.y + 0.05), 0.2, 1.1, 0.22, 0xffffff); }

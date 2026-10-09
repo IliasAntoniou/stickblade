@@ -158,6 +158,9 @@ CLASSES.blade = {
 //           Leave it out to allow everything.
 //   onHit(st, ev) runs for every hit that lands. ev = { d (the dummy), dmg, src, ko, targetAir, interrupted }.
 //   tick(st, dt) runs every frame (optional).   st is the trial's own scratch space; st.n is the progress shown on screen.
+//   arena = how the training hall is dressed for the trial (dojo.js builds it): props = boxes [x, y, z, width, height, depth, colour],
+//           spawn = dummies [type, x, y, z, options], start = where the player begins. Coordinates are relative to the centre
+//           of the hall; the player normally starts at z = 18 looking towards -z; y is the bottom of a box.
 // A rank-I trial lends the skill for its duration. All numbers here are first guesses and are meant to be tuned by playing.
 
 // How many different dummies the current use of a skill has hit so far.
@@ -193,20 +196,35 @@ function airComboTick(st, dt) {
 }
 
 CLASSES.blade.trials = [
-  { id: 'blade-q1', slot: 'q', rank: 1, name: 'Trial: Blink Strike', desc: 'Land Blink Strike on all 3 flying dummies', time: 75, goal: 3, allow: ['q'], onHit: countFlying },
+  { id: 'blade-q1', slot: 'q', rank: 1, name: 'Trial: Blink Strike', desc: 'Land Blink Strike on all 3 flying dummies', time: 60, goal: 3, allow: ['q'], onHit: countFlying,
+    arena: { spawn: [['flying', -10, 6, -4, { radius: 4 }], ['flying', 10, 8, -4, { radius: 4 }], ['flying', 0, 11, -14, { radius: 5 }]],
+      props: [[-15, 0, -12, 3, 14, 3, 'pillar'], [15, 0, -12, 3, 14, 3, 'pillar']] } },
   { id: 'blade-q2', slot: 'q', rank: 2, name: 'Blink Strike II', desc: "Interrupt a fighter's attack with Blink Strike, twice", time: 120, goal: 2,
-    onHit(st, ev) { if (ev.src === 'q' && ev.interrupted) st.n++; } },
-  { id: 'blade-q3', slot: 'q', rank: 3, name: 'Blink Strike III', desc: 'Land Blink Strike on all 3 flying dummies, fast', time: 25, goal: 3, allow: ['q'], onHit: countFlying },
+    onHit(st, ev) { if (ev.src === 'q' && ev.interrupted) st.n++; },
+    arena: { spawn: [['fighter', 0, 0, -2]], props: [[-8, 0, 4, 2, 2, 2, 'crate'], [9, 0, -8, 2, 1.4, 3, 'crate']] } },
+  { id: 'blade-q3', slot: 'q', rank: 3, name: 'Blink Strike III', desc: 'Land Blink Strike on all 4 flying dummies, fast', time: 25, goal: 4, allow: ['q'], onHit: countFlying,
+    arena: { spawn: [['flying', -14, 7, 0, { radius: 3 }], ['flying', 14, 7, 0, { radius: 3 }], ['flying', -8, 13, -16, { radius: 4 }], ['flying', 8, 13, -16, { radius: 4 }]],
+      props: [[0, 0, -8, 3, 16, 3, 'pillar']] } },
 
-  { id: 'blade-e1', slot: 'e', rank: 1, name: 'Trial: Cyclone', desc: 'Hit 3 dummies with a single Cyclone', time: 60, goal: 3, allow: ['e'], onHit: mostInOneCyclone },
-  { id: 'blade-e2', slot: 'e', rank: 2, name: 'Cyclone II', desc: 'Deal 500 damage using only Cyclone', time: 30, goal: 500, allow: ['e'], onHit: cycloneDamage },
-  { id: 'blade-e3', slot: 'e', rank: 3, name: 'Cyclone III', desc: 'Deal 700 damage using only Cyclone', time: 30, goal: 700, allow: ['e'], onHit: cycloneDamage },
+  { id: 'blade-e1', slot: 'e', rank: 1, name: 'Trial: Cyclone', desc: 'Hit 3 dummies with a single Cyclone', time: 45, goal: 3, allow: ['e'], onHit: mostInOneCyclone,
+    arena: { spawn: [['basic', -3, 0, -2], ['basic', 0, 0, -2], ['basic', 3, 0, -2]] } },
+  { id: 'blade-e2', slot: 'e', rank: 2, name: 'Cyclone II', desc: 'Deal 600 damage using only Cyclone', time: 30, goal: 600, allow: ['e'], onHit: cycloneDamage,
+    arena: { spawn: [['basic', -3, 0, 2], ['basic', 0, 0, 2], ['basic', 3, 0, 2], ['basic', -3, 0, -12], ['basic', 0, 0, -12], ['basic', 3, 0, -12]] } },
+  { id: 'blade-e3', slot: 'e', rank: 3, name: 'Cyclone III', desc: 'Deal 800 damage using only Cyclone. The shield blocks from the front', time: 30, goal: 800, allow: ['e'], onHit: cycloneDamage,
+    arena: { spawn: [['basic', -5, 0, -2], ['basic', -2.5, 0, -2], ['shield', 0, 0, -2], ['basic', 2.5, 0, -2], ['basic', 5, 0, -2]] } },
 
   { id: 'blade-r1', slot: 'r', rank: 1, name: 'Trial: Meteor Slam', desc: 'Start a slam at least 5 high and hit 3 dummies with it', time: 75, goal: 3, allow: ['r'],
-    onHit(st, ev) { if (P.castY - P.pos.y >= 5) mostInOneSlam(st, ev); } },
-  { id: 'blade-r2', slot: 'r', rank: 2, name: 'Meteor Slam II', desc: 'Hit 4 dummies with one slam', time: 90, goal: 4, allow: ['r'], onHit: mostInOneSlam },
-  { id: 'blade-r3', slot: 'r', rank: 3, name: 'Meteor Slam III', desc: 'Hit 5 dummies with one slam', time: 90, goal: 5, allow: ['r'], onHit: mostInOneSlam },
+    onHit(st, ev) { if (P.castY - P.pos.y >= 5) mostInOneSlam(st, ev); },
+    // a step up to a platform, with the dummies on the floor in front of it
+    arena: { start: [0, 0, 20], props: [[0, 0, 14, 4, 2.5, 4, 'crate'], [0, 5, 8, 6, 0.8, 6, 'plat']],
+      spawn: [['basic', -2.5, 0, 0], ['basic', 2.5, 0, 0], ['basic', 0, 0, -3]] } },
+  { id: 'blade-r2', slot: 'r', rank: 2, name: 'Meteor Slam II', desc: 'Hit all 3 dummies and the fighter with one slam', time: 90, goal: 4, allow: ['r'], onHit: mostInOneSlam,
+    arena: { spawn: [['basic', 0, 0, -7], ['basic', -4.3, 0, 0.5], ['basic', 4.3, 0, 0.5], ['fighter', 0, 0, -13]] } },
+  { id: 'blade-r3', slot: 'r', rank: 3, name: 'Meteor Slam III', desc: 'Hit all 3 dummies and both fighters with one slam', time: 120, goal: 5, allow: ['r'], onHit: mostInOneSlam,
+    arena: { spawn: [['basic', 0, 0, -8], ['basic', -5.2, 0, 1], ['basic', 5.2, 0, 1], ['fighter', -10, 0, -13], ['fighter', 10, 0, -13]] } },
 
-  { id: 'blade-f2', slot: 'f', rank: 2, name: 'Rising Slash II', desc: 'Launch a dummy, then hit it 6 more times before it lands', time: 90, goal: 6, onHit: airCombo, tick: airComboTick },
-  { id: 'blade-f3', slot: 'f', rank: 3, name: 'Rising Slash III', desc: 'Launch a dummy, then hit it 10 more times before it lands', time: 90, goal: 10, onHit: airCombo, tick: airComboTick },
+  { id: 'blade-f2', slot: 'f', rank: 2, name: 'Rising Slash II', desc: 'Launch the dummy, then hit it 6 more times before it lands', time: 90, goal: 6, onHit: airCombo, tick: airComboTick,
+    arena: { spawn: [['basic', 0, 0, 0]] } },
+  { id: 'blade-f3', slot: 'f', rank: 3, name: 'Rising Slash III', desc: 'Launch the fighter, then hit it 8 more times before it lands', time: 120, goal: 8, onHit: airCombo, tick: airComboTick,
+    arena: { spawn: [['fighter', 0, 0, -2]] } },
 ];

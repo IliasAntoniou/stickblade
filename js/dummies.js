@@ -51,6 +51,7 @@ export class Dummy {
     if (type === 'flying') {
       const halo = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.035, 6, 20), new THREE.MeshBasicMaterial({ color: 0x9be3ff }));
       halo.rotation.x = Math.PI / 2; halo.position.y = 0.62; this.sm.chest.add(halo);
+      this.halo = halo;
     }
     if (type === 'fighter') {
       this.ai = 'idle'; this.aiT = 0; this.aiCd = 1; this.lungeDir = new V3(); this.lungeHit = false;
@@ -65,6 +66,25 @@ export class Dummy {
     scene.add(this.bar);
     this.shadow = makeShadow();
     if (type === 'flying') this.path(this.pos);
+  }
+  // Take this dummy out of the world for good (trial dummies, when their trial ends). Does not touch the dummies list.
+  dispose() {
+    this.dead = true;    // anything still holding on to it (grapple, a stuck kunai) lets go of dead dummies
+    scene.remove(this.sm.root);
+    scene.remove(this.bar);
+    scene.remove(this.shadow);
+    this.mat.dispose();
+    this.fgMat.dispose();
+    if (this.halo) {
+      this.halo.geometry.dispose();
+      this.halo.material.dispose();
+    }
+    if (this.warnRing) {
+      scene.remove(this.warnRing);
+      scene.remove(this.warnLine);
+      this.warnRing.material.dispose();
+      this.warnLine.material.dispose();
+    }
   }
   // A point at chest height: where hits land and where lock-on aims.
   chest(out) { return out.set(this.pos.x, this.pos.y + 1.25, this.pos.z); }
@@ -296,4 +316,20 @@ export function hitArea(cx, cy, cz, rad, dmg, kb, up, heavy, stop, top, falloff 
       hitDummy(d, dmg * (1 - falloff * dist / rad), dx / l * kb, dz / l * kb, up, heavy, stop, P.pos, top);
     }
   }
+}
+
+// Add a dummy while the game is running (the training hall does this for each trial). Same arguments as new Dummy.
+export function spawnDummy(type, x, y, z, options) {
+  const d = new Dummy(type, x, y, z, options);
+  d.maxHp = DTYPE[type].hp * TUNE.dummyHpMult;
+  d.hp = d.maxHp;
+  dummies.push(d);
+  d.update(0);    // place its model, health bar and shadow straight away
+  return d;
+}
+// Remove a dummy added with spawnDummy.
+export function removeDummy(d) {
+  const i = dummies.indexOf(d);
+  if (i >= 0) dummies.splice(i, 1);
+  d.dispose();
 }

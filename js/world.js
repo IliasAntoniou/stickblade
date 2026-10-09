@@ -34,6 +34,14 @@ export const grid = new THREE.GridHelper(120, 60, 0x8d99a3, 0x9da9b2); grid.posi
 
 // Half the size of the playable square: it runs from -60 to +60 on x and z. The four boxes below are its walls.
 export const ARENA = 60;
+// The square the player is kept inside right now: centre (cx, cz) and half-width. The main arena by default;
+// dojo.js switches it to the training hall and back.
+export const area = { cx: 0, cz: 0, half: ARENA };
+export function setArea(cx, cz, half) {
+  area.cx = cx;
+  area.cz = cz;
+  area.half = half;
+}
 addBox(0, 0, -ARENA - 0.5, ARENA * 2 + 2, 6, 1, COL.wall);
 addBox(0, 0, ARENA + 0.5, ARENA * 2 + 2, 6, 1, COL.wall);
 addBox(-ARENA - 0.5, 0, 0, 1, 6, ARENA * 2, COL.wall);
@@ -79,6 +87,15 @@ addBox(4, 0, 44, 3, 12, 3, COL.pillar);
 
 // Height of the highest surface under (x, z) that is not above y. Used to stand dummies and shadows on things.
 // The 0.35 lets something sunk slightly into a surface still count as standing on it.
+// Take a box added with addBox out of the world again (m = what addBox returned).
+export function removeBox(m) {
+  const i = solidMeshes.indexOf(m);
+  if (i < 0) return;
+  solidMeshes.splice(i, 1);
+  solids.splice(i, 1);    // solids and solidMeshes are kept in the same order
+  scene.remove(m);
+}
+
 export function groundAt(x, z, y) {
   let g = 0;
   for (const s of solids) {

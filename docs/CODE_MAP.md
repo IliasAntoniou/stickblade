@@ -9,6 +9,8 @@ Where everything is, what the short names mean, and how to add things. If this f
 | A class's damage, combo speed, reach, cooldowns, run speed | The `CLASSES.<name> = {` table at the bottom of `js/classes/blade.js`, `js/classes/ninja.js`, `js/classes/monk.js` or `js/classes/lancer.js` |
 | Which Blademaster skills start locked, and what each rank gives (damage, cooldown, perks) | The `start`, `lv` and `perks` of each skill in the `CLASSES.blade = {` table in `js/classes/blade.js` |
 | A trial's goal, time limit or difficulty | `CLASSES.blade.trials` at the bottom of `js/classes/blade.js` |
+| What the training hall looks like for a trial (platforms, which enemies, where they stand) | The `arena` of that trial in `CLASSES.blade.trials` in `js/classes/blade.js` |
+| The training hall itself (size, place, walls, the teleport) | `js/dojo.js` |
 | How trials and ranks work in general | `js/progress.js` |
 | What a skill does when pressed | Its function in the class file, for example `bmBlink()` in `js/classes/blade.js` |
 | What a skill does while it lasts | The `case` named after its state in `update()` in `js/update.js` |
@@ -81,6 +83,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/hud.js` | On-screen display |
 | `js/tuning.js` | The tuning panel shown while paused |
 | `js/progress.js` | Skill ranks and the trials that earn them |
+| `js/dojo.js` | The training hall: teleporting there, building and clearing each trial's layout |
 | `vendor/three.module.js` | The three.js library (not ours; do not edit) |
 | `tests/smoke.js`, `tests/smoke.sh` | Automated test that plays every class and skill |
 | `tests/check_docs.py` | Checks file headers and that this map points at real things |
@@ -120,6 +123,9 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `aimHit` | The point on the map under the crosshair |
 | rank | How far a skill has been trained: 0 = locked, 1 to 3 = learned. `rankOf()` in `js/progress.js` |
 | trial | A timed test that earns a rank. Runs on top of the challenge system; `chal.st` is its scratch space, `chal.st.n` its progress |
+| training hall, `dojo` | The separate room where trials happen, at x = 300. `dojo.inside` is true while the player is there |
+| `arena` (on a trial) | The boxes and dummies the hall builds for that trial, in coordinates relative to the hall's centre |
+| `area` | The square the player is kept inside: the main arena or the hall. In `js/world.js` |
 | `lv` | A skill's numbers at each rank. The current rank's row is copied onto the skill by `applyRanks()` |
 | `hitSrc` | Which attack the current hits belong to: `atk`, `q`, `e`, `r`, `f` or `other`. Set with `setHitSrc()` just before dealing damage |
 | `P.castN` | Counts skill uses, so a trial can tell one use from the next |
@@ -151,7 +157,7 @@ The Blademaster is the worked example; copy from `js/classes/blade.js`.
 1. In the class table, replace the skill's `cd` with `start` (0 = locked for a new player, 1 = known), `lv` (three rows of numbers, every row listing every key, `cd` included) and `perks` (one line per rank).
 2. Make the skill's code read those numbers, for example `CL.skills.q.dmg`, in place of fixed values.
 3. Just before the skill deals damage, call `setHitSrc()` with its slot (`'q'`, `'e'`, `'r'` or `'f'`), so trials know which skill hit.
-4. Add its trials to `CLASSES.<id>.trials`: `slot`, `rank`, `name`, `desc`, `time`, `goal`, optionally `allow`, and an `onHit` that raises `st.n`.
+4. Add its trials to `CLASSES.<id>.trials`: `slot`, `rank`, `name`, `desc`, `time`, `goal`, optionally `allow`, an `onHit` that raises `st.n`, and an `arena` listing the boxes (`props`) and dummies (`spawn`) the training hall should build. To look at a layout without playing the trial, open `http://localhost:8000/?debug=hall:<trial id>`.
 5. Add checks to the progression part of `tests/smoke.js`.
 
 A class with no `lv` on any skill has no progression: everything is usable from the start.
@@ -187,6 +193,8 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Changing another file's variable.** A variable imported from another file can be read but not assigned. `hitstop = 0.1` from outside `js/fx.js` throws an error; call `addHitstop()` instead. The setters are at the bottom of `js/state.js`, `js/fx.js` and `js/camera.js`.
 - **Scratch vectors.** `_a` to `_e` are shared by everything. Fill one, use it, and assume it is gone after calling any other function.
 - **Top-level code.** Code outside functions may only use things from `util`, `core`, `world`, `stickman`, `state` and `fx`. Anything else may not be loaded yet.
+- **Dummies and boxes can now come and go.** Trial dummies are added with `spawnDummy()` and removed with `removeDummy()`; trial boxes with `addBox()` and `removeBox()`. Never keep a dummy in a variable across frames without checking `d.dead`.
+- **`SPAWN` moves.** It is where the player respawns: the arena start, the hall's arrival point, or a trial's start. `js/dojo.js` changes it.
 - **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.
 - **`dt` or `rdt`.** Gameplay uses `dt` so it slows down during hitstop. Camera and on-screen display use `rdt`.
 - **Only boxes.** Collision assumes every solid is an upright box. A slope or rotated wall will not collide correctly.

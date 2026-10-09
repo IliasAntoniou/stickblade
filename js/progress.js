@@ -3,7 +3,8 @@
 // Which skills have ranks, what each rank gives and what the trials are is data in the class file (see classes/blade.js).
 // A class without that data simply has every skill available, which is how the other three classes work for now.
 //
-// How a trial runs: Master Sen starts it (startTrial), challenges.js does the countdown and the clock, every hit that
+// How a trial runs: Master Sen starts it in the training hall (startTrial; dojo.js builds the layout the trial
+// asks for), challenges.js does the countdown and the clock, every hit that
 // lands is reported here (onHit), and updateTrial decides each frame whether it is passed or failed.
 // Closed back doors: trials refuse to start, and fail, while any tuning value differs from default; a trial can
 // limit which attacks do damage (allow); a rank-N trial needs rank N-1.
@@ -13,6 +14,7 @@ import { toast, centerMsg, spawnRing, burst } from './fx.js';
 import { T, P, CL, CLASSES, chal, hitSrc } from './state.js';
 import { startChallenge, endChallenge, chalEl } from './challenges.js';
 import { isTuned } from './tuning.js';
+import { dojo, enterDojo, setupTrial } from './dojo.js';
 
 const STORE_KEY = 'stickblade.progress.v1';
 // The smoke test starts from nothing and never writes, so running it cannot touch real progress.
@@ -82,6 +84,8 @@ export function startTrial(t) {
   if (CL !== cls) return false;                              // only for the class being played
   if (isTuned()) return false;                               // no tuned numbers
   if (savedRank(cls, t.slot) !== t.rank - 1) return false;   // ranks are earned in order
+  if (!dojo.inside) enterDojo();    // trials only happen in the training hall
+  setupTrial(t);                    // build this trial's layout and enemies; also sets where the player starts
   startChallenge(t);
   chal.st = { n: 0, seen: new Set(), count: 0, target: null };
   for (const k in P.cd) P.cd[k] = 0;
