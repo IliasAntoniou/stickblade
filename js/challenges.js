@@ -9,6 +9,7 @@ import { T, P, CL, chal, combo, resetCombo } from './state.js';
 import { dummies } from './dummies.js';
 import { respawnPlayer } from './player.js';
 import { closeDlg } from './master.js';
+import { updateTrial } from './progress.js';
 
 // ================= challenges =================
 // Sky Rings course: ring positions in order, as [x, y, z].
@@ -61,6 +62,7 @@ export function updateChallenge(dt) {
     return;
   }
   chal.t += dt;
+  if (c.trial) { updateTrial(c, dt); return; }    // skill trials have their own rules (progress.js)
   let prog = '', done = false;
   if (c.id === 'rings') {
     const r = courseRings[chal.ring];

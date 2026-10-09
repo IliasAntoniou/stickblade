@@ -7,6 +7,9 @@ Where everything is, what the short names mean, and how to add things. If this f
 | I want to change... | Go to |
 |---|---|
 | A class's damage, combo speed, reach, cooldowns, run speed | The `CLASSES.<name> = {` table at the bottom of `js/classes/blade.js`, `js/classes/ninja.js`, `js/classes/monk.js` or `js/classes/lancer.js` |
+| Which Blademaster skills start locked, and what each rank gives (damage, cooldown, perks) | The `start`, `lv` and `perks` of each skill in the `CLASSES.blade = {` table in `js/classes/blade.js` |
+| A trial's goal, time limit or difficulty | `CLASSES.blade.trials` at the bottom of `js/classes/blade.js` |
+| How trials and ranks work in general | `js/progress.js` |
 | What a skill does when pressed | Its function in the class file, for example `bmBlink()` in `js/classes/blade.js` |
 | What a skill does while it lasts | The `case` named after its state in `update()` in `js/update.js` |
 | How a skill or move looks (the pose) | `animatePlayer()` in `js/anim.js` |
@@ -77,9 +80,11 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/anim.js` | Player poses |
 | `js/hud.js` | On-screen display |
 | `js/tuning.js` | The tuning panel shown while paused |
+| `js/progress.js` | Skill ranks and the trials that earn them |
 | `vendor/three.module.js` | The three.js library (not ours; do not edit) |
 | `tests/smoke.js`, `tests/smoke.sh` | Automated test that plays every class and skill |
 | `tests/check_docs.py` | Checks file headers and that this map points at real things |
+| `serve.py` | The local web server (tells the browser not to keep old copies of files) |
 | `play.bat` | Starts the server and opens the game |
 
 ## Glossary
@@ -113,6 +118,11 @@ Where everything is, what the short names mean, and how to add things. If this f
 | pool | A fixed set of objects reused over and over, never created during play |
 | lock-on, `lockTarget` | The dummy nearest the crosshair |
 | `aimHit` | The point on the map under the crosshair |
+| rank | How far a skill has been trained: 0 = locked, 1 to 3 = learned. `rankOf()` in `js/progress.js` |
+| trial | A timed test that earns a rank. Runs on top of the challenge system; `chal.st` is its scratch space, `chal.st.n` its progress |
+| `lv` | A skill's numbers at each rank. The current rank's row is copied onto the skill by `applyRanks()` |
+| `hitSrc` | Which attack the current hits belong to: `atk`, `q`, `e`, `r`, `f` or `other`. Set with `setHitSrc()` just before dealing damage |
+| `P.castN` | Counts skill uses, so a trial can tell one use from the next |
 | `SB` | `window.SB`, the test handle that exists only with `?debug` |
 
 ## Recipes
@@ -133,6 +143,18 @@ Where everything is, what the short names mean, and how to add things. If this f
 3. Add a row to `GROUPS` in `js/tuning.js`: key, label, min, max, step (or just key and label for an on/off switch).
 4. If the number is copied onto the player or the dummies (like max health), also handle it in `applyTune()`.
 5. Add a check to the tuning part of `tests/smoke.js` proving the number changes the game and that reset undoes it.
+
+### Give a skill ranks and trials
+
+The Blademaster is the worked example; copy from `js/classes/blade.js`.
+
+1. In the class table, replace the skill's `cd` with `start` (0 = locked for a new player, 1 = known), `lv` (three rows of numbers, every row listing every key, `cd` included) and `perks` (one line per rank).
+2. Make the skill's code read those numbers, for example `CL.skills.q.dmg`, in place of fixed values.
+3. Just before the skill deals damage, call `setHitSrc()` with its slot (`'q'`, `'e'`, `'r'` or `'f'`), so trials know which skill hit.
+4. Add its trials to `CLASSES.<id>.trials`: `slot`, `rank`, `name`, `desc`, `time`, `goal`, optionally `allow`, and an `onHit` that raises `st.n`.
+5. Add checks to the progression part of `tests/smoke.js`.
+
+A class with no `lv` on any skill has no progression: everything is usable from the start.
 
 ### Add a class
 
@@ -168,6 +190,8 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.
 - **`dt` or `rdt`.** Gameplay uses `dt` so it slows down during hitstop. Camera and on-screen display use `rdt`.
 - **Only boxes.** Collision assumes every solid is an upright box. A slope or rotated wall will not collide correctly.
+- **Trials and tuning.** A trial will not start, and fails if running, while any tuning value differs from default. That is deliberate: it stops tuned numbers being used to pass.
+- **Stale files.** Always serve the game with `serve.py` (or `play.bat`). A plain web server lets the browser keep running old copies of changed files.
 - **Saved tuning.** Slider changes are stored in the browser and come back next time. If the game feels wrong, press "Reset all" in the panel before looking for a bug. The smoke test always runs on defaults.
 - **The game only runs while the mouse is captured.** That is the pause system. For testing without it, add `?debug` to the address.
 

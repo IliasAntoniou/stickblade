@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { save } from './util.js';
 import { renderer, scene, camera } from './core.js';
 import { hitstop, updateFx, updateDomFx, tickHitstop } from './fx.js';
-import { T, P, CL, dlg, chal, CLASSES, TUNE, totalDmg } from './state.js';
+import { T, P, CL, dlg, chal, CLASSES, TUNE, totalDmg, setHitSrc } from './state.js';
 import { dummies, hitDummy, DTYPE } from './dummies.js';
 import { hurtPlayer, respawnPlayer } from './player.js';
 import { updateCamera } from './camera.js';
@@ -23,6 +23,7 @@ import { update } from './update.js';
 import { animatePlayer } from './anim.js';
 import { updateHud } from './hud.js';
 import { initTuning, applyTune, resetTuning } from './tuning.js';
+import { initProgress, rankOf, startTrial, unlockAll, resetProgress } from './progress.js';
 
 // ================= loop =================
 const DEBUG = new URLSearchParams(location.search).get('debug');    // null when absent
@@ -49,6 +50,7 @@ function frame() {
   updateHud(rdt);
   renderer.render(scene, camera);
 }
+initProgress();  // loads saved skill ranks and puts each skill's numbers in place; must come before initTuning
 initTuning();    // loads saved tuning; must come before the first setClass
 setClass(save.cls, false);
 applyTune();
@@ -58,7 +60,7 @@ animatePlayer(0.016);
 if (DEBUG !== null) {
   overlay.style.display = 'none';
   window.SB = { P, dummies, DTYPE, CLASSES, CLASS_ORDER, CH, chal, dlg, keys, pressed, scene, master, setClass, startChallenge, endChallenge,
-    hurtPlayer, respawnPlayer, hitDummy, setMouse, step, updateCamera, updateHud, TUNE, applyTune, resetTuning, totalDmg: () => totalDmg,
+    hurtPlayer, respawnPlayer, hitDummy, setMouse, step, updateCamera, updateHud, TUNE, applyTune, resetTuning, rankOf, startTrial, unlockAll, resetProgress, setHitSrc, totalDmg: () => totalDmg,
     get T() { return T; }, get CL() { return CL; } };
   if (DEBUG === 'smoke') import('../tests/smoke.js');
 }

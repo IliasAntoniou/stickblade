@@ -2,7 +2,7 @@
 
 Browser game (three.js, native ES modules, no build step, no dependencies). The folder must stay self-contained: no CDN links, relative paths only.
 
-Run locally with `python -m http.server 8000` from this folder, then open `http://localhost:8000/`. `play.bat` does both (the user has a Desktop shortcut to it). Add `?debug` to run the simulation without pointer lock and expose `window.SB` for testing.
+Run locally with `python serve.py` from this folder, then open `http://localhost:8000/`. Use `serve.py`, not `python -m http.server`: it disables browser caching, and without that stale files get run after edits. `play.bat` does both (the user has a Desktop shortcut to it). Add `?debug` to run the simulation without pointer lock and expose `window.SB` for testing.
 
 Read `docs/CODE_MAP.md` first: it says where everything is, what the short names mean, and how to add a class, skill, dummy type or challenge.
 

@@ -5,7 +5,8 @@
 
 import { V3, TAU, clamp, lerp, damp, angDamp, _a, _b, _c, _d, _fx } from './util.js';
 import { spawnArc, spawnRing, burst, spawnGhost, centerMsg } from './fx.js';
-import { T, P, CL, dlg, chal, TUNE, addT, tickCombo, resetDamage } from './state.js';
+import { T, P, CL, dlg, chal, TUNE, addT, tickCombo, resetDamage, setHitSrc } from './state.js';
+import { skillReady } from './progress.js';
 import { dummies, hitDummy } from './dummies.js';
 import { updateProjs } from './projectiles.js';
 import { playerMat, player, diveMark, FLIP_T, LOCKED, integrate, setState, startAttack, attackHits, attackVfx, startDash, startSlide, doRewind, groundImpact } from './player.js';
@@ -25,6 +26,7 @@ export let hasIn = false, inX = 0, inZ = 0, hsp = 0, inputOn = true;
 // ================= update =================
 export function update(dt) {
   addT(dt); P.st += dt;
+  setHitSrc('other');
   // Cooldowns tick faster or slower with TUNE.cdMult; at 0 they clear at once.
   const cdStep = TUNE.cdMult > 0 ? dt / TUNE.cdMult : Infinity;
   for (const k in P.cd) P.cd[k] = Math.max(0, P.cd[k] - cdStep);
@@ -60,11 +62,11 @@ export function update(dt) {
   if (inputOn && !LOCKED.has(P.state)) {
     const S = CL.skills;
     if ((pressed.has('ShiftLeft') || pressed.has('ShiftRight')) && P.dashCharges > 0) startDash();
-    if (pressed.has('KeyQ') && P.cd.q <= 0) S.q.fn();
-    if (pressed.has('KeyE') && P.cd.e <= 0) S.e.fn();
-    if (pressed.has('KeyR') && P.cd.r <= 0 && P.state !== 'charge') S.r.fn();
-    if (pressed.has('KeyF') && P.cd.f <= 0) S.f.fn();
-    if (pressed.has('M2') && P.cd.m2 <= 0 && S.m2.fn) S.m2.fn();
+    if (pressed.has('KeyQ') && P.cd.q <= 0 && skillReady('q')) S.q.fn();
+    if (pressed.has('KeyE') && P.cd.e <= 0 && skillReady('e')) S.e.fn();
+    if (pressed.has('KeyR') && P.cd.r <= 0 && P.state !== 'charge' && skillReady('r')) S.r.fn();
+    if (pressed.has('KeyF') && P.cd.f <= 0 && skillReady('f')) S.f.fn();
+    if (pressed.has('M2') && P.cd.m2 <= 0 && S.m2.fn && skillReady('m2')) S.m2.fn();
     if (pressed.has('KeyX') && P.cd.x <= 0 && P.history.length > 4) doRewind();
     if (pressed.has('M0') && P.state !== 'cyclone' && P.state !== 'kicks' && P.state !== 'sweep' && P.state !== 'pcharge' && P.state !== 'dragonKick') {
       if (P.state === 'charge') setState('normal');
@@ -160,19 +162,21 @@ export function update(dt) {
       break;
     }
     case 'cyclone': {
+      const E = CL.skills.e;    // dmg, rad and dur depend on the skill's rank
       P.vel.set(P.skDir.x * 22, 0, P.skDir.z * 22); P.grav = 0; P.spin += dt * 30;
       P.ghostT -= dt; if (P.ghostT <= 0) { P.ghostT = 0.04; spawnGhost(player, CL.color, null, 0.2); }
       P.tick -= dt;
       if (P.tick <= 0) {
         P.tick = 0.075;
-        spawnRing(_fx.copy(P.pos).setY(P.pos.y + 1.1), 1.2, 2.8, 0.15, CL.color);
+        spawnRing(_fx.copy(P.pos).setY(P.pos.y + 1.1), 1.2, E.rad, 0.15, CL.color);
+        setHitSrc('e');
         for (const d of dummies) {
           if (d.dead) continue;
           const dx = d.pos.x - P.pos.x, dz = d.pos.z - P.pos.z, dy = d.pos.y - P.pos.y;
-          if (dx * dx + dz * dz < 2.9 * 2.9 && dy > -1.8 && dy < 2.2) hitDummy(d, 8, P.skDir.x * 2.5, P.skDir.z * 2.5, d.grounded ? 0 : 4, false, 0.015);
+          if (dx * dx + dz * dz < E.rad * E.rad && dy > -1.8 && dy < 2.2) hitDummy(d, E.dmg, P.skDir.x * 2.5, P.skDir.z * 2.5, d.grounded ? 0 : 4, false, 0.015);
         }
       }
-      if (P.st > 0.45) { setState('normal'); P.vel.set(P.skDir.x * 12, 0, P.skDir.z * 12); }
+      if (P.st > E.dur) { setState('normal'); P.vel.set(P.skDir.x * 12, 0, P.skDir.z * 12); }
       break;
     }
     case 'slamUp': {
@@ -181,7 +185,7 @@ export function update(dt) {
       break;
     }
     case 'slamDown': {
-      if (P.grounded && P.st > 0) { groundImpact(7.5, 55, CL.color); break; }
+      if (P.grounded && P.st > 0) { groundImpact(CL.skills.r.rad, CL.skills.r.dmg, CL.color, CL.skills.r.stun); break; }
       camFwdH(_c); P.vel.set(_c.x * 8, -50, _c.z * 8); P.grav = 0;
       P.ghostT -= dt; if (P.ghostT <= 0) { P.ghostT = 0.03; spawnGhost(player, CL.color, null, 0.22); }
       break;

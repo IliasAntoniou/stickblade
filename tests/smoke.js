@@ -26,6 +26,8 @@ function reset() {
   run(5);
 }
 
+SB.unlockAll();    // the general checks below need every skill usable; progression has its own checks at the end
+
 // every class: basic combo, each skill twice (second press covers recall / swap / release), movement
 for (const id of SB.CLASS_ORDER) {
   check(id + ' setClass', () => { SB.setClass(id); return SB.CL.id === id; });
@@ -159,12 +161,120 @@ check('tuning panel', () => {
   jump.querySelector('.tx').click();
   if (TUNE.jump !== 13 || jump.classList.contains('chg')) return false;
   slide(rowOf('Hit 1 damage'), 99);
-  slide(rowOf('Q Blink Strike cooldown'), 1);
-  if (SB.CL.atk[0].dmg !== 99 || SB.CL.skills.q.cd !== 1) return false;
+  slide(rowOf('RMB Grapple cooldown'), 1);
+  if (SB.CL.atk[0].dmg !== 99 || SB.CL.skills.m2.cd !== 1) return false;
+  if (rowOf('Q Blink Strike cooldown')) return false;    // ranked skills take their cooldown from their rank
   slide(rowOf('Run speed ×'), 2);
   panel.querySelector('.ra').click();
-  return SB.CL.atk[0].dmg === 12 && SB.CL.skills.q.cd === 4 && TUNE.runMult === 1 && !panel.querySelector('.tr.chg');
+  return SB.CL.atk[0].dmg === 12 && SB.CL.skills.m2.cd === 0.5 && TUNE.runMult === 1 && !panel.querySelector('.tr.chg');
 });
+
+// progression (Blademaster): locked skills, trials, ranks, and the closed back doors
+const rankOf = SB.rankOf;
+const trial = id => SB.CLASSES.blade.trials.find(t => t.id === id);
+const skillHit = (src, d, up = 0, heavy = false) => { SB.setHitSrc(src); return SB.hitDummy(d, 10, 0, 0, up, heavy, null, P.pos, true); };
+// Start a trial and sit through the 3-2-1 countdown.
+function begin(id) {
+  if (!SB.startTrial(trial(id))) return false;
+  run(200);
+  return chal.cur === trial(id) && chal.phase === 'run';
+}
+const flying = dummies.filter(d => d.type === 'flying');
+const fighter = dummies.find(d => d.type === 'fighter');
+
+check('progress: starting ranks', () => {
+  SB.resetProgress(); SB.setClass('blade');
+  return rankOf('q') === 0 && rankOf('e') === 0 && rankOf('r') === 0 && rankOf('f') === 1 && rankOf('m2') === 1;
+});
+check('progress: a locked skill does nothing', () => { reset(); press('KeyQ', 5); press('KeyE', 5); press('KeyR', 5); return P.cd.q === 0 && P.cd.e === 0 && P.cd.r === 0 && P.state === 'normal'; });
+check('progress: the starting skill works', () => { reset(); press('KeyF', 3); return P.cd.f > 0; });
+check('progress: other classes are not locked', () => { SB.setClass('ninja'); const ok = rankOf('q') === 1 && rankOf('e') === 1; SB.setClass('blade'); return ok; });
+check('progress: ranks are earned in order', () => SB.startTrial(trial('blade-q2')) === false && SB.startTrial(trial('blade-e3')) === false && chal.cur === null);
+check('progress: tuned numbers block a trial', () => {
+  TUNE.dmgMult = 2; const blocked = SB.startTrial(trial('blade-q1')) === false && chal.cur === null; SB.resetTuning();
+  return blocked;
+});
+check('progress: a trial lends its skill and only that skill counts', () => {
+  if (!begin('blade-q1')) return false;
+  if (rankOf('q') !== 1 || rankOf('e') !== 0) return false;
+  const hp = flying[0].hp;
+  return skillHit('atk', flying[0]) === false && flying[0].hp === hp;    // basic attacks are IMMUNE here
+});
+check('progress: tuning during a trial fails it', () => { TUNE.god = true; run(2); const failed = chal.cur === null; SB.resetTuning(); return failed && rankOf('q') === 0; });
+check('progress: quitting a trial keeps the skill locked', () => { if (!begin('blade-q1')) return false; SB.endChallenge(); return rankOf('q') === 0; });
+check('progress: passing a trial teaches the skill', () => {
+  if (!begin('blade-q1')) return false;
+  skillHit('q', flying[0]); skillHit('q', flying[0]); skillHit('q', flying[1]); run(2);
+  if (chal.cur === null) return false;                 // the same dummy twice must not count twice
+  skillHit('q', flying[2]); run(2);
+  return chal.cur === null && rankOf('q') === 1 && SB.CL.skills.q.dmg === 34 && SB.CL.skills.q.cd === 4;
+});
+check('progress: the learned skill can be used', () => { reset(); press('KeyQ', 3); return P.cd.q > 0; });
+check('progress: rank II changes the numbers', () => {
+  if (!begin('blade-q2')) return false;
+  for (let i = 0; i < 2; i++) { fighter.stunT = 0; fighter.ai = 'windSlam'; fighter.aiT = 0.5; skillHit('q', fighter, 0, true); }
+  run(2);
+  return chal.cur === null && rankOf('q') === 2 && SB.CL.skills.q.dmg === 44 && SB.CL.skills.q.cd === 3.5;
+});
+check('progress: a trial runs out of time', () => { if (!begin('blade-e1')) return false; run(60 * 61); return chal.cur === null && rankOf('e') === 0; });
+// played for real: spin through the three practice dummies (camera faces -z at spawn, so D moves along +x)
+check('progress: Cyclone trial, played', () => {
+  if (!begin('blade-e1')) return false;
+  P.pos.set(-6.5, 0, -5.3); P.vel.set(0, 0, 0);
+  SB.keys.add('KeyD'); press('KeyE', 50); SB.keys.delete('KeyD'); run(5);
+  return chal.cur === null && rankOf('e') === 1;
+});
+check('progress: slam trial needs height', () => {
+  if (!begin('blade-r1')) return false;
+  P.castN++; P.castY = P.pos.y;                          // started from the ground: must not count
+  for (let i = 0; i < 3; i++) skillHit('r', dummies[i]);
+  run(2);
+  if (chal.cur === null) return false;
+  P.castN++; P.castY = P.pos.y + 6;
+  for (let i = 0; i < 3; i++) skillHit('r', dummies[i]);
+  run(2);
+  return chal.cur === null && rankOf('r') === 1;
+});
+check('progress: slam trial, played', () => {
+  if (!begin('blade-r2')) return false;
+  P.pos.set(0, 9, -6); P.vel.set(0, 0, 0);               // in the air above the practice dummies
+  press('KeyR', 40);
+  return P.cd.r > 0 && chal.st.n === 3;                  // three dummies in reach from there; the trial wants four
+});
+check('progress: air combo trial', () => {
+  SB.endChallenge();
+  if (!begin('blade-f2')) return false;
+  const d = dummies[0];
+  skillHit('f', d, 17.5, true); run(20);                 // launched and in the air
+  for (let i = 0; i < 3; i++) skillHit('atk', d, 6);
+  run(400);                                              // it lands: the count starts again
+  if (chal.cur === null || chal.st.n !== 3) return false;
+  skillHit('f', d, 17.5, true); run(20);
+  for (let i = 0; i < 6; i++) skillHit('atk', d, 6);
+  run(2);
+  return chal.cur === null && rankOf('f') === 2 && SB.CL.skills.f.dmg === 28;
+});
+check('progress: rank III perks are applied', () => {
+  SB.unlockAll();
+  const S = SB.CL.skills;
+  return rankOf('q') === 3 && S.q.refund === true && S.e.dur === 0.7 && S.r.stun === 2 && S.f.around === true;
+});
+check('progress: reset goes back to the start', () => {
+  SB.resetProgress();
+  const S = SB.CL.skills;
+  return rankOf('q') === 0 && rankOf('f') === 1 && S.q.refund === false && S.q.dmg === 34 && S.e.dur === 0.45 && S.f.dmg === 20;
+});
+check('progress: Master Sen offers the trials', () => {
+  SB.setClass('blade'); reset();
+  P.pos.copy(SB.master.pos); P.pos.z -= 2; P.vel.set(0, 0, 0); run(2);
+  press('KeyG', 2); press('Digit2', 2);
+  if (dlg.page !== 'train' || dlg.opts.length !== 5) return false;
+  press('Digit1', 2);                                    // first skill listed is Blink Strike
+  const started = chal.cur === trial('blade-q1') && !dlg.open;
+  SB.endChallenge();
+  return started;
+});
+SB.resetProgress();
 
 log.push(fails.length ? 'SMOKE FAIL (' + fails.length + ')' : 'SMOKE PASS', ...fails);
 const pre = document.createElement('pre');

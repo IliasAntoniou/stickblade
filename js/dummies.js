@@ -9,7 +9,8 @@ import { scene, camera } from './core.js';
 import { solids, boxGeo, edgeGeo, edgeMat, lam, groundAt, makeShadow, placeShadow } from './world.js';
 import { makeStickman, POSE_KEYS, DUMMY_POSE, F_IDLE, F_SLAM, F_LWIND, F_LUNGE, F_STUN, applyPose } from './stickman.js';
 import { ringGeo, spawnRing, burst, spawnText, shake, addHitstop } from './fx.js';
-import { T, P, dlg, chal, TUNE, addHit } from './state.js';
+import { T, P, dlg, chal, TUNE, hitSrc, addHit } from './state.js';
+import { hitAllowed, onHit } from './progress.js';
 import { tp, hurtPlayer } from './player.js';
 import { update } from './update.js';
 
@@ -78,8 +79,9 @@ export class Dummy {
   stun(t) { this.stunT = Math.max(this.stunT, t); this.cancelAtk(); }
   // A heavy hit during a fighter's wind-up cancels the attack.
   interrupt() {
-    if (this.type !== 'fighter' || (this.ai !== 'windSlam' && this.ai !== 'windLunge')) return;
+    if (this.type !== 'fighter' || (this.ai !== 'windSlam' && this.ai !== 'windLunge')) return false;
     this.stun(0.7); this.chest(_dv); _dv.y += 0.7; spawnText(_dv, 'INTERRUPTED', 'dodge');
+    return true;
   }
   // Thrown hard into a wall: extra damage.
   splat() {
@@ -252,6 +254,12 @@ export function dealDamage(d, dmg, heavy, stop, label) {
 // returns true if the hit landed (shield dummies block from the front)
 export function hitDummy(d, dmg, kx, kz, up, heavy = false, stop = null, src = P.pos, top = false) {
   if (d.dead) return false;
+  // During a trial only the attacks it allows can hurt dummies.
+  if (!hitAllowed()) {
+    d.chest(_hv);
+    spawnText(_hv, 'IMMUNE', 'block');
+    return false;
+  }
   if (d.type === 'shield' && !top && src.y < d.pos.y + 1.3) {
     const tx = src.x - d.pos.x, tz = src.z - d.pos.z, l = Math.hypot(tx, tz) || 1;
     if ((tx * Math.sin(d.yaw) + tz * Math.cos(d.yaw)) / l > 0.25) {
@@ -270,9 +278,11 @@ export function hitDummy(d, dmg, kx, kz, up, heavy = false, stop = null, src = P
   const c = Math.cos(d.yaw), s = Math.sin(d.yaw);
   const lx = kx * c - kz * s, lz = kx * s + kz * c;
   d.tvx += clamp(lz, -10, 10) * 1.3; d.tvz -= clamp(lx, -10, 10) * 1.3;
+  const targetAir = !d.grounded;
   dealDamage(d, dmg, heavy, stop, label);
-  if (heavy) d.interrupt();
+  const interrupted = heavy && d.interrupt();
   if (d.hp <= 0) d.ko(kx, kz);
+  onHit({ d, dmg, src: hitSrc, ko: d.dead, targetAir, interrupted });    // lets a running trial count it
   return true;
 }
 // hit everything in a circle around a point

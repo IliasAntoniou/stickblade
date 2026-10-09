@@ -8,7 +8,7 @@ import { scene } from './core.js';
 import { solids, ARENA, makeShadow } from './world.js';
 import { makeStickman, setWeapon, BASE } from './stickman.js';
 import { spawnArc, ringGeo, spawnRing, burst, spawnGhost, beamGeo, spawnBeam, spawnText, centerMsg, shake, addHitstop, flashHurt } from './fx.js';
-import { T, P, CL, dlg, chal, SPAWN, combo, TUNE } from './state.js';
+import { T, P, CL, dlg, chal, SPAWN, combo, TUNE, setHitSrc } from './state.js';
 import { dummies, hitDummy, hitArea } from './dummies.js';
 import { killProj } from './projectiles.js';
 import { camDir, facing, camFacingYaw, setCamYaw, setCamPitch } from './camera.js';
@@ -41,6 +41,7 @@ Object.assign(P, {
   atk: { on: false, t: 0, combo: 0, hit: new Set(), queued: false, lastEnd: -9, lastCombo: 0, vfx: false },
   history: [], histT: 0,
   hp: 100, maxHp: 100, hurtT: 99, iframes: 0, blocking: false, blockStart: -9,
+  castN: 0, castY: 0,    // castN counts skill uses, castY is the height the last slam started from (trials read these)
   smokeT: 0, dmgMult: 1, floatT: 0, clone: null, mark: null, jav: null, lmbHeld: 0, kunaiT: 0, chargeK: 0,
 });
 // Jump, gravity, dash and health numbers are in TUNE (state.js) so the tuning panel can change them.
@@ -186,6 +187,7 @@ export function startAttack(force = -1) {
   let c = 0; if (T - a.lastEnd < 0.4 && a.lastCombo < n - 1) c = a.lastCombo + 1;
   if (force >= 0) c = force;
   a.on = true; a.t = 0; a.combo = c; a.hit.clear(); a.queued = false; a.vfx = false;
+  a.src = null;    // a skill that starts a swing (Blink Strike) sets this so the swing counts as that skill
   P.yaw = P.yawT = camFacingYaw(); facing(_a);
   const lunge = CL.atk[c].lunge ?? 6;
   const along = P.vel.x * _a.x + P.vel.z * _a.z;
@@ -196,6 +198,7 @@ export function startAttack(force = -1) {
 // Runs every frame of the hit window. Each dummy can be hit once per swing (a.hit remembers who).
 export function attackHits() {
   const a = P.atk, A = CL.atk[a.combo]; facing(_a);
+  setHitSrc(a.src || 'atk');
   const cx = P.pos.x + _a.x * A.off, cz = P.pos.z + _a.z * A.off;
   for (const d of dummies) {
     if (d.dead || a.hit.has(d)) continue;
@@ -257,12 +260,18 @@ export function doRewind() {
 export function teleTrail(from, to, n = 6) {
   for (let i = 1; i <= n; i++) { player.root.position.lerpVectors(from, to, i / (n + 1)); spawnGhost(player, CL.color, player.root.position, 0.35); }
 }
-// Shared landing blast for Meteor Slam and Dragoon Dive.
-export function groundImpact(rad, dmg, color) {
+// Shared landing blast for Meteor Slam and Dragoon Dive. stun = seconds everything in the blast is stunned (0 = none).
+export function groundImpact(rad, dmg, color, stun = 0) {
   _fx.copy(P.pos).setY(P.pos.y + 0.05);
   spawnRing(_fx, 0.5, rad + 1.5, 0.4, color); spawnRing(_fx, 0.3, rad * 0.65, 0.3, 0xffffff);
   burst(_fx.setY(P.pos.y + 0.3), 18, 12); shake(0.7); addHitstop(0.06);
+  setHitSrc('r');
   hitArea(P.pos.x, P.pos.y, P.pos.z, rad, dmg, 9, 13, true, 0.07, true, 0.75);
+  if (stun > 0) {
+    for (const d of dummies) {
+      if (!d.dead && Math.hypot(d.pos.x - P.pos.x, d.pos.z - P.pos.z) < rad) d.stun(stun);
+    }
+  }
   setState('normal'); P.vel.set(0, 0, 0);
 }
 // Remove whatever a class left in the world (clone, kunai, javelin) when changing class or respawning.

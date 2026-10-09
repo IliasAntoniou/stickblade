@@ -10,6 +10,8 @@ import { P, CL, dlg, chal, CLASSES } from './state.js';
 import { LOCKED, setState, parry } from './player.js';
 import { CLASS_ORDER, setClass } from './classes/index.js';
 import { CH, startChallenge } from './challenges.js';
+import { trainingList, startTrial, ROMAN } from './progress.js';
+import { isTuned } from './tuning.js';
 
 // ================= master NPC + dialog =================
 export const master = (() => {
@@ -54,6 +56,7 @@ export function renderDlg(text) {
     text = text || pick(GREET);
     opts = [
       { label: 'Teach me a different style', act: () => { dlg.page = 'classes'; renderDlg(); } },
+      { label: 'Train my skills', act: () => { dlg.page = 'train'; renderDlg(); } },
       { label: 'Give me a challenge', act: () => { dlg.page = 'chal'; renderDlg(); } },
       { label: 'Any advice, master?', act: () => { dlg.page = 'tips'; renderDlg(); } },
       { label: 'Farewell', act: closeDlg },
@@ -68,6 +71,22 @@ export function renderDlg(text) {
   } else if (dlg.page === 'chal') {
     text = 'A test, then. I will count you in.';
     opts = CH.map(c => ({ label: c.name, sub: `${c.desc} · ${fmtBest(c)}`, act: () => startChallenge(c) }));
+    opts.push({ label: 'Back', act: () => { dlg.page = 'main'; renderDlg('Something else?'); } });
+  } else if (dlg.page === 'train') {
+    // One line per skill that has ranks: its rank, and the trial that earns the next one.
+    const list = trainingList();
+    if (!list.length) text = 'This style has no trials yet. Its skills are yours already.';
+    else if (isTuned()) text = 'Your tuning panel is not at its defaults. Press "Reset all" there first: a trial is earned fairly or not at all.';
+    else text = 'Skill is earned, never given. Pass a trial to learn a technique, pass a harder one to sharpen it.';
+    opts = list.map(({ skill, rank, next }) => {
+      const status = rank === 0 ? 'not learned' : 'rank ' + ROMAN[rank];
+      if (!next) return { label: `${skill.n} · ${status} · mastered`, cur: true, act: () => renderDlg() };
+      return {
+        label: `${skill.n} · ${status}`,
+        sub: `${next.desc} (${next.time}s) · reward: ${skill.perks[next.rank - 1]}`,
+        act: () => { if (!startTrial(next)) renderDlg(); },
+      };
+    });
     opts.push({ label: 'Back', act: () => { dlg.page = 'main'; renderDlg('Something else?'); } });
   } else if (dlg.page === 'tips') {
     text = pick(TIPS);
