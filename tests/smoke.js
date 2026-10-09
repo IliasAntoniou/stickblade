@@ -274,6 +274,16 @@ check('progress: Master Sen offers the trials', () => {
   SB.endChallenge();
   return started;
 });
+check('progress: Master Sen offers to reset tuning', () => {
+  reset(); TUNE.jump = 20;
+  P.pos.copy(SB.master.pos); P.pos.z -= 2; P.vel.set(0, 0, 0); run(2);
+  press('KeyG', 2); press('Digit2', 2);
+  if (dlg.opts.length !== 2) { SB.resetTuning(); return false; }    // only "reset tuning" and "back"
+  press('Digit1', 2);
+  const ok = TUNE.jump === 13 && dlg.opts.length === 5;              // tuning is default again and the trials are listed
+  press('KeyG', 2);
+  return ok;
+});
 SB.resetProgress();
 
 log.push(fails.length ? 'SMOKE FAIL (' + fails.length + ')' : 'SMOKE PASS', ...fails);

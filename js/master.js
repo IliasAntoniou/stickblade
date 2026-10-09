@@ -11,7 +11,7 @@ import { LOCKED, setState, parry } from './player.js';
 import { CLASS_ORDER, setClass } from './classes/index.js';
 import { CH, startChallenge } from './challenges.js';
 import { trainingList, startTrial, ROMAN } from './progress.js';
-import { isTuned } from './tuning.js';
+import { isTuned, resetTuning } from './tuning.js';
 
 // ================= master NPC + dialog =================
 export const master = (() => {
@@ -75,18 +75,25 @@ export function renderDlg(text) {
   } else if (dlg.page === 'train') {
     // One line per skill that has ranks: its rank, and the trial that earns the next one.
     const list = trainingList();
+    const tuned = isTuned();
     if (!list.length) text = 'This style has no trials yet. Its skills are yours already.';
-    else if (isTuned()) text = 'Your tuning panel is not at its defaults. Press "Reset all" there first: a trial is earned fairly or not at all.';
-    else text = 'Skill is earned, never given. Pass a trial to learn a technique, pass a harder one to sharpen it.';
-    opts = list.map(({ skill, rank, next }) => {
-      const status = rank === 0 ? 'not learned' : 'rank ' + ROMAN[rank];
-      if (!next) return { label: `${skill.n} · ${status} · mastered`, cur: true, act: () => renderDlg() };
-      return {
-        label: `${skill.n} · ${status}`,
-        sub: `${next.desc} (${next.time}s) · reward: ${skill.perks[next.rank - 1]}`,
-        act: () => { if (!startTrial(next)) renderDlg(); },
-      };
-    });
+    else if (tuned) text = 'You have changed numbers in the tuning panel. A trial is earned fairly or not at all: put them back to default and I will test you.';
+    else text = 'Pick a skill and I will count you in. For a skill you have not learned, I lend it to you until the trial ends. Pass, and it is yours.';
+    if (tuned && list.length) {
+      // Trials cannot start with tuned numbers, so offer the fix right here.
+      opts = [{ label: 'Put my tuning back to default', sub: 'Same as "Reset all" in the tuning panel', act: () => { resetTuning(); renderDlg(); } }];
+    } else {
+      opts = list.map(({ skill, rank, next }) => {
+        const status = rank === 0 ? 'not learned' : 'rank ' + ROMAN[rank];
+        if (!next) return { label: `${skill.n} · ${status} · mastered`, cur: true, act: () => renderDlg() };
+        const lent = next.rank === 1 ? ' · the skill is lent to you for the trial' : '';
+        return {
+          label: `${skill.n} · ${status} · start the trial`,
+          sub: `${next.desc} (${next.time}s)${lent} · reward: ${skill.perks[next.rank - 1]}`,
+          act: () => { if (!startTrial(next)) renderDlg(); },
+        };
+      });
+    }
     opts.push({ label: 'Back', act: () => { dlg.page = 'main'; renderDlg('Something else?'); } });
   } else if (dlg.page === 'tips') {
     text = pick(TIPS);

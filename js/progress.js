@@ -19,6 +19,7 @@ const STORE_KEY = 'stickblade.progress.v1';
 const SMOKE = new URLSearchParams(location.search).get('debug') === 'smoke';
 export const ROMAN = ['', 'I', 'II', 'III'];
 export const MAX_RANK = 3;
+const KEY_NAME = { m2: 'the right mouse button', q: 'Q', e: 'E', r: 'R', f: 'F' };
 
 // prog[classId][slot] = rank. Missing means the skill's starting rank.
 let prog = {};
@@ -49,7 +50,7 @@ export function skillReady(slot) {
   if (rankOf(slot) > 0) return true;
   if (T - lastLockedMsg > 2.5) {
     lastLockedMsg = T;
-    toast(`<b>${CL.skills[slot].n}</b> is not learned yet. Talk to <b>Master Sen</b>.`, 2.2);
+    toast(`<b>${CL.skills[slot].n}</b> is locked. Press <b>G</b> next to <b>Master Sen</b> and choose <b>Train my skills</b> to start its trial.`, 3.5);
   }
   return false;
 }
@@ -84,6 +85,8 @@ export function startTrial(t) {
   startChallenge(t);
   chal.st = { n: 0, seen: new Set(), count: 0, target: null };
   for (const k in P.cd) P.cd[k] = 0;
+  // Say plainly that a locked skill works during its own trial.
+  if (t.rank === 1) toast(`<b>${cls.skills[t.slot].n}</b> is lent to you for this trial. Use it with <b>${KEY_NAME[t.slot]}</b>.`, 6);
   return true;
 }
 
