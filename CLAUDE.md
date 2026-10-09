@@ -2,7 +2,7 @@
 
 Browser game (three.js, native ES modules, no build step, no dependencies). The folder must stay self-contained: no CDN links, relative paths only.
 
-Run locally with `python -m http.server 8000` from this folder, then open `http://localhost:8000/`. Add `?debug` to run the simulation without pointer lock and expose `window.SB` for testing.
+Run locally with `python -m http.server 8000` from this folder, then open `http://localhost:8000/`. `play.bat` does both (the user has a Desktop shortcut to it). Add `?debug` to run the simulation without pointer lock and expose `window.SB` for testing.
 
 Smoke test: with the server running, `bash tests/smoke.sh` (headless Chrome, prints `SMOKE PASS` or the failures). The same test runs in a normal browser at `http://localhost:8000/?debug=smoke`. Run it after every change and extend `tests/smoke.js` when adding a class, dummy type, challenge or map.
 
