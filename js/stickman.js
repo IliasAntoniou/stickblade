@@ -1,6 +1,10 @@
+// stickman.js: builds a stick figure and poses it. Used for the player, dummies, Master Sen, afterimages and the ninja clone.
+// A pose is a plain object of joint angles in radians (see POSE_KEYS). Animating = blending the current pose towards a target pose.
+
 import * as THREE from 'three';
 
 // ================= stickman =================
+// Shared shapes. Every stickman reuses these, so forty stickmen do not mean forty copies.
 export const SG = {
   limb: new THREE.CylinderGeometry(0.05, 0.05, 1, 6).translate(0, -0.5, 0),
   joint: new THREE.SphereGeometry(0.06, 8, 6),
@@ -13,6 +17,9 @@ export const SG = {
   kunai: new THREE.BoxGeometry(0.05, 0.05, 0.45),
 };
 
+// Build one stickman. mat = body material, accentMat = blade material, weapons = true to attach all three weapons
+// (only one shows at a time, see setWeapon). Returns the joints so they can be turned:
+// body > spine > chest > head; shoulders (shL, shR) > elbows (elL, elR) > hands; hips > knees.
 export function makeStickman(mat, accentMat, weapons) {
   const root = new THREE.Group();
   const body = new THREE.Group(); body.position.y = 0.95; body.rotation.order = 'YXZ'; root.add(body);
@@ -48,15 +55,21 @@ export function makeStickman(mat, accentMat, weapons) {
   const nodes = []; root.traverse(o => nodes.push(o));
   return { root, body, spine, chest, head, shL, elL, handL, shR, elR, handR, wrist, wristL, W, hipL, kneeL, hipR, kneeR, nodes };
 }
+// Show one weapon and hide the rest. w = 'sword' | 'daggers' | 'spear' | 'none'.
 export function setWeapon(sm, w) {
   if (!sm.W) return;
   sm.W.sword.visible = w === 'sword'; sm.W.dagR.visible = sm.W.dagL.visible = w === 'daggers'; sm.W.spear.visible = w === 'spear';
 }
 
+// Every number in a pose. X / Y / Z = the axis the joint turns around; L / R = left / right.
+// Roughly: X swings forward and back, Z swings out to the side, Y twists. bodyY is the hip height, not an angle.
 export const POSE_KEYS = ['bodyY', 'bodyPitch', 'bodyRoll', 'spineX', 'spineY', 'spineZ', 'hipLX', 'hipLZ', 'kneeL', 'hipRX', 'hipRZ', 'kneeR', 'shLX', 'shLZ', 'elL', 'shRX', 'shRY', 'shRZ', 'elR', 'wrist', 'wristL'];
+// BASE = relaxed standing pose. Every other pose starts from it and overrides a few joints.
 export const BASE = { bodyY: 0.93, bodyPitch: 0, bodyRoll: 0, spineX: 0.08, spineY: 0, spineZ: 0, hipLX: -0.05, hipLZ: 0.12, kneeL: 0.12, hipRX: 0.05, hipRZ: -0.12, kneeR: 0.12,
   shLX: 0.1, shLZ: 0.28, elL: -0.3, shRX: -0.35, shRY: 0, shRZ: -0.25, elR: -0.7, wrist: 0.5, wristL: 0.5 };
+// Arms straight out, for practice dummies.
 export const DUMMY_POSE = { ...BASE, bodyY: 0.94, spineX: 0, hipLX: 0, hipRX: 0, hipLZ: 0.07, hipRZ: -0.07, kneeL: 0, kneeR: 0, shLX: 0, shLZ: 1.35, elL: 0, shRX: 0, shRZ: -1.35, elR: 0 };
+// GUARD = fists up (monk, fighter). F_* = fighter dummy poses: idle, slam wind-up, lunge wind-up, lunge, stunned.
 export const GUARD = { shLX: -0.9, shLZ: 0.25, elL: -2.0, shRX: -0.7, shRZ: -0.25, elR: -2.0, spineX: 0.12 };
 export const F_IDLE = { ...BASE, ...GUARD, hipLX: -0.25, hipRX: 0.15, kneeL: 0.25, kneeR: 0.25 };
 export const F_SLAM = { ...BASE, shLX: -2.9, shLZ: 0.1, elL: -0.1, shRX: -2.9, shRZ: -0.1, elR: -0.1, spineX: -0.25, kneeL: 0.5, kneeR: 0.5, bodyY: 0.85 };
@@ -64,6 +77,7 @@ export const F_LWIND = { ...BASE, bodyPitch: 0.3, shLX: 0.8, shRX: 0.8, elL: -1,
 export const F_LUNGE = { ...BASE, bodyPitch: 0.9, shLX: -2.0, shRX: -2.0, elL: 0, elR: 0, hipLX: 0.3, hipRX: 0.1 };
 export const F_STUN = { ...BASE, spineX: 0.6, shLX: 0.2, shRX: 0.2, elL: -0.2, elR: -0.2, kneeL: 0.4, kneeR: 0.4, bodyY: 0.85 };
 
+// Copy a pose onto a stickman. xp = extra forward flip, xs = extra spin (somersaults and spin attacks).
 export function applyPose(sm, p, xp = 0, xs = 0) {
   sm.body.position.y = p.bodyY;
   sm.body.rotation.set(p.bodyPitch + xp, xs, p.bodyRoll);
@@ -74,6 +88,7 @@ export function applyPose(sm, p, xp = 0, xs = 0) {
   sm.shR.rotation.set(p.shRX, p.shRY, p.shRZ); sm.elR.rotation.x = p.elR;
   if (sm.wrist) { sm.wrist.rotation.x = p.wrist; sm.wristL.rotation.x = p.wristL; }
 }
+// Make dst look exactly like src right now (afterimages, the ninja clone).
 export function copyPose(src, dst) {
   const n = src.nodes, d = dst.nodes;
   for (let i = 0; i < n.length; i++) { d[i].position.copy(n[i].position); d[i].quaternion.copy(n[i].quaternion); d[i].scale.copy(n[i].scale); d[i].visible = n[i].visible; }

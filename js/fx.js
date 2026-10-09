@@ -1,3 +1,8 @@
+// fx.js: visual effects and on-screen messages. Slash arcs, shockwave rings, sparks, afterimages, beams, damage numbers,
+// screen shake and hitstop.
+// Every effect is a POOL: a fixed number of objects made once at startup and reused. spawnX() takes the next one,
+// updateFx() fades it and hides it again. Nothing is created while playing, which keeps the frame rate steady.
+
 import * as THREE from 'three';
 import { V3, lerp, easeOut, _bv, UP, $ } from './util.js';
 import { scene, camera } from './core.js';
@@ -14,6 +19,7 @@ for (let i = 0; i < 8; i++) {
   g.add(m); g.visible = false; scene.add(g); arcs.push({ g, m, life: 0, max: 0.18, base: 1 });
 }
 export let arcIdx = 0;
+// Slash arc. type 0 / 1 = flat swing tilted one way / the other, 2 = vertical swing.
 export function spawnArc(type, pos, yaw, color = 0x00d8f0, scale = 1) {
   const a = arcs[arcIdx = (arcIdx + 1) % arcs.length];
   a.g.position.copy(pos); a.g.rotation.set(0, yaw, type === 0 ? 0.28 : type === 1 ? -0.28 : 0);
@@ -28,6 +34,7 @@ for (let i = 0; i < 14; i++) {
   m.visible = false; scene.add(m); rings.push({ m, life: 0, max: 0.3, s0: 0, s1: 1 });
 }
 export let ringIdx = 0;
+// Flat ring that grows from size s0 to s1 over dur seconds (landings, shockwaves).
 export function spawnRing(pos, s0, s1, dur, color = 0xffffff) {
   const r = rings[ringIdx = (ringIdx + 1) % rings.length];
   r.m.position.copy(pos); r.life = r.max = dur; r.s0 = s0; r.s1 = s1; r.m.material.color.setHex(color); r.m.visible = true;
@@ -37,6 +44,7 @@ export const partMats = [new THREE.MeshBasicMaterial({ color: 0xffb627 }), new T
 export const parts = [];
 for (let i = 0; i < 110; i++) { const m = new THREE.Mesh(partGeo, partMats[0]); m.visible = false; scene.add(m); parts.push({ m, v: new V3(), life: 0 }); }
 export let partIdx = 0;
+// n small cubes flying out from pos. mat 0 = orange sparks, 1 = grey dust.
 export function burst(pos, n, speed = 8, mat = 0) {
   for (let i = 0; i < n; i++) {
     const p = parts[partIdx = (partIdx + 1) % parts.length];
@@ -52,6 +60,7 @@ for (let i = 0; i < 18; i++) {
   ghosts.push({ sm, mat, life: 0, max: 0.3 });
 }
 export let ghostIdx = 0;
+// Afterimage: a see-through copy of a stickman's current pose that fades over dur seconds.
 export function spawnGhost(src, color, pos = null, dur = 0.28) {
   const g = ghosts[ghostIdx = (ghostIdx + 1) % ghosts.length];
   copyPose(src, g.sm);
@@ -60,6 +69,7 @@ export function spawnGhost(src, color, pos = null, dur = 0.28) {
 }
 // beams (thrust streaks, chains)
 export const beamGeo = new THREE.CylinderGeometry(0.035, 0.035, 1, 5).translate(0, 0.5, 0);
+// Stretch a thin cylinder from point a to point b.
 export function setBeam(m, a, b, w = 1) {
   _bv.copy(b).sub(a); const l = _bv.length();
   m.position.copy(a); m.scale.set(w, l, w); m.quaternion.setFromUnitVectors(UP, _bv.divideScalar(l || 1));
@@ -79,6 +89,8 @@ export const dmgLayer = $('dmg');
 export const dns = [];
 for (let i = 0; i < 40; i++) { const el = document.createElement('div'); el.className = 'dn'; dmgLayer.appendChild(el); dns.push({ el, pos: new V3(), life: 0, max: 1, vx: 0 }); }
 export let dnIdx = 0;
+// Floating text at a place in the world (damage numbers).
+// cls picks the look: '' | big | ko | block | dodge | hurt | gold. The styles are in index.html (.dn).
 export function spawnText(pos, text, cls = '') {
   const d = dns[dnIdx = (dnIdx + 1) % dns.length];
   d.el.textContent = text; d.el.className = 'dn ' + cls; d.el.style.display = 'block';
@@ -87,14 +99,19 @@ export function spawnText(pos, text, cls = '') {
 // screen messages
 export const centerEl = $('center'), toastEl = $('toast');
 export let centerT = 0, toastT = 0;
+// Big text in the middle of the screen (countdown, "DEFEATED").
 export function centerMsg(html, dur = 1.5) { centerEl.innerHTML = html; centerEl.style.opacity = 1; centerT = dur; }
+// Small message near the top of the screen.
 export function toast(html, dur = 3.5) { toastEl.innerHTML = html; toastEl.style.opacity = 1; toastT = dur; }
 
+// shakeAmt = how hard the camera is shaking.  hitstop = seconds of slow motion left after a hit (the impact freeze).
+// hurtFlash = strength of the red screen edge when the player is hit.
 export let shakeAmt = 0, hitstop = 0, hurtFlash = 0;
 export const shake = v => { shakeAmt = Math.max(shakeAmt, v); };
 
 // ================= fx update =================
 export const projV = new V3();
+// Age every active effect. Runs once per frame while playing.
 export function updateFx(dt) {
   for (const a of arcs) {
     if (a.life <= 0) continue;
@@ -125,6 +142,7 @@ export function updateFx(dt) {
     if (b.life <= 0) b.m.visible = false;
   }
 }
+// The same for the HTML effects (floating text, messages, red edge). Uses real time, so they keep moving during hitstop.
 export function updateDomFx(rdt) {
   const W = innerWidth, H = innerHeight;
   for (const d of dns) {

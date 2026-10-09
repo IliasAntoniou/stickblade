@@ -1,3 +1,7 @@
+// camera.js: the third-person camera and aiming. Where the camera sits, what the crosshair is on (aimHit),
+// and which dummy is locked on (lockTarget).
+// camYaw, camPitch = where the camera looks, in radians; the mouse changes them in input.js. camDist = zoom.
+
 import * as THREE from 'three';
 import { V3, clamp, damp, _a, _b, _c, _d, _e, _pv } from './util.js';
 import { camera } from './core.js';
@@ -11,6 +15,8 @@ import { player } from './player.js';
 export let camYaw = 0, camPitch = -0.12, camDist = 5.4;
 export const camPivot = new V3(0, 1.55, 14);
 export let camH = 1.55, fov = 72;
+// Direction helpers. camDir = where the camera looks. camFwdH, camRight = forward and right along the ground
+// (the movement keys use these). facing = the direction the player faces.
 export const camDir = out => { const cp = Math.cos(camPitch); return out.set(-Math.sin(camYaw) * cp, Math.sin(camPitch), -Math.cos(camYaw) * cp); };
 export const camFwdH = out => out.set(-Math.sin(camYaw), 0, -Math.cos(camYaw));
 export const camRight = out => out.set(Math.cos(camYaw), 0, -Math.sin(camYaw));
@@ -29,6 +35,8 @@ export function aimPoint(out) {
 export function handPos(out) { return player.handR.getWorldPosition(out); }
 
 // ================= camera =================
+// Once per frame: follow the player, pull in if a wall is in the way, apply shake, widen the view with speed,
+// then work out what the crosshair is on (aimHit, aimRaw) and which dummy is nearest to it (lockTarget).
 export function updateCamera(rdt) {
   camH = damp(camH, P.state === 'slide' ? 1.0 : 1.55, 10, rdt);
   _a.set(P.pos.x, P.pos.y + camH, P.pos.z);

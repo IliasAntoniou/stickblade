@@ -1,3 +1,7 @@
+// classes/monk.js: Monk, bare fists, block and parry, air juggles.
+// Functions here START a skill. A skill that lasts a while carries on in update.js (the case named after its state)
+// and gets its pose in anim.js.
+
 import { clamp, _a, _b, _fx } from '../util.js';
 import { spawnArc, spawnRing, shake } from '../fx.js';
 import { T, P, CL, CLASSES } from '../state.js';
@@ -6,13 +10,16 @@ import { setState } from '../player.js';
 import { camDir, facing, camFacingYaw } from '../camera.js';
 
 // ---------- Monk ----------
+// RMB: note when the block started. A hit within 0.3 s of that is a parry (see hurtPlayer in player.js).
 export function mkBlock() { P.blockStart = T; }
+// Q: flying kick in the camera direction.
 export function mkDragonKick() {
   P.cd.q = CL.skills.q.cd; P.atk.on = false;
   camDir(P.skDir); P.skDir.y = clamp(P.skDir.y, -0.45, 0.45); if (P.grounded && P.skDir.y < 0) P.skDir.y = 0; P.skDir.normalize();
   setState('dragonKick'); P.skHit.clear(); P.ghostT = 0;
   P.yaw = P.yawT = Math.atan2(P.skDir.x, P.skDir.z);
 }
+// E: lift nearby dummies, and yourself, into the air.
 export function mkJuggle() {
   P.cd.e = CL.skills.e.cd;
   for (const d of dummies) {
@@ -22,7 +29,9 @@ export function mkJuggle() {
   P.floatT = 2.4; P.vel.y = 9.5; P.airJumps = P.airJumpsMax;
   spawnRing(_fx.copy(P.pos).setY(P.pos.y + 0.05), 0.5, 5.5, 0.4, CL.color);
 }
+// R (hold): start charging the palm strike.
 export function mkCharge() { P.atk.on = false; setState('charge'); P.chargeK = 0; }
+// R let go: palm strike. Damage and knockback grow with the charge (P.chargeK, 0..1).
 export function mkPalmRelease() {
   const c = P.chargeK;
   P.cd.r = CL.skills.r.cd;
@@ -39,11 +48,13 @@ export function mkPalmRelease() {
     if (dx * dx + dz * dz < 2.3 * 2.3 && dy > -1.8 && dy < 2.2) hitDummy(d, 18 + 62 * c, fx * (12 + 30 * c), fz * (12 + 30 * c), 3 + c * 3, true, 0.06 + c * 0.1);
   }
 }
+// F: one second of rapid kicks.
 export function mkKicks() {
   P.cd.f = CL.skills.f.cd; P.atk.on = false;
   P.yaw = P.yawT = camFacingYaw(); setState('kicks'); P.tick = 0;
 }
 
+// Class definition. The fields are explained in blade.js.
 CLASSES.monk = {
   id: 'monk', name: 'Monk', color: 0xff9f1c, weapon: 'none', style: 'punch', run: 10, airJumps: 2,
   desc: 'Bare fists, parries and air juggles. Has a triple jump.', quote: 'Empty hands hold everything.', lmb: 'Punches',

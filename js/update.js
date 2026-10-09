@@ -1,3 +1,8 @@
+// update.js: one step of the game. Read input, start actions, run the player's current state, then move everything.
+// Order inside update(): timers > Master Sen and dialog > read keys > start actions > the big switch on P.state >
+// basic attack > integrate (movement and collision) > dummies, projectiles, challenge.
+// The switch has one case per state, grouped by class. (These move into the class files in the skill-states phase.)
+
 import { V3, TAU, clamp, lerp, damp, angDamp, _a, _b, _c, _d, _fx } from './util.js';
 import { spawnArc, spawnRing, burst, spawnGhost, centerMsg } from './fx.js';
 import { T, P, CL, dlg, chal, addT, tickCombo, resetDamage } from './state.js';
@@ -12,6 +17,8 @@ import { master, openDlg, closeDlg } from './master.js';
 import { endChallenge, updateChallenge } from './challenges.js';
 import { keys, pressed, mouseL, mouseR } from './input.js';
 
+// This frame's input. inDir = the direction the movement keys point, in the world. hasIn = a movement key is held.
+// inX, inZ = raw -1..1. hsp = horizontal speed. inputOn = false during a dialog or countdown.
 export const inDir = new V3();
 export let hasIn = false, inX = 0, inZ = 0, hsp = 0, inputOn = true;
 

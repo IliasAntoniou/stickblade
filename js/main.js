@@ -1,3 +1,5 @@
+// main.js: the entry point. Loads every module, then runs frame() once per screen refresh.
+
 // base layer first: other modules may use these at their top level, and nothing else
 import './util.js';
 import './core.js';
@@ -30,6 +32,8 @@ function step(dt) {
   updateFx(dt);
   pressed.clear();
 }
+// rdt = real seconds since the last frame, capped at 0.05 so one long hiccup cannot fling things through walls.
+// dt = game time: the same, except during hitstop, when it is 8% of that (slow motion).
 function frame() {
   requestAnimationFrame(frame);
   const rdt = Math.min(clock.getDelta(), 0.05);

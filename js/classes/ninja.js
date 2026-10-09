@@ -1,3 +1,7 @@
+// classes/ninja.js: Shadow Ninja, daggers, wall running and teleports.
+// Functions here START a skill. A skill that lasts a while carries on in update.js (the case named after its state)
+// and gets its pose in anim.js.
+
 import { _a, _b, _c, _d, _fx } from '../util.js';
 import { copyPose } from '../stickman.js';
 import { spawnArc, spawnRing, burst, spawnBeam, shake } from '../fx.js';
@@ -9,6 +13,7 @@ import { facing, camFacingYaw, lockTarget, aimPoint, handPos, setCamYaw } from '
 
 // ---------- Shadow Ninja ----------
 export function removeClone() { P.clone = null; cloneSm.root.visible = false; }
+// Q: leave a clone. Press again to swap places with it and blast.
 export function njClone() {
   if (P.clone) {
     _a.copy(P.pos);
@@ -27,6 +32,7 @@ export function njClone() {
     spawnRing(_fx.copy(P.pos).setY(P.pos.y + 0.05), 0.2, 1.6, 0.3, CL.color);
   }
 }
+// E: throw a kunai that sticks. Press again to teleport to it.
 export function njMark() {
   if (P.mark) {
     const m = P.mark; _a.copy(P.pos);
@@ -50,17 +56,20 @@ export function njMark() {
     P.mark = fireProj('kunai', _a, _b, 50, 5, { life: 4.5, dmg: 10, stick: true, onExpire: () => { P.mark = null; P.cd.e = CL.skills.e.cd; } });
   }
 }
+// Holding LMB throws these (see update.js).
 export function throwKunai() {
   handPos(_a); aimPoint(_b).sub(_a).normalize();
   _b.x += (Math.random() - 0.5) * 0.04; _b.y += (Math.random() - 0.5) * 0.04; _b.z += (Math.random() - 0.5) * 0.04; _b.normalize();
   fireProj('kunai', _a, _b, 56, 3, { life: 1.4, dmg: 5, stick: false });
   P.yawT = camFacingYaw();
 }
+// R: vanish for 3.5 s. Fighters lose you, and your next hit deals triple damage.
 export function njSmoke() {
   P.cd.r = CL.skills.r.cd; P.smokeT = 3.5; P.dmgMult = 3;
   burst(_fx.copy(P.pos).setY(P.pos.y + 1), 24, 7, 1);
   spawnRing(_fx.copy(P.pos).setY(P.pos.y + 0.05), 0.3, 3, 0.4, 0x8b95a1);
 }
+// F: yank the locked dummy towards you.
 export function njChain() {
   const d = lockTarget; if (!d || d.pos.distanceTo(P.pos) > 30) return;
   P.cd.f = CL.skills.f.cd;
@@ -74,6 +83,7 @@ export function njChain() {
   }
 }
 
+// Class definition. The fields are explained in blade.js.
 CLASSES.ninja = {
   id: 'ninja', name: 'Shadow Ninja', color: 0xb07cff, weapon: 'daggers', style: 'dagger', run: 11.5, airJumps: 1,
   desc: 'Fast daggers, wall running, teleports. Runs faster.', quote: 'Be where they are not looking.', lmb: 'Daggers',

@@ -1,3 +1,7 @@
+// player.js: the player's body and everything every class shares. Collision with the world, taking damage,
+// the basic attack combo, dash, slide and rewind. Class-specific skills are in classes/.
+// P.state says what the player is doing ('normal', 'dash', 'slide' or a skill name). update.js runs the matching block each frame.
+
 import * as THREE from 'three';
 import { V3, clamp, _a, _b, _c, _fx, _hp } from './util.js';
 import { scene } from './core.js';
@@ -24,6 +28,10 @@ export const cloneSm = makeStickman(cloneMat, cloneMat, true); cloneSm.root.visi
 export const diveMark = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x3ddc84, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }));
 diveMark.visible = false; scene.add(diveMark);
 
+// Everything about the player. The main ones:
+// pos, vel = position and speed.  yaw = facing angle (yawT = the angle being turned towards).
+// state, st = current state and seconds spent in it.  cd = seconds left on each cooldown.  atk = the basic combo in progress.
+// history = recent positions for Rewind.  iframes = seconds of invulnerability left.
 Object.assign(P, {
   pos: SPAWN.clone(), vel: new V3(), yaw: Math.PI, yawT: Math.PI, grounded: false, justLanded: false,
   airJumps: 1, airJumpsMax: 1, run: 9.5, dashCharges: 2, dashRecharge: 0, state: 'normal', st: 0, grav: 0,
@@ -35,14 +43,24 @@ Object.assign(P, {
   hp: 100, maxHp: 100, hurtT: 99, iframes: 0, blocking: false, blockStart: -9,
   smokeT: 0, dmgMult: 1, floatT: 0, clone: null, mark: null, jav: null, lmbHeld: 0, kunaiT: 0, chargeK: 0,
 });
+// Movement tuning. Distances are world units (a stickman is about 1.9 tall), speeds are units per second, times are seconds.
+// JUMP, AIRJUMP = upward speed of a jump (higher = jumps higher).  GRAV = pull downwards (higher = snappier, shorter jumps).
+// DASH_SPEED x DASH_TIME = dash distance.  DASH_CD = seconds to regain a charge.  DASH_MAX = number of charges.
 export const JUMP = 13, AIRJUMP = 12.5, GRAV = 36, DASH_SPEED = 34, DASH_TIME = 0.17, DASH_CD = 1.1, DASH_MAX = 2;
+// PR, PH = the player's collision radius and height.  FLIP_T = length of a somersault.  REWIND_CD = Rewind cooldown.
 export const PR = 0.32, PH = 1.75, FLIP_T = 0.42, REWIND_CD = 8;
+// States that other actions cannot cancel.
 export const LOCKED = new Set(['slamUp', 'slamDown', 'dragoonUp', 'dragoonDown']);
+// pose = what the player looks like now. tp = the pose being blended towards (see anim.js).
 export const pose = { ...BASE }, tp = { ...BASE };
 
 // collision
+// Would the player's box at (x, y, z) overlap solid s?
 export function overl(s, x, y, z) { return x + PR > s.min.x && x - PR < s.max.x && z + PR > s.min.z && z - PR < s.max.z && y + PH > s.min.y && y < s.max.y; }
 export function anyOverlap(x, y, z) { for (const s of solids) if (overl(s, x, y, z)) return s; return null; }
+// Move along ONE axis ('x', 'y' or 'z') by d, then push back out of anything hit. Doing one axis at a time is
+// what makes sliding along walls work. Also steps up small ledges (up to 0.55 high) and remembers the wall just
+// touched (wallN, wallT) for wall jumps.
 export function moveAxis(ax, d) {
   if (d === 0) return;
   P.pos[ax] += d;
@@ -60,6 +78,7 @@ export function moveAxis(ax, d) {
     }
   }
 }
+// After a teleport: if the player ended up inside a box, push out the shortest way.
 export function depenetrate() {
   if (P.pos.y < 0) P.pos.y = 0;
   for (let it = 0; it < 5; it++) {
@@ -70,6 +89,7 @@ export function depenetrate() {
   }
   if (P.pos.y < 0) P.pos.y = 0;
 }
+// Apply speed and gravity for this frame, in slices of at most 1/120 s so fast moves cannot pass through thin platforms.
 export function integrate(dt) {
   const n = Math.max(1, Math.ceil(dt / (1 / 120))), h = dt / n;
   const was = P.grounded;
@@ -94,6 +114,7 @@ ropeMesh.visible = false; scene.add(ropeMesh);
 export const hookMesh = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), new THREE.MeshBasicMaterial({ color: 0x00e5ff }));
 hookMesh.visible = false; scene.add(hookMesh);
 
+// Lancer charge: let go of the dummies being pushed. full = the charge ran its course, so launch them.
 export function releaseDrag(full) {
   for (const d of P.dragged) {
     d.pinned = false;
@@ -101,6 +122,7 @@ export function releaseDrag(full) {
   }
   P.dragged.length = 0;
 }
+// Switch state. The ifs tidy up after the state being left (hide the rope, start a cooldown...).
 export function setState(s) {
   const o = P.state;
   if (o === 'grapple' && s !== 'grapple') { ropeMesh.visible = hookMesh.visible = false; P.cd.m2 = CL.skills.m2.cd; }
@@ -113,7 +135,9 @@ export function setState(s) {
 }
 
 // ---------- taking damage ----------
+// Hits pass through the player while this is true.
 export function isInvuln() { return P.iframes > 0 || P.state === 'dash' || P.state === 'blinkStrike' || P.state === 'dragonKick'; }
+// The player is hit for dmg from position src. attacker (optional) is the dummy, needed for the monk's parry.
 export function hurtPlayer(dmg, src, attacker) {
   if (dlg.open || chal.phase === 'count') return;
   _hp.copy(P.pos); _hp.y += 1.5;
@@ -132,6 +156,7 @@ export function hurtPlayer(dmg, src, attacker) {
   P.atk.on = false;
   if (P.hp <= 0) playerDefeated();
 }
+// Monk blocked at the last moment: appear behind the attacker, stun it and hit back.
 export function parry(d) {
   P.iframes = 0.6;
   const fx = Math.sin(d.yaw), fz = Math.cos(d.yaw);
@@ -143,6 +168,7 @@ export function parry(d) {
   spawnRing(_fx.copy(P.pos).setY(P.pos.y + 1), 0.3, 2.5, 0.3, 0xffd23f);
   hitDummy(d, 25, fx * 4, fz * 4, 4, true, 0.16);
 }
+// Health ran out: end any challenge and go back to the start.
 export function playerDefeated() {
   centerMsg('DEFEATED<small>Master Sen drags you back to the start</small>', 2);
   if (chal.cur) endChallenge();
@@ -156,6 +182,7 @@ export function respawnPlayer() {
 }
 
 // ================= actions =================
+// Start the next hit of the basic combo (CL.atk). force = begin at a given step.
 export function startAttack(force = -1) {
   const a = P.atk, n = CL.atk.length;
   let c = 0; if (T - a.lastEnd < 0.4 && a.lastCombo < n - 1) c = a.lastCombo + 1;
@@ -168,6 +195,7 @@ export function startAttack(force = -1) {
   if (!P.grounded) P.vel.y = Math.max(P.vel.y, 3);
   if (P.state === 'dash' || P.state === 'slide') setState('normal');
 }
+// Runs every frame of the hit window. Each dummy can be hit once per swing (a.hit remembers who).
 export function attackHits() {
   const a = P.atk, A = CL.atk[a.combo]; facing(_a);
   const cx = P.pos.x + _a.x * A.off, cz = P.pos.z + _a.z * A.off;
@@ -181,6 +209,7 @@ export function attackHits() {
     }
   }
 }
+// The swing's visual, chosen by the class's style.
 export function attackVfx() {
   const a = P.atk, c = a.combo, last = c === CL.atk.length - 1; facing(_a);
   _b.copy(P.pos).addScaledVector(_a, 0.2).setY(P.pos.y + 1.15);
@@ -197,6 +226,7 @@ export function attackVfx() {
     }
   }
 }
+// Dash towards the movement keys, or where the camera looks if none are held (so looking up dashes upward).
 export function startDash() {
   if (hasIn && !(inZ > 0 && inX === 0)) P.dashDir.copy(inDir);
   else { camDir(P.dashDir); P.dashDir.y = clamp(P.dashDir.y, -0.5, 0.6); if (P.grounded && P.dashDir.y < 0) P.dashDir.y = 0; P.dashDir.normalize(); }
@@ -206,6 +236,7 @@ export function startDash() {
   P.yaw = P.yawT = Math.atan2(P.dashDir.x, P.dashDir.z);
   shake(0.08);
 }
+// Slide: a speed boost that fades. Needs some speed to start.
 export function startSlide() {
   if (hsp < 2.5) return;
   const boost = Math.min(hsp + 6, 23);
@@ -214,6 +245,7 @@ export function startSlide() {
   P.yaw = P.yawT = Math.atan2(_a.x, _a.z);
   P.atk.on = false; setState('slide');
 }
+// Jump back to where the player was about 2 s ago (P.history holds 40 positions, one every 0.05 s).
 export function doRewind() {
   P.cd.x = REWIND_CD;
   const h = P.history;
@@ -223,9 +255,11 @@ export function doRewind() {
   spawnRing(_fx.copy(P.pos).setY(P.pos.y + 0.05), 0.2, 2.5, 0.35, 0xa974ff);
   shake(0.15);
 }
+// A row of afterimages between two points, for teleports.
 export function teleTrail(from, to, n = 6) {
   for (let i = 1; i <= n; i++) { player.root.position.lerpVectors(from, to, i / (n + 1)); spawnGhost(player, CL.color, player.root.position, 0.35); }
 }
+// Shared landing blast for Meteor Slam and Dragoon Dive.
 export function groundImpact(rad, dmg, color) {
   _fx.copy(P.pos).setY(P.pos.y + 0.05);
   spawnRing(_fx, 0.5, rad + 1.5, 0.4, color); spawnRing(_fx, 0.3, rad * 0.65, 0.3, 0xffffff);
@@ -233,6 +267,7 @@ export function groundImpact(rad, dmg, color) {
   hitArea(P.pos.x, P.pos.y, P.pos.z, rad, dmg, 9, 13, true, 0.07, true, 0.75);
   setState('normal'); P.vel.set(0, 0, 0);
 }
+// Remove whatever a class left in the world (clone, kunai, javelin) when changing class or respawning.
 export function cleanupClassObjects() {
   if (P.clone) removeClone();
   if (P.mark) { killProj(P.mark); P.mark = null; }

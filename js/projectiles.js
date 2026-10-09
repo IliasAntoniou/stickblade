@@ -1,3 +1,6 @@
+// projectiles.js: thrown things, the ninja's kunai and the lancer's javelin. A pool of 16, like the effects in fx.js.
+// A projectile can stick into a dummy or a wall (p.stuck), which is what lets the ninja and lancer teleport to it.
+
 import * as THREE from 'three';
 import { V3, _pv } from './util.js';
 import { scene } from './core.js';
@@ -16,6 +19,7 @@ for (let i = 0; i < 16; i++) {
   g.add(k); g.add(s); g.visible = false; scene.add(g);
   projs.push({ g, k, s, active: false, pos: new V3(), vel: new V3(), off: new V3(), dir: new V3(), stuck: null, life: 0, grav: 0, o: null });
 }
+// Launch one. kind = 'kunai' | 'spear'. o = { life (seconds), dmg, heavy, stick, onExpire }. Returns null if all 16 are in use.
 export function fireProj(kind, from, dir, speed, grav, o) {
   const p = projs.find(p => !p.active); if (!p) return null;
   p.k.visible = kind !== 'spear'; p.s.visible = kind === 'spear';
@@ -24,6 +28,7 @@ export function fireProj(kind, from, dir, speed, grav, o) {
   return p;
 }
 export function killProj(p) { p.active = false; p.g.visible = false; }
+// Move every projectile, in small steps so a fast one cannot skip through a dummy or wall.
 export function updateProjs(dt) {
   for (const p of projs) {
     if (!p.active) continue;

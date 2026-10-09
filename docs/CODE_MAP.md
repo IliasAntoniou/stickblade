@@ -1,0 +1,167 @@
+# Stickblade code map
+
+Where everything is, what the short names mean, and how to add things. If this file and the code disagree, the code is right and this file needs fixing.
+
+## Where is it?
+
+| I want to change... | Go to |
+|---|---|
+| A class's damage, combo speed, reach, cooldowns, run speed | The `CLASSES.<name> = {` table at the bottom of `js/classes/blade.js`, `js/classes/ninja.js`, `js/classes/monk.js` or `js/classes/lancer.js` |
+| What a skill does when pressed | Its function in the class file, for example `bmBlink()` in `js/classes/blade.js` |
+| What a skill does while it lasts | The `case` named after its state in `update()` in `js/update.js` |
+| How a skill or move looks (the pose) | `animatePlayer()` in `js/anim.js` |
+| Jump height, gravity, dash distance, dash charges | The constants `JUMP`, `GRAV`, `DASH_SPEED`... near the top of `js/player.js` |
+| Running, air control, wall jump, slide feel | The `normal` and `slide` cases in `update()` in `js/update.js` |
+| Player health, getting hit, block, parry | `hurtPlayer()` and `parry()` in `js/player.js` |
+| Collision with walls and floors | `moveAxis()` and `integrate()` in `js/player.js` |
+| A dummy type's health or colour | `DTYPE` in `js/dummies.js` |
+| Where dummies stand | The `dummies` list in `js/dummies.js` |
+| How the fighter attacks | `fighterAI()` in `js/dummies.js` |
+| How hits work (damage, knockback, shield block) | `hitDummy()` and `dealDamage()` in `js/dummies.js` |
+| The map (boxes, platforms, walls) | The `addBox()` lines in `js/world.js` |
+| Kunai and javelin | `js/projectiles.js` |
+| A challenge's goal, or a new challenge | `CH` and `updateChallenge()` in `js/challenges.js` |
+| Master Sen's lines and menu | `GREET`, `TIPS` and `renderDlg()` in `js/master.js` |
+| Camera distance, shake, zoom with speed, lock-on | `updateCamera()` in `js/camera.js` |
+| Which key does what | The "actions" block in `update()` in `js/update.js`; raw key handling is in `js/input.js` |
+| Mouse sensitivity | `sens` in `js/input.js` |
+| Skill bar, health bar, stats line | `js/hud.js`; their look is the CSS at the top of `index.html` |
+| The start / pause menu text | The `#overlay` block in `index.html` |
+| Slash arcs, rings, sparks, damage numbers, hitstop | `js/fx.js` |
+| Colours, fog, light | `js/core.js`; box colours are `COL` in `js/world.js` |
+| What gets saved between sessions | `save` in `js/util.js` |
+
+## What happens every frame
+
+`frame()` in `js/main.js` runs once per screen refresh:
+
+1. `update()` (`js/update.js`), only while the mouse is captured:
+   1. count down cooldowns and timers
+   2. Master Sen and his dialog
+   3. read the keys
+   4. start actions (dash, skills, attack, slide)
+   5. run the block for the player's current state (`P.state`)
+   6. advance the basic attack
+   7. `integrate()`: move the player and resolve collisions
+   8. update every dummy, every projectile, and the challenge
+2. `animatePlayer()` (`js/anim.js`): work out the pose.
+3. `updateFx()` (`js/fx.js`): fade the effects.
+4. `updateCamera()` (`js/camera.js`): place the camera, find what the crosshair is on.
+5. `updateDomFx()` and `updateHud()`: floating text and the on-screen display.
+6. Draw.
+
+## Files
+
+| File | What it is |
+|---|---|
+| `index.html` | The page: HTML for the menu and HUD, all the CSS, and one line that loads `js/main.js` |
+| `js/main.js` | Entry point and the frame loop |
+| `js/util.js` | Maths helpers, scratch vectors, the save file |
+| `js/core.js` | Renderer, scene, camera, lights |
+| `js/world.js` | The map's boxes, ground height lookup, blob shadows |
+| `js/stickman.js` | Builds stick figures; the pose tables |
+| `js/state.js` | Shared state: `P`, `CL`, `T`, combo counters, `CLASSES` |
+| `js/fx.js` | Effects, messages, screen shake, hitstop |
+| `js/dummies.js` | The `Dummy` class, the list of dummies, the damage functions |
+| `js/projectiles.js` | Kunai and javelin |
+| `js/player.js` | Player body, collision, taking damage, basic attack, dash, slide, rewind |
+| `js/camera.js` | Camera and aiming |
+| `js/classes/index.js` | Loads the class files; `setClass()` |
+| `js/classes/blade.js`, `ninja.js`, `monk.js`, `lancer.js` | One class each: skill functions and the class table |
+| `js/master.js` | Master Sen and the dialog menu |
+| `js/challenges.js` | Timed challenges |
+| `js/input.js` | Keyboard, mouse, pause |
+| `js/update.js` | One step of the game |
+| `js/anim.js` | Player poses |
+| `js/hud.js` | On-screen display |
+| `vendor/three.module.js` | The three.js library (not ours; do not edit) |
+| `tests/smoke.js`, `tests/smoke.sh` | Automated test that plays every class and skill |
+| `tests/check_docs.py` | Checks file headers and that this map points at real things |
+| `play.bat` | Starts the server and opens the game |
+
+## Glossary
+
+| Name | Meaning |
+|---|---|
+| `P` | The player: `P.pos`, `P.vel` (speed), `P.hp`, `P.state`, `P.cd` (cooldowns)... Full list at `Object.assign(P, {` in `js/player.js` |
+| `P.state`, `P.st` | What the player is doing (`normal`, `dash`, `slide`, or a skill such as `cyclone`) and for how many seconds |
+| `CL` | The class being played, one entry of `CLASSES` |
+| `T` | Game time in seconds |
+| `dt` | Game seconds since the last frame. Shrinks during hitstop |
+| `rdt` | Real seconds since the last frame |
+| `_a` `_b` `_c` `_d` `_e`, `_fx`, `_hv`... | Shared scratch vectors. Any call may overwrite them |
+| `V3` | three.js `Vector3`: an x, y, z triple. y is up |
+| `yaw`, `pitch` | Turn left/right, and look up/down, in radians |
+| `inDir`, `hasIn` | The direction the movement keys point, and whether any is held |
+| `hsp` | Horizontal speed |
+| `solids` | The map's collision boxes |
+| `d` | A dummy, in most loops |
+| `DTYPE` | Dummy types |
+| `CH`, `chal` | The list of challenges, and the one running |
+| `dlg` | Master Sen's dialog state |
+| `SK` | The skill bar's slots |
+| `S` | Shorthand for `CL.skills` inside `update()` |
+| `m2`, `q`, `e`, `r`, `f`, `x` | Skill slots: right mouse, the Q E R F keys, and Rewind |
+| `M0`, `M2` | Left and right mouse button, as they appear in `pressed` |
+| `tp`, `pose` | Target pose and current pose |
+| hitstop | The brief slow motion when a hit lands |
+| iframes | Seconds during which the player cannot be hit |
+| pool | A fixed set of objects reused over and over, never created during play |
+| lock-on, `lockTarget` | The dummy nearest the crosshair |
+| `aimHit` | The point on the map under the crosshair |
+| `SB` | `window.SB`, the test handle that exists only with `?debug` |
+
+## Recipes
+
+### Add or change a skill
+
+1. Write the start function in the class file (copy a neighbour such as `bmCyclone()`). Set the cooldown there: `P.cd.e = CL.skills.e.cd`.
+2. Point the slot at it in the class table: `e: { n: 'Name', cd: 5, fn: myFunction }`.
+3. If the skill lasts longer than one frame: call `setState('myState')` in the start function and add `case 'myState':` to the switch in `update()` in `js/update.js`. The case must return to `setState('normal')` when done.
+4. Give it a pose: add an `else if (st === 'myState')` branch in `animatePlayer()` in `js/anim.js`.
+5. If nothing may interrupt it, add the state to `LOCKED` in `js/player.js`. If the player cannot be hit during it, add it to `isInvuln()`.
+6. Run the smoke test. It presses every skill key for every class, so a new skill is covered automatically.
+
+### Add a class
+
+1. Copy `js/classes/blade.js` to a new file and rename the table to `CLASSES.<id> = {`. All five slots (`m2`, `q`, `e`, `r`, `f`) must exist.
+2. In `js/classes/index.js`: import the file and add the id to `CLASS_ORDER`.
+3. `style` must be `slash`, `dagger`, `punch` or `thrust`, or add a new case to `attackVfx()` in `js/player.js` and to the attack part of `animatePlayer()`.
+4. `weapon` must be `sword`, `daggers`, `spear` or `none`, or add a new one in `makeStickman()` and `setWeapon()` in `js/stickman.js`.
+5. Run the smoke test: it loops over `CLASS_ORDER`.
+
+### Add a dummy type
+
+1. Add it to `DTYPE` in `js/dummies.js` (colour, health).
+2. Place at least one in the `dummies` list.
+3. Give it behaviour with checks on `this.type` in the `Dummy` class, the way `shield` and `flying` do.
+4. Run the smoke test: it loops over `DTYPE` and fails if a type has no dummy on the map.
+
+### Add a challenge
+
+1. Add it to `CH` in `js/challenges.js` (id, name, description).
+2. In `updateChallenge()` add a branch for its id that sets `prog` (the progress text) and `done`.
+3. If it shows objects (like the rings), show them in `startChallenge()` and hide them in `endChallenge()`.
+4. Run the smoke test: it loops over `CH`.
+
+### Change the map
+
+Until maps become data files, the map is spread over: the `addBox()` lines in `js/world.js`, the `dummies` list in `js/dummies.js`, `SPAWN` in `js/state.js`, Master Sen's position in `js/master.js`, and `RING_PTS` plus the Summit check in `js/challenges.js`.
+
+## Traps
+
+- **Changing another file's variable.** A variable imported from another file can be read but not assigned. `hitstop = 0.1` from outside `js/fx.js` throws an error; call `addHitstop()` instead. The setters are at the bottom of `js/state.js`, `js/fx.js` and `js/camera.js`.
+- **Scratch vectors.** `_a` to `_e` are shared by everything. Fill one, use it, and assume it is gone after calling any other function.
+- **Top-level code.** Code outside functions may only use things from `util`, `core`, `world`, `stickman`, `state` and `fx`. Anything else may not be loaded yet.
+- **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.
+- **`dt` or `rdt`.** Gameplay uses `dt` so it slows down during hitstop. Camera and on-screen display use `rdt`.
+- **Only boxes.** Collision assumes every solid is an upright box. A slope or rotated wall will not collide correctly.
+- **The game only runs while the mouse is captured.** That is the pause system. For testing without it, add `?debug` to the address.
+
+## If something breaks
+
+1. Open the browser console (F12) and read the first red error. It names the file and line.
+2. Run `bash tests/smoke.sh` with the server running. It lists which class, skill or dummy fails.
+3. `git status` and `git diff` show what changed since the last commit.
+4. `git restore <file>` throws away uncommitted changes to that file. This cannot be undone.
+5. Every merged version has a tag, listed in `CHANGELOG.md`. `git checkout v0.1-modules` looks at that version; `git checkout main` comes back.

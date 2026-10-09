@@ -1,16 +1,24 @@
+// world.js: the level. Every solid box, the ground, and helpers that answer "what is under this point?".
+// Owns solids (collision boxes), solidMeshes (the same boxes as visible objects) and the blob shadows.
+// Used by player.js (collision), dummies.js, projectiles.js and camera.js (so the camera stays out of walls).
+// The whole world is boxes lined up with the axes. There are no slopes or rotated shapes, and the collision code relies on that.
+
 import * as THREE from 'three';
 import { V3, clamp } from './util.js';
 import { scene } from './core.js';
 
 // ================= world =================
+// solids[i] = { min, max } corners, used for collision. solidMeshes[i] = the matching visible box, used for ray tests.
 export const solids = [], solidMeshes = [];
 export const boxGeo = new THREE.BoxGeometry(1, 1, 1);
 export const edgeGeo = new THREE.EdgesGeometry(boxGeo);
 export const edgeMat = new THREE.LineBasicMaterial({ color: 0x4a545d, transparent: true, opacity: 0.35 });
 export const matCache = {};
+// lam(colour): one shared material per colour, so fifty boxes of one colour cost a single material.
 export const lam = c => matCache[c] || (matCache[c] = new THREE.MeshLambertMaterial({ color: c }));
 export const COL = { stone: 0xe6e0d2, pillar: 0xb9c7d4, plat: 0xf0c27a, wall: 0xd5dde4, green: 0x9cc9b0, crate: 0xd9b48f };
 
+// Add a solid box. x, z = centre. y = the BOTTOM of the box. w, h, d = size along x, y, z. c = colour.
 export function addBox(x, y, z, w, h, d, c = COL.stone) {
   const m = new THREE.Mesh(boxGeo, lam(c));
   m.scale.set(w, h, d); m.position.set(x, y + h / 2, z);
@@ -24,6 +32,7 @@ export const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THRE
 ground.rotation.x = -Math.PI / 2; scene.add(ground);
 export const grid = new THREE.GridHelper(120, 60, 0x8d99a3, 0x9da9b2); grid.position.y = 0.01; scene.add(grid);
 
+// Half the size of the playable square: it runs from -60 to +60 on x and z. The four boxes below are its walls.
 export const ARENA = 60;
 addBox(0, 0, -ARENA - 0.5, ARENA * 2 + 2, 6, 1, COL.wall);
 addBox(0, 0, ARENA + 0.5, ARENA * 2 + 2, 6, 1, COL.wall);
@@ -68,6 +77,8 @@ addBox(4, 0, 44, 3, 12, 3, COL.pillar);
   const flag = new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial({ color: 0xff3d6a })); flag.scale.set(1.1, 0.6, 0.05); flag.position.set(0.6, 28, -46); scene.add(flag);
 }
 
+// Height of the highest surface under (x, z) that is not above y. Used to stand dummies and shadows on things.
+// The 0.35 lets something sunk slightly into a surface still count as standing on it.
 export function groundAt(x, z, y) {
   let g = 0;
   for (const s of solids) {
@@ -85,7 +96,9 @@ export const shadowTex = (() => {
 })();
 export const shadowGeo = new THREE.PlaneGeometry(1, 1); shadowGeo.rotateX(-Math.PI / 2);
 export const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false });
+// Fake shadow: a soft dark circle on the surface below a character. Real shadows cost far more to draw.
 export function makeShadow() { const m = new THREE.Mesh(shadowGeo, shadowMat); scene.add(m); return m; }
+// Put a shadow under (x, y, z). It shrinks as the character gets higher.
 export function placeShadow(m, x, y, z) {
   const g = groundAt(x, z, y + 0.05); const s = clamp(1.2 - (y - g) * 0.05, 0.35, 1.2);
   m.position.set(x, g + 0.025, z); m.scale.set(s, 1, s);
