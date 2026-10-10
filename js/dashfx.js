@@ -151,11 +151,9 @@ const MAX_RIBBONS = 8;
 // bend(n, age, out) = how far ribbon number n is pushed off the path, sideways (out.x) and upwards (out.y), at a
 //   point that is `age` seconds old,
 // tint(age, out) = its colour there as out.x, out.y, out.z (red, green, blue).
-// retract = seconds, once the dash stops, for the ribbons to be drawn forward into the player and vanish.
-//   Without it (water) they are left where they are to fade and fall.
 const RIBBONS = {
   flame: {
-    count: 8, life: 0.5, width: 0.95, solid: false, retract: 0.15,
+    count: 8, life: 0.5, width: 0.95, solid: false,
     // Silk in a wind: each ribbon swings from side to side on its own beat and fans out and lifts as it ages.
     bend(n, age, out) {
       const spread = 0.1 + age * 3.2;
@@ -208,7 +206,6 @@ for (let i = 0; i < PATH_POINTS; i++) path.push({ pos: new V3(), side: new V3(),
 let pathCount = 0;        // how many points of the path are in use (they are kept newest first)
 let ribbonClock = 0;      // seconds, counted here so the ribbons age in game time
 let ribbonLook = null;    // the entry of RIBBONS being drawn
-let ribbonEnd = -1;       // when the dash stopped, on ribbonClock (-1 while it is still going)
 const ribbonGeo = new THREE.BufferGeometry();
 {
   const corners = MAX_RIBBONS * RIBBON_POINTS * 2;
@@ -262,17 +259,6 @@ function updateRibbons(dt) {
   }
   const pos = ribbonGeo.attributes.position.array, col = ribbonGeo.attributes.color.array;
   const last = (pathCount - 1) * SMOOTH;    // the last drawn point of each ribbon
-  // Once the dash has stopped, ribbons that retract stop waving and spreading (they are frozen as they were at
-  // that moment) and are pulled forward into the player: pull runs 0 to 1 over the retract time, gently at both ends.
-  const ended = ribbonEnd >= 0 && look.retract;
-  const sinceEnd = ended ? Math.min(1, (ribbonClock - ribbonEnd) / look.retract) : 0;
-  const pull = sinceEnd * sinceEnd * (3 - 2 * sinceEnd);
-  if (pull >= 1) {
-    pathCount = 0;
-    ribbons.visible = false;
-    return;
-  }
-  const head = path[0].pos;
   for (let r = 0; r < MAX_RIBBONS; r++) {
     for (let k = 0; k < RIBBON_POINTS; k++) {
       const corner = (r * RIBBON_POINTS + k) * 2;
@@ -283,11 +269,9 @@ function updateRibbons(dt) {
       const along = Math.min(k, last) / SMOOTH;
       const from = Math.min(Math.floor(along), pathCount - 2), part = along - from;
       const a = path[from], b = path[from + 1];
-      const born = a.born + (b.born - a.born) * part;
-      const age = (ended ? ribbonEnd : ribbonClock) - born;
-      look.bend(r, Math.max(0, age), _bend);
+      const age = ribbonClock - (a.born + (b.born - a.born) * part);
+      look.bend(r, age, _bend);
       _mid.copy(a.pos).lerp(b.pos, part).addScaledVector(a.side, _bend.x).addScaledVector(a.up, _bend.y);
-      _mid.lerp(head, pull);
       // The strip is turned to face the camera: its width runs across both the path and the line of sight.
       _toEye.copy(camera.position).sub(_mid);
       _across.crossVectors(a.dir, _toEye);
@@ -297,7 +281,7 @@ function updateRibbons(dt) {
       // wide near the head, tapering to a point at the tail; the very front is pinched so it grows out of the body
       const half = used ? look.width * RIBBON_WIDTH[r] * 0.5 * Math.pow(fade, 0.6) * Math.min(1, 0.2 + age * 16) : 0;
       look.tint(age, _tint);
-      const opacity = used ? fade * RIBBON_GLOW[r] * (1 - pull) : 0;
+      const opacity = used ? fade * RIBBON_GLOW[r] : 0;
       for (let side = 0; side < 2; side++) {
         const v = corner + side, sign = side ? 1 : -1;
         pos[v * 3] = _mid.x + _across.x * half * sign;
@@ -322,8 +306,7 @@ const FORMS = {
   flame: {
     glow: 0xff7a1f, rate: 520,
     // The player IS the fire: long ribbons of flame stream back from where they are (see RIBBONS), and at the
-    // front a dense swarm of embers travels with them. Nothing is left behind: when the dash stops the ribbons
-    // are drawn forward into the body.
+    // front a dense swarm of embers travels with them. Only a little smoke is left behind.
     stream(at, dir) {
       // the swarm: tiny bright embers thrown forward at nearly the speed of the dash, so they stay around the
       // head and spill out ahead of it when it stops
@@ -332,6 +315,8 @@ const FORMS = {
       emit(bright, _to, dir.x * pace + rand(3), dir.y * pace + rand(3) + 0.5, dir.z * pace + rand(3), 0.13 + Math.random() * 0.12, -0.15, 0.22 + Math.random() * 0.3, Math.random() < 0.3 ? CORE : EMBER, 1, 2.5, 2.2);
       // dark flecks of ash among them
       if (Math.random() < 0.3) emit(soft, _to, dir.x * pace * 0.8 + rand(3), dir.y * pace * 0.8 + rand(3), dir.z * pace * 0.8 + rand(3), 0.12, 0, 0.4, SMOKE, 1, 5, 1.5);
+      // a thin wisp of smoke left on the path
+      if (Math.random() < 0.08) emit(soft, _to, rand(0.6), 0.9, rand(0.6), 0.8, 1.8, 0.5, SMOKE, 0.45, -1, 2);
     },
     gather(at) {
       // embers falling back in towards the body
@@ -400,7 +385,6 @@ export function updateDashForm(dt) {
     form.kind = FORMS[style.cur.id];
     ribbonLook = RIBBONS[style.cur.id] || null;
     pathCount = 0;
-    ribbonEnd = -1;
     spawnGlow(_at, form.kind.glow, 2.4, 0.2);
     _last.copy(_at);
     form.time = 0;
@@ -408,7 +392,6 @@ export function updateDashForm(dt) {
   }
   if (!dashing && form.dashing) {
     // the moment of arriving: a flash, and for water a ring where it lands
-    ribbonEnd = ribbonClock;
     spawnGlow(_at, form.kind.glow, 2, 0.22);
     if (form.kind === FORMS.water && P.grounded) spawnRing(_to.set(P.pos.x, P.pos.y + 0.05, P.pos.z), 0.3, 2.4, 0.35, 0x2f8fff);
   }
