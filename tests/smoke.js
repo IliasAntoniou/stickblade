@@ -170,6 +170,37 @@ check('tuning panel', () => {
   return SB.CL.atk[0].dmg === 12 && SB.CL.skills.m2.cd === 0.5 && TUNE.runMult === 1 && !panel.querySelector('.tr.chg');
 });
 
+// painted slashes: a swing shows a two-layer crescent and a weapon trail, and both go away again
+check('slash: crescent and trail appear and clear', () => {
+  SB.setClass('blade'); reset(); P.pos.set(0, 0, 40); run(5);
+  pressed.add('M0'); run(7);
+  const arc = SB.arcs.find(a => a.g.visible);
+  const shown = !!arc && arc.body.material.opacity > 0.5 && arc.ink.material.opacity > 0.5 && SB.trail.visible;
+  run(60);
+  return shown && !SB.arcs.some(a => a.g.visible) && !SB.trail.visible;
+});
+check('slash: Cyclone whirlpool and Slam wave', () => {
+  reset(); P.pos.set(0, 0, 40); run(5);
+  SB.CL.skills.e.fn(); run(6);
+  const whirl = SB.swirls.some(w => w.g.visible);
+  run(90); P.pos.y = 6; P.grounded = false; SB.CL.skills.r.fn(); run(14);
+  const wave = SB.swirls.some(w => w.g.visible);
+  run(90);
+  return whirl && wave && !SB.swirls.some(w => w.g.visible);
+});
+check('slash: fists leave no trail, a teleport does not stretch one', () => {
+  SB.setClass('monk'); reset(); pressed.add('M0'); run(6);
+  const none = !SB.trail.visible;
+  SB.setClass('blade'); reset(); pressed.add('M0'); run(5);
+  P.pos.x += 60; run(1);                                 // far away in one frame
+  const box = new Float32Array(SB.trail.children[0].geometry.attributes.position.array);
+  const count = SB.trail.children[0].geometry.drawRange.count / 6 + 1;
+  let widest = 0;
+  for (let i = 1; i < count * 2; i++) widest = Math.max(widest, Math.abs(box[i * 3] - box[0]));
+  run(60);
+  return none && (!SB.trail.visible || widest < 14);
+});
+
 // graphics: the quality switch works both ways, and Low stays cheap to draw
 check('quality: switch to High and back', () => {
   reset();

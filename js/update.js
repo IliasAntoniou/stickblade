@@ -168,7 +168,6 @@ export function update(dt) {
       P.tick -= dt;
       if (P.tick <= 0) {
         P.tick = 0.075;
-        spawnRing(_fx.copy(P.pos).setY(P.pos.y + 1.1), 1.2, E.rad, 0.15, CL.color);
         setHitSrc('e');
         for (const d of dummies) {
           if (d.dead) continue;

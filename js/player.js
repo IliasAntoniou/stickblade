@@ -7,7 +7,7 @@ import { V3, clamp, _a, _b, _c, _fx, _hp } from './util.js';
 import { scene } from './core.js';
 import { solids, area, makeShadow } from './world.js';
 import { makeStickman, setWeapon, BASE, addRim, castShadows } from './stickman.js';
-import { glowTex, spawnArc, ringGeo, spawnRing, burst, spawnGhost, beamGeo, spawnBeam, spawnText, centerMsg, shake, addHitstop, flashHurt } from './fx.js';
+import { glowTex, spawnSwirl, spawnArc, ringGeo, spawnRing, burst, spawnGhost, beamGeo, spawnBeam, spawnText, centerMsg, shake, addHitstop, flashHurt } from './fx.js';
 import { T, P, CL, dlg, chal, SPAWN, combo, TUNE, setHitSrc } from './state.js';
 import { dummies, hitDummy, hitArea } from './dummies.js';
 import { killProj } from './projectiles.js';
@@ -22,10 +22,10 @@ export const playerMat = addRim(new THREE.MeshLambertMaterial({ color: 0xeef1f8,
 export const bladeMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, toneMapped: false });
 export const player = makeStickman(playerMat, bladeMat, true); scene.add(player.root);
 castShadows(player);
-// A soft halo that rides on the weapon hand: fake bloom, one extra draw call. setClass tints it to the class colour.
-export const bladeGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0x00e5ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.55, toneMapped: false }));
+// A faint halo that rides on the weapon hand: one extra draw call. Kept weak on purpose. setClass tints it to the class colour.
+export const bladeGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0x00e5ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.2, toneMapped: false }));
 bladeGlow.position.set(0, 0, 0.55);
-bladeGlow.scale.setScalar(1.5);
+bladeGlow.scale.setScalar(0.9);
 player.wrist.add(bladeGlow);
 export const playerShadow = makeShadow();
 // ninja shadow clone
@@ -270,7 +270,8 @@ export function teleTrail(from, to, n = 6) {
 // Shared landing blast for Meteor Slam and Dragoon Dive. stun = seconds everything in the blast is stunned (0 = none).
 export function groundImpact(rad, dmg, color, stun = 0) {
   _fx.copy(P.pos).setY(P.pos.y + 0.05);
-  spawnRing(_fx, 0.5, rad + 1.5, 0.4, color); spawnRing(_fx, 0.3, rad * 0.65, 0.3, 0xffffff);
+  spawnRing(_fx, 0.5, rad + 1.5, 0.4, color);
+  spawnSwirl(_fx.setY(P.pos.y + 0.12), rad * 0.5, color, 0.5, 2.5, 1);    // a painted wave rolling outwards
   burst(_fx.setY(P.pos.y + 0.3), 18, 12); shake(0.7); addHitstop(0.06);
   setHitSrc('r');
   hitArea(P.pos.x, P.pos.y, P.pos.z, rad, dmg, 9, 13, true, 0.07, true, 0.75);

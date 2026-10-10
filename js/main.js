@@ -10,11 +10,11 @@ import './fx.js';
 import * as THREE from 'three';
 import { save, DEBUG } from './util.js';
 import { renderer, scene, camera } from './core.js';
-import { hitstop, updateFx, updateDomFx, tickHitstop, flash } from './fx.js';
+import { hitstop, updateFx, updateDomFx, tickHitstop, flash, trail, arcs, swirls } from './fx.js';
 import { T, P, CL, dlg, chal, CLASSES, TUNE, totalDmg, setHitSrc } from './state.js';
 import { dummies, hitDummy, DTYPE } from './dummies.js';
 import { hurtPlayer, respawnPlayer } from './player.js';
-import { updateCamera } from './camera.js';
+import { updateCamera, setCamYaw, setCamPitch, setCamDist } from './camera.js';
 import { CLASS_ORDER, setClass } from './classes/index.js';
 import { CH, startChallenge, endChallenge } from './challenges.js';
 import { keys, pressed, locked, overlay, setMouse } from './input.js';
@@ -30,6 +30,7 @@ import { quality, applyQuality, updateQuality } from './quality.js';
 
 // ================= loop =================
 const clock = new THREE.Clock();
+let frozen = false;    // debug only: stops the game advancing so a moment can be looked at (see tests/poses.js)
 function step(dt) {
   update(dt);
   animatePlayer(dt);
@@ -41,7 +42,7 @@ function step(dt) {
 function frame() {
   requestAnimationFrame(frame);
   const rdt = Math.min(clock.getDelta(), 0.05);
-  const live = locked || DEBUG !== null;
+  const live = (locked || DEBUG !== null) && !frozen;
   if (live) {
     let dt = rdt * TUNE.timeScale;
     if (hitstop > 0) { tickHitstop(rdt); dt *= 0.08; }
@@ -64,13 +65,14 @@ animatePlayer(0.016);
 // ?debug: run without pointer lock and expose internals for testing
 if (DEBUG !== null) {
   overlay.style.display = 'none';
-  window.SB = { renderer, camera, quality, applyQuality, P, dummies, DTYPE, CLASSES, CLASS_ORDER, CH, chal, dlg, keys, pressed, scene, master, setClass, startChallenge, endChallenge,
+  window.SB = { freeze: v => { frozen = v; }, setCamYaw, setCamPitch, setCamDist, trail, arcs, swirls, renderer, camera, quality, applyQuality, P, dummies, DTYPE, CLASSES, CLASS_ORDER, CH, chal, dlg, keys, pressed, scene, master, setClass, startChallenge, endChallenge,
     hurtPlayer, respawnPlayer, hitDummy, setMouse, step, updateCamera, updateHud, TUNE, applyTune, resetTuning, rankOf, startTrial, unlockAll, resetProgress, setHitSrc, DOJO, dojo, enterDojo, leaveDojo, setupTrial, clearTrial, totalDmg: () => totalDmg,
     get T() { return T; }, get CL() { return CL; } };
   // &quality=high (with ?debug) switches the graphics setting for this visit, for screenshots.
   const wantQuality = new URLSearchParams(location.search).get('quality');
   if (wantQuality) applyQuality(wantQuality);
   if (DEBUG === 'smoke') import('../tests/smoke.js');
+  if (DEBUG.startsWith('pose:')) import('../tests/poses.js');
   // ?debug=hall:blade-r1 goes straight to the training hall dressed for that trial, to look at a layout.
   if (DEBUG.startsWith('hall:')) {
     const wanted = CLASSES.blade.trials.find(t => t.id === DEBUG.slice(5));

@@ -2,6 +2,15 @@
 
 Newest first. One entry per merged feature: what changed, where, how to check it, and the git tag to go back to.
 
+## v0.6-breathing: painted slashes and a swordsman's movement
+
+- **What:** Much less glow. Sword attacks now look like the water techniques in Demon Slayer: a flat painted crescent in the class colour with a dark ink outline and white foam along its leading edge, animated in a few visible steps like hand-drawn frames. A painted ribbon follows the weapon while it swings. Cyclone is a spinning whirlpool around the player, and Meteor Slam sends a painted wave rolling out from the landing. The weapon halo, impact flashes, rings and afterimages were all turned down.
+- **Movement:** the Blademaster now stands in a proper ready stance (sword in both hands in front, right foot forward), runs with the sword trailing low behind him, cuts with his whole body (hips and chest turn through the swing, deep lunge, long follow-through), and his finisher comes from high overhead down into a low crouch. The other classes get the painted slashes and trails but keep their own movement.
+- **How it was chosen:** the anime builds these effects as flat 2D drawings inspired by Hokusai's wave prints, not as glowing light, so the effects here are painted textures with outlines. Game sword trails are normally a ribbon or curved strip with a picture running along it, which is what these are. For the animation: the standard ready stance is chudan, and since a game swing has no time for a wind-up, the weight has to come from the follow-through and from the hips leading the cut.
+- **Where:** `paintCrescent()`, the slash arcs, `spawnSwirl()` and `updateTrail()` in `js/fx.js`; stance, run and swings in `js/anim.js`; small calls in `js/classes/blade.js`, `js/player.js`, `js/update.js`. New `tests/poses.js`.
+- **Load:** a slash is two flat pieces while it is on screen, the trail two more while swinging. Nothing is added when idle, so the Low draw budget is unchanged.
+- **Check:** `bash tests/smoke.sh`; to look at a move frozen in place open `http://localhost:8000/?debug=pose:slash0` (also `idle`, `run`, `slash1`, `slash2`, `cyclone`, `slam`, `rising`).
+
 ## v0.5-look: dusk look with glow, Low / High graphics
 
 - **What:** The game now takes place at dusk. A gradient sky with a low sun and stars, warm sunlight against cool shadow, tiled floors, boxes that darken toward the base, a pale player with a glowing weapon, an outline light on every character, and effects (slash arcs, rings, sparks, afterimages) that glow. Impacts and slashes flash a soft halo. The training hall has its own warm wood palette. On-screen text switched to light colours.

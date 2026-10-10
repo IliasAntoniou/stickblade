@@ -38,7 +38,12 @@ Where everything is, what the short names mean, and how to add things. If this f
 | Sky colours, fog, overall brightness | `SKY` and `toneMappingExposure` in `js/core.js`; the sky itself is drawn in `js/sky.js` |
 | The lighting (sun colour, direction, strength; the soft light from the sky) | `sun`, `SUN_OFFSET` and `hemi` in `js/core.js` |
 | Box colours, the floor tiles, how dark boxes get at the base | `COL`, `tileTex`, `makeFloor()` and the shading block under `boxGeo` in `js/world.js` |
-| How much things glow (slash arcs, impact flashes, the halo on the weapon) | `spawnGlow()` and the effect pools in `js/fx.js`; `bladeGlow` in `js/player.js` |
+| How a slash looks (the painted crescent: its shape, ink outline, foam) | `paintCrescent()` and the `crescent...` shape functions in `js/fx.js` |
+| How long a slash stays, how it swings in, how many steps its animation has | The `arcs` part of `updateFx()` and `ARC_FRAMES` in `js/fx.js` |
+| The ribbon that follows the weapon | `updateTrail()`, `TRAIL_LIFE` in `js/fx.js`; which moves leave one is `TRAIL_STATES` and `WEAPON_REACH` in `js/anim.js` |
+| The Cyclone whirlpool and the Meteor Slam wave | `spawnSwirl()` in `js/fx.js`, called from `bmCyclone()` and `groundImpact()` |
+| The Blademaster's stance, run and sword swings | The `id === 'blade'` blocks and `case 'slash'` in `animatePlayer()` in `js/anim.js` |
+| How much things glow (impact flashes, the halo on the weapon, afterimages) | `spawnGlow()` and the effect pools in `js/fx.js`; `bladeGlow` in `js/player.js` |
 | The outline light on characters | `addRim()` in `js/stickman.js` |
 | What Low and High graphics do | `applyQuality()` in `js/quality.js` |
 | What gets saved between sessions | `save` in `js/util.js` |
@@ -94,6 +99,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `vendor/three.module.js` | The three.js library (not ours; do not edit) |
 | `tests/smoke.js`, `tests/smoke.sh` | Automated test that plays every class and skill |
 | `tests/drawcost.sh` | Prints draw calls and triangles per frame, to compare before and after a graphics change |
+| `tests/poses.js` | Freezes the game mid-move so an animation or effect can be looked at: `?debug=pose:slash0` |
 | `tests/check_docs.py` | Checks file headers and that this map points at real things |
 | `serve.py` | The local web server (tells the browser not to keep old copies of files) |
 | `play.bat` | Starts the server and opens the game |
@@ -128,6 +134,10 @@ Where everything is, what the short names mean, and how to add things. If this f
 | draw call | One instruction to the graphics card to draw one object. The main measure of how heavy a frame is; shown as Draws with `?debug` |
 | tone mapping | Squeezing very bright colours into what a screen can show, so they glow instead of turning flat white |
 | additive | A way of drawing where colour is added on top of what is behind, so the object looks like light |
+| painted slash | A flat crescent with an ink outline and white foam, in the style of Japanese wave prints. Two layers: body (class colour) and ink |
+| on twos | Animation that advances in visible steps, like hand-drawn frames. Slashes do this |
+| chudan | The basic ready stance of Japanese swordsmanship: sword in front, tip at the opponent's eyes. The Blademaster's idle |
+| `bladeAim()` | Works out the wrist angle that points the blade a given way whatever the arm is doing. In `js/anim.js` |
 | rim light | Extra brightness on the edges of a character, so its outline shows against a dark background |
 | `SKY` | The dusk palette that both the sky and the fog are made from |
 | iframes | Seconds during which the player cannot be hit |

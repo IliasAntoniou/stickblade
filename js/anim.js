@@ -1,15 +1,22 @@
 // anim.js: the player's pose each frame. Picks a target pose (tp) from the current state, then blends the real pose towards it.
 // Purely visual. Nothing here affects gameplay.
 
-import { TAU, clamp, lerp, damp, easeOut, _a } from './util.js';
+import { TAU, clamp, lerp, damp, easeOut, _a, _b } from './util.js';
 import { placeShadow } from './world.js';
 import { POSE_KEYS, BASE, GUARD, applyPose } from './stickman.js';
-import { setBeam } from './fx.js';
+import { setBeam, updateTrail } from './fx.js';
 import { T, P, CL } from './state.js';
 import { playerMat, bladeMat, bladeGlow, player, playerShadow, cloneMat, cloneSm, FLIP_T, pose, tp, ropeMesh, hookMesh } from './player.js';
 import { camPitch } from './camera.js';
 
 // ================= player animation =================
+// The wrist angle that makes the blade point in a given direction whatever the arm is doing.
+// aim = 0 points it straight ahead, negative tilts the tip up, around 2.8 points it back behind the player.
+const bladeAim = (pose, aim) => aim - (pose.shRX + pose.elR);
+// The two ends of each weapon along the hand, used to draw the trail behind it. Fists have none.
+const WEAPON_REACH = { sword: [0.15, 1.2], daggers: [0.05, 0.6], spear: [1.3, 2.2] };
+// States in which the weapon is swinging even though no basic attack is running.
+const TRAIL_STATES = new Set(['cyclone', 'rising', 'slamDown', 'blinkStrike', 'sweep', 'pcharge', 'dragoonDown']);
 export function animatePlayer(dt) {
   Object.assign(tp, BASE);
   const hs = Math.hypot(P.vel.x, P.vel.z);
@@ -18,6 +25,14 @@ export function animatePlayer(dt) {
   // class idle stance
   if (id === 'ninja') Object.assign(tp, { shLX: -0.2, shLZ: 0.35, elL: -0.9, wristL: 0.4, shRX: -0.2, shRZ: -0.35, elR: -0.9, wrist: 0.4, spineX: 0.18, bodyY: 0.88, kneeL: 0.3, kneeR: 0.3, hipLX: -0.2, hipRX: -0.1 });
   else if (id === 'monk') Object.assign(tp, GUARD, { hipLX: -0.25, hipRX: 0.15, kneeL: 0.25, kneeR: 0.25 });
+  else if (id === 'blade') {
+    // Ready stance (chudan, the basic middle guard of Japanese swordsmanship): both hands on the hilt in front of
+    // the body, tip pointing at the opponent's eyes, right foot forward, left foot back, knees soft.
+    Object.assign(tp, { bodyY: 0.87, spineX: 0.1, spineY: -0.22,
+      hipRX: -0.32, kneeR: 0.38, hipLX: 0.3, kneeL: 0.42, hipLZ: 0.1, hipRZ: -0.1,
+      shRX: -0.78, shRZ: 0.14, elR: -0.95, shLX: -0.7, shLZ: -0.2, elL: -1.05 });
+    tp.wrist = bladeAim(tp, -0.3);
+  }
   let spearUp = id === 'lancer';
 
   const runCycle = (speed, amp) => {
@@ -83,6 +98,13 @@ export function animatePlayer(dt) {
   } else if (hs > 0.6) {
     const amp = clamp(hs / 9.5, 0.3, 1.2), s = runCycle(hs, amp);
     if (hs > 12.5 || id === 'ninja') { tp.shLX = 1.3; tp.shLZ = 0.2; tp.elL = 0; tp.shRX = 1.15; tp.shRZ = -0.2; tp.elR = -0.1; tp.wrist = 1.4; tp.wristL = 1.4; tp.spineX = 0.5; spearUp = false; }
+    else if (id === 'blade') {
+      // Running with the sword held low and trailing behind on the right, body leaning in, left arm pumping.
+      tp.spineX = 0.32 + 0.14 * amp; tp.spineY = 0.25;
+      tp.shRX = 0.55 + s * 0.12 * amp; tp.shRZ = -0.32; tp.elR = -0.35;
+      tp.wrist = bladeAim(tp, 2.75);
+      tp.shLX = s * 0.9 * amp; tp.shLZ = 0.2; tp.elL = -0.9;
+    }
     else if (id !== 'monk') { tp.shLX = s * 0.8 * amp; tp.elL = -0.6; tp.shRX = -0.35 - s * 0.5 * amp; }
   } else {
     tp.bodyY += Math.sin(T * 2.5) * 0.01;
@@ -96,10 +118,28 @@ export function animatePlayer(dt) {
     spearUp = false;
     switch (CL.style) {
       case 'slash':
-        tp.elR = -0.1; tp.wrist = 1.45; tp.shLX = -0.3; tp.shLZ = 0.7; tp.elL = -0.4;
-        if (a.combo === 0) { tp.spineY = lerp(-1.2, 1.2, e); tp.shRX = -1.45; tp.shRZ = -0.15; tp.spineX = 0.15; }
-        else if (a.combo === 1) { tp.spineY = lerp(1.2, -1.2, e); tp.shRX = -1.35; tp.shRZ = -0.55; tp.spineX = 0.15; }
-        else { tp.shRX = lerp(-3.0, -0.4, e); tp.shRZ = -0.1; tp.spineX = lerp(-0.35, 0.65, e); tp.spineY = 0.2; }
+        // Two-handed cuts. The whole body does the work: the hips and chest turn through the cut (spineY), the
+        // stance drops and leans into it, and the swing carries well past the target (the follow-through is what
+        // sells the weight, since a game swing has no time for a wind-up). e runs 0..1 through the cut.
+        tp.elR = -0.12; tp.elL = -0.5;
+        if (a.combo < 2) {
+          const dir = a.combo === 0 ? 1 : -1;    // first cut goes right to left, the second comes back
+          tp.spineY = lerp(-1.45, 1.55, e) * dir;
+          tp.bodyRoll = lerp(0.2, -0.2, e) * dir;
+          tp.spineX = 0.22; tp.bodyY = 0.8;
+          tp.shRX = -1.42; tp.shRZ = 0.12; tp.shLX = -1.3; tp.shLZ = -0.3;
+          // a deep lunging stance, front knee bent, back leg long
+          tp.hipRX = -0.75; tp.kneeR = 0.8; tp.hipLX = 0.6; tp.kneeL = 0.25;
+          tp.wrist = bladeAim(tp, -0.08);
+        } else {
+          // Finisher: from high overhead (jodan) straight down, ending low with the knees deeply bent.
+          tp.shRX = lerp(-3.05, -0.55, e); tp.shLX = lerp(-2.95, -0.5, e);
+          tp.shRZ = 0.1; tp.shLZ = -0.22;
+          tp.spineX = lerp(-0.4, 0.8, e); tp.spineY = 0.12;
+          tp.bodyY = lerp(0.95, 0.7, e);
+          tp.hipRX = lerp(-0.2, -0.95, e); tp.kneeR = lerp(0.2, 1.1, e); tp.hipLX = lerp(0.1, 0.55, e); tp.kneeL = lerp(0.15, 0.7, e);
+          tp.wrist = bladeAim(tp, lerp(-1.2, 0.35, e));
+        }
         break;
       case 'dagger':
         if (last) { tp.shRX = tp.shLX = lerp(-2.9, -0.5, e); tp.elR = tp.elL = -0.1; tp.wrist = tp.wristL = 1.45; tp.spineX = lerp(-0.3, 0.6, e); tp.shLZ = 0.1; tp.shRZ = -0.1; }
@@ -130,7 +170,17 @@ export function animatePlayer(dt) {
 
   const op = P.smokeT > 0 ? 0.22 : (P.iframes > 0 && Math.sin(T * 60) > 0 ? 0.5 : 1);
   playerMat.opacity = op; bladeMat.opacity = op;
-  bladeGlow.material.opacity = op * 0.55;
+  bladeGlow.material.opacity = op * 0.2;
+
+  // weapon trail: follows the blade while it is swinging
+  const reach = WEAPON_REACH[CL.weapon];
+  if (reach) {
+    const A = a.on ? CL.atk[a.combo] : null;
+    const swinging = (a.on && a.t <= A.a1 + 0.06) || TRAIL_STATES.has(st);
+    player.wrist.localToWorld(_a.set(0, 0, reach[0]));
+    player.wrist.localToWorld(_b.set(0, 0, reach[1]));
+    updateTrail(dt, swinging && P.smokeT <= 0, _a, _b, CL.color);
+  } else updateTrail(dt, false, _a, _b, CL.color);
 
   if (P.clone) { cloneSm.root.position.copy(P.clone.pos); cloneMat.opacity = 0.45 + Math.sin(T * 8) * 0.2; }
   if (P.state === 'grapple') {
