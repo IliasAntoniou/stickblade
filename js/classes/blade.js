@@ -10,9 +10,9 @@ import { spawnRing, spawnSwirl } from '../fx.js';
 import { P, CL, CLASSES, setHitSrc } from '../state.js';
 import { dummies, hitDummy } from '../dummies.js';
 import { depenetrate, ropeMesh, hookMesh, setState, startAttack, teleTrail } from '../player.js';
-import { camDir, camFwdH, facing, camFacingYaw, lockTarget, aimHit, raycaster, setCamYaw } from '../camera.js';
+import { camDir, camFwdH, facing, camFacingYaw, lockTarget, lockFire, aimHit, raycaster, setCamYaw } from '../camera.js';
 import { inDir, hasIn } from '../update.js';
-import { style, slashColor, reach, blinkSource, startTake } from '../styles.js';
+import { style, slashColor, reach, startTake } from '../styles.js';
 import { dojo } from '../dojo.js';
 
 // ---------- Blademaster ----------
@@ -27,15 +27,15 @@ export function bmGrapple() {
   if (P.grounded) P.vel.y = Math.max(P.vel.y, 6);
 }
 // Q: teleport behind the locked dummy and strike. With no target, blink 14 units forward.
-// Aimed at a lit fire, it blinks into the flames instead, which is how the Flame style is taken (styles.js).
+// With a lit fire locked on (the ring is on it), it blinks into the flames instead, which is how the Flame style
+// is taken (styles.js).
 export function bmBlink() {
   const S = CL.skills.q;
   P.cd.q = S.cd;
   _a.copy(P.pos);
-  const fire = blinkSource(P.pos, camDir(_b), 14);
-  if (fire) {
-    teleTrail(_a, fire.pos, 5);
-    startTake(fire);
+  if (lockFire) {
+    teleTrail(_a, lockFire.pos, 5);
+    startTake(lockFire);
     return;
   }
   if (lockTarget) {

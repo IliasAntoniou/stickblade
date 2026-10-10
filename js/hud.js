@@ -6,7 +6,7 @@ import { camera, renderer } from './core.js';
 import { projV } from './fx.js';
 import { T, P, CL, dlg, combo, totalDmg, dmgLog, TUNE } from './state.js';
 import { REWIND_CD } from './player.js';
-import { lockTarget, aimHit } from './camera.js';
+import { lockTarget, lockFire, aimHit } from './camera.js';
 import { master } from './master.js';
 import { locked } from './input.js';
 import { rankOf } from './progress.js';
@@ -58,10 +58,15 @@ export function updateHud(rdt) {
     if (s.was > 0 && frac <= 0) { const el = s.el; el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 180); }
     s.was = frac;
   }
-  crossEl.className = (aimHit || lockTarget) ? 'can' : '';
-  if (lockTarget) {
-    lockTarget.chest(projV).project(camera);
+  crossEl.className = (aimHit || lockTarget || lockFire) ? 'can' : '';
+  // The lock-on ring: on the dummy nearest the crosshair, or on a fire (drawn in fire colours) when that is what
+  // a Blink Strike would go to.
+  if (lockTarget || lockFire) {
+    if (lockTarget) lockTarget.chest(projV);
+    else projV.set(lockFire.pos.x, lockFire.pos.y + 1, lockFire.pos.z);
+    projV.project(camera);
     lockEl.style.display = 'block';
+    lockEl.className = lockFire ? 'fire' : '';
     lockEl.style.transform = `translate(${(projV.x * 0.5 + 0.5) * innerWidth - 22}px,${(-projV.y * 0.5 + 0.5) * innerHeight - 22}px)`;
   } else lockEl.style.display = 'none';
   comboEl.style.opacity = combo > 1 ? 1 : 0;

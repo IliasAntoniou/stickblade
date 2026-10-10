@@ -1,8 +1,9 @@
 // styles.js: sword styles. A style is a temporary change to the character: a new colour and painted look for the
-// slashes, a new skin, and one extra effect on top of the normal moves. It lasts STYLE_TIME seconds.
+// slashes, an outfit, and one extra effect on top of the normal moves. It lasts STYLE_TIME seconds.
 // Styles are taken from places in the world ("sources"): Meteor Slam into a pool for Water, Blink Strike into a
 // fire for Flame. Taking one plays a short scene: the character goes under the water or stands burning in the
-// fire, a close-up of his eyes changing colour cuts across the screen (cutin.js), and he comes out changed.
+// fire, a close-up of his eyes blazing in the style's colour cuts across the screen (cutin.js), and he comes out
+// dressed for it: Water Tribe blue with wave patterns, or Fire Nation red with flame patterns.
 // A source does nothing until its style has been unlocked by passing its trial (progress.js); until then the pool
 // is still and grey and the fire is out.
 // Dying, teleporting, changing class and starting a trial all end the current style, so trials start plain.
@@ -11,6 +12,7 @@ import * as THREE from 'three';
 import { V3, clamp, easeOut, _fx } from './util.js';
 import { scene } from './core.js';
 import { glowTex, spawnRing, spawnSwirl, burst, toast, setTrailPaint } from './fx.js';
+import { addRim } from './stickman.js';
 import { P, CL } from './state.js';
 import { player, playerMat, bladeMat, bladeGlow, setState } from './player.js';
 import { styleUnlocked } from './progress.js';
@@ -20,22 +22,23 @@ export const STYLE_TIME = 20;    // seconds a style lasts once taken
 const PLAIN_SKIN = 0xeef1f8;     // the player's normal body colour (matches playerMat in player.js)
 
 // The styles. color = slash and blade colour. paint = which painted look the slash uses (see setTrailPaint in fx.js).
-// skin = body colour while the style lasts. ember = a colour the body glows with, pulsing (0 = none).
+// cloth = colour of the arms, legs and body while the style lasts (the head stays skin). trim = colour of the
+// headband and bracers. The patterned parts of the outfit are drawn further down (clothTex).
 // reach = multiplies how far sword attacks, Cyclone and Meteor Slam reach.
 // how = how to take it, perk = what it does (both shown to the player).
 export const STYLES = {
   water: {
     id: 'water', name: 'Water', color: 0x2f8fff, paint: 'water', reach: 1.2,
-    skin: 0x3d8ef0, ember: 0x0b3fae,
+    cloth: 0x2a5cb8, trim: 0xeaf4ff,
     flow: 0.12,        // seconds taken off every cooldown each time a hit lands
     how: 'Meteor Slam into a pool', perk: 'Slashes reach further, and every hit shortens your cooldowns',
   },
   flame: {
     id: 'flame', name: 'Flame', color: 0xff5a1a, paint: 'flame', reach: 1,
-    skin: 0x2a1512, ember: 0xff4a00,    // a dark body lit from within: on screen it reads as glowing ember red
+    cloth: 0x7c1616, trim: 0xf2b632,
     burnTime: 4,       // seconds a target keeps burning after the last hit
     burnDps: 14,       // burn damage per second
-    how: 'Blink Strike into a fire', perk: 'Every hit sets the target burning',
+    how: 'Lock on to a fire and Blink Strike into it', perk: 'Every hit sets the target burning',
   },
 };
 
@@ -47,14 +50,115 @@ export function slashColor() { return style.cur ? style.cur.color : CL.color; }
 // Multiplier for how far sword attacks reach.
 export function reach() { return style.cur ? style.cur.reach : 1; }
 
-// Make the character look like the current style (or plain again): blade, slash and skin.
+// ---------- the outfit ----------
+// The cloth patterns, each drawn once. They wrap around the tunic and the robe.
+// Water: rows of overlapping wave arcs (the traditional Japanese wave pattern), white on blue, with a white hem.
+// Flame: tongues of fire rising from a gold hem, gold and orange on dark red.
+function clothTex(kind) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 128;
+  const x = c.getContext('2d');
+  if (kind === 'water') {
+    const g = x.createLinearGradient(0, 0, 0, 128);
+    g.addColorStop(0, '#1c489c');
+    g.addColorStop(1, '#2d74d8');
+    x.fillStyle = g;
+    x.fillRect(0, 0, 256, 128);
+    x.lineWidth = 2;
+    for (let row = 0; row < 6; row++) {
+      for (let col = -1; col < 9; col++) {
+        const cx = col * 32 + (row % 2 ? 16 : 0), cy = 22 + row * 16;
+        for (const [r, color] of [[15, '#eaf4ff'], [10, '#9cc9ff'], [5, '#eaf4ff']]) {
+          x.strokeStyle = color;
+          x.beginPath();
+          x.arc(cx, cy, r, Math.PI, 0);
+          x.stroke();
+        }
+      }
+    }
+    x.fillStyle = '#eaf4ff';
+    x.fillRect(0, 116, 256, 12);
+  } else {
+    const g = x.createLinearGradient(0, 0, 0, 128);
+    g.addColorStop(0, '#5a0d0d');
+    g.addColorStop(1, '#a01c16');
+    x.fillStyle = g;
+    x.fillRect(0, 0, 256, 128);
+    x.lineWidth = 2;
+    x.strokeStyle = '#1a0606';
+    for (let i = 0; i < 8; i++) {
+      // one tongue of fire, with a smaller brighter one inside it
+      const bx = i * 32 + 16, top = 34 + (i % 3) * 14;
+      for (const [w, h, color] of [[13, 118 - top, '#f2a21e'], [7, (118 - top) * 0.62, '#ffe27a']]) {
+        x.fillStyle = color;
+        x.beginPath();
+        x.moveTo(bx - w, 118);
+        x.bezierCurveTo(bx - w * 1.5, 118 - h * 0.5, bx - w * 0.2, 118 - h * 0.6, bx + w * 0.5, 118 - h);
+        x.bezierCurveTo(bx + w * 0.1, 118 - h * 0.55, bx + w * 1.5, 118 - h * 0.45, bx + w, 118);
+        x.closePath();
+        x.fill();
+        x.stroke();
+      }
+    }
+    x.fillStyle = '#f2b632';
+    x.fillRect(0, 116, 256, 12);
+    x.fillStyle = '#1a0606';
+    x.fillRect(0, 113, 256, 3);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  return tex;
+}
+const clothMats = {
+  water: new THREE.MeshLambertMaterial({ map: clothTex('water'), side: THREE.DoubleSide }),
+  flame: new THREE.MeshLambertMaterial({ map: clothTex('flame'), side: THREE.DoubleSide }),
+};
+const trimMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+// The head keeps a skin colour of its own while the rest of the body takes the cloth colour.
+const skinMat = addRim(new THREE.MeshLambertMaterial({ color: PLAIN_SKIN, transparent: true }));
+
+// The pieces of the outfit, each a simple open tube. They are attached to the player's body the first time a
+// style is worn (attachOutfit) and simply hidden the rest of the time.
+//   tunic: around the chest.   robe: flares out from the waist over the legs.   mantle: a short collar over the shoulders.
+//   band: around the forehead.   bracers: on both forearms.
+const tube = (top, bottom, height, mat) => new THREE.Mesh(new THREE.CylinderGeometry(top, bottom, height, 16, 1, true), mat);
+export const outfit = {
+  tunic: tube(0.15, 0.19, 0.56, clothMats.water),
+  robe: tube(0.2, 0.36, 0.46, clothMats.water),
+  mantle: tube(0.11, 0.24, 0.13, trimMat),
+  band: tube(0.176, 0.176, 0.055, trimMat),
+  bracerL: tube(0.078, 0.066, 0.17, trimMat),
+  bracerR: tube(0.078, 0.066, 0.17, trimMat),
+  attached: false,
+};
+const OUTFIT_PARTS = ['tunic', 'robe', 'mantle', 'band', 'bracerL', 'bracerR'];
+function attachOutfit() {
+  outfit.tunic.position.y = 0.3;      player.spine.add(outfit.tunic);
+  outfit.robe.position.y = -0.2;      player.body.add(outfit.robe);
+  outfit.mantle.position.y = -0.02;   player.chest.add(outfit.mantle);
+  outfit.band.position.y = 0.06;      player.head.add(outfit.band);
+  outfit.bracerL.position.y = -0.2;   player.elL.add(outfit.bracerL);
+  outfit.bracerR.position.y = -0.2;   player.elR.add(outfit.bracerR);
+  for (const k of OUTFIT_PARTS) outfit[k].castShadow = true;
+  outfit.attached = true;
+}
+
+// Make the character look like the current style (or plain again): blade, slash, cloth colour and outfit.
 function applyLook() {
   if (!CL) return;
+  if (!outfit.attached) attachOutfit();
+  const s = style.cur;
   bladeMat.color.setHex(slashColor());
   bladeGlow.material.color.setHex(slashColor());
-  setTrailPaint(style.cur ? style.cur.paint : 'plain');
-  playerMat.color.setHex(style.cur ? style.cur.skin : PLAIN_SKIN);
-  if (!style.cur) playerMat.emissive.setHex(0);
+  setTrailPaint(s ? s.paint : 'plain');
+  playerMat.color.setHex(s ? s.cloth : PLAIN_SKIN);
+  player.head.material = s ? skinMat : playerMat;
+  for (const k of OUTFIT_PARTS) outfit[k].visible = !!s;
+  if (s) {
+    outfit.tunic.material = outfit.robe.material = clothMats[s.id];
+    trimMat.color.setHex(s.trim);
+  }
 }
 // Take a style. Returns false if it has not been unlocked. Taking it again refills the time.
 export function giveStyle(id) {
@@ -95,7 +199,7 @@ export function onStyleHit(ev) {
   }
 }
 
-// ---------- textures, each drawn once ----------
+// ---------- textures for the water and the fire, each drawn once ----------
 // Water: a round picture that is dark in the middle and lighter at the edge, which reads as depth.
 const depthTex = (() => {
   const c = document.createElement('canvas');
@@ -161,7 +265,7 @@ function flameSprite(scale) {
   return m;
 }
 
-// Flames on the player's own body: big while he stands in the fire, small while the Flame style lasts.
+// Flames on the player's own body, only while he stands in the fire during the scene.
 const bodyFire = new THREE.Group();
 for (const [x, y, z, size] of [[0, 0.1, 0, 2.3], [0.22, 0.9, 0.05, 1.3], [-0.2, 1.1, -0.05, 1.2], [0, 1.6, 0, 1.0]]) {
   const f = flameSprite(size);
@@ -226,19 +330,23 @@ export function slamSources() {
     if (Math.hypot(s.pos.x - P.pos.x, s.pos.z - P.pos.z) < POOL_RADIUS + 0.4 && Math.abs(s.pos.y - P.pos.y) < 1.5) startTake(s);
   }
 }
-// Called by Blink Strike (classes/blade.js) before it does anything else. origin = where the blink starts,
-// dir = where the camera looks, range = how far a blink goes. Returns a lit fire the blink is aimed at, or null.
-// Only the direction along the ground is compared, so the crosshair does not have to be exactly on the flames.
-export function blinkSource(origin, dir, range) {
-  const len = Math.hypot(dir.x, dir.z) || 1, dx = dir.x / len, dz = dir.z / len;
+// A fire can be locked on to, exactly like a dummy, so the ring on screen says where a Blink Strike will go.
+// Called by updateCamera (camera.js) after it has picked the dummy nearest the crosshair.
+//   camPos, dir = where the camera is and where it looks.   bestAngle = how far off the crosshair that dummy is
+//   (radians; 0.2 if there is none). Returns a lit fire that is nearer the crosshair than that, and close enough
+//   to the player for a blink to reach, or null.
+export const FIRE_LOCK_RANGE = 15;
+const _aim = new V3();
+export function aimedFire(camPos, dir, bestAngle) {
+  let found = null;
   for (const s of sources) {
     if (s.id !== 'flame' || !styleUnlocked('flame')) continue;
-    const ox = s.pos.x - origin.x, oz = s.pos.z - origin.z;
-    const along = ox * dx + oz * dz;                  // how far ahead the fire is
-    const aside = Math.abs(ox * dz - oz * dx);        // how far off to the side of the line of the blink
-    if (along > 0.5 && along < range + 1.5 && aside < 1.9 && Math.abs(s.pos.y - origin.y) < 3) return s;
+    if (Math.hypot(s.pos.x - P.pos.x, s.pos.z - P.pos.z) > FIRE_LOCK_RANGE || Math.abs(s.pos.y - P.pos.y) > 4) continue;
+    _aim.set(s.pos.x, s.pos.y + 1, s.pos.z).sub(camPos);
+    const angle = Math.acos(clamp(_aim.dot(dir) / _aim.length(), -1, 1));
+    if (angle < bestAngle) { bestAngle = angle; found = s; }
   }
-  return null;
+  return found;
 }
 
 // ---------- the scene played when a style is taken ----------
@@ -286,7 +394,7 @@ export function updateTake() {
 export function sourceHint() {
   for (const s of sources) {
     const dist = Math.hypot(s.pos.x - P.pos.x, s.pos.z - P.pos.z);
-    if (dist > (s.id === 'water' ? POOL_RADIUS + 2.5 : 5) || Math.abs(s.pos.y - P.pos.y) > 3) continue;
+    if (dist > (s.id === 'water' ? POOL_RADIUS + 2.5 : 7) || Math.abs(s.pos.y - P.pos.y) > 3) continue;
     const st = STYLES[s.id], thing = s.id === 'water' ? 'Pool' : 'Fire pit';
     if (!styleUnlocked(s.id)) return `${thing} · you cannot draw on it yet. <b>Master Sen</b> can teach you.`;
     return `${thing} · ${st.how} to take <b>${st.name}</b> for ${STYLE_TIME}s`;
@@ -294,7 +402,7 @@ export function sourceHint() {
   return null;
 }
 
-// Once per frame (main.js): run down the style's time, animate the water and the fires, and the player's skin.
+// Once per frame (main.js): run down the style's time, and animate the water and the fires.
 export function updateStyles(dt) {
   if (style.cur) {
     style.left -= dt;
@@ -325,18 +433,17 @@ export function updateStyles(dt) {
       }
     }
   }
-  // the player's body: flames while burning, a pulsing glow from the skin while a style lasts
+  // the player's body is on fire only while he stands in the flames
   if (!bodyFire.parent) player.root.add(bodyFire);
-  const igniting = P.state === 'ignite';
-  bodyFire.visible = igniting || (style.cur !== null && style.cur.id === 'flame');
+  bodyFire.visible = P.state === 'ignite';
   if (bodyFire.visible) {
-    const strength = igniting ? 1 : 0.42;
     for (const f of bodyFire.children) {
       const flick = 1 + Math.sin(t * (10 + f.userData.size * 4) + f.position.y * 5) * 0.2;
-      f.scale.set(f.userData.size * 0.55 * strength / flick, f.userData.size * strength * flick, 1);
+      f.scale.set(f.userData.size * 0.55 / flick, f.userData.size * flick, 1);
     }
   }
-  if (style.cur) playerMat.emissive.setHex(style.cur.ember).multiplyScalar(0.3 + Math.sin(t * 7) * 0.12);
+  // the head's own material fades in and out with the rest of the body (dodging, being hit)
+  skinMat.opacity = playerMat.opacity;
 }
 
 // The sources in the main arena. (Trials add their own to the training hall through dojo.js.)

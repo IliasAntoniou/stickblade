@@ -28,7 +28,7 @@ Sword and grapple hook. The only class with progression so far: skills are learn
 |---|---|---|---|
 | LMB | Slash | Three-hit combo: 12, 14, then an overhead finisher for 24 that knocks back | none |
 | RMB | Grapple | Pulls you to the dummy you are locked on, or the wall under the crosshair. Hold to keep pulling, jump to let go | 0.5 s |
-| Q | Blink Strike | Teleport behind the locked dummy and strike. With no target, blink 14 forward. Aimed at a lit fire, blink into it (see Flame) | 4 s |
+| Q | Blink Strike | Teleport behind the locked dummy and strike. With no target, blink 14 forward. With the lock-on ring on a lit fire, blink into it (see Flame) | 4 s |
 | E | Cyclone | A spinning dash that hits everything it passes, about 13 times a second | 5 s |
 | R | Meteor Slam | A hop, then a dive straight down and a blast around the landing. Landing in a pool takes Water | 6 s |
 | F | Rising Slash | An uppercut that launches dummies into the air, and you with them | 3 s |
@@ -96,7 +96,7 @@ Long spear. Everything unlocked.
 
 # Part 2: Sword styles
 
-A style is taken from a place in the world and lasts 20 seconds. It changes the slash's colour and painted look, changes the character's skin, and adds one effect. The normal moves stay the same.
+A style is taken from a place in the world and lasts 20 seconds. It changes the slash's colour and painted look, dresses the character in that element's outfit, and adds one effect. The normal moves stay the same.
 
 Rules for all styles:
 
@@ -106,11 +106,11 @@ Rules for all styles:
 
 | | Water | Flame |
 |---|---|---|
-| **Taken by** | Meteor Slam into a pool | Blink Strike into a fire |
+| **Taken by** | Meteor Slam into a pool | Aim at a fire until the lock-on ring is on it (within 15), then Blink Strike |
 | **Needs first** | Meteor Slam learned | Blink Strike learned |
-| **The scene** | You go under the water, your eyes turn blue, you burst back out | You stand in the flames, your eyes turn fire-coloured, you step out burning |
+| **The scene** | You go under the water, a close-up shows your eyes snap open blazing blue, you burst back out | You stand burning in the flames, the close-up shows your eyes snap open blazing orange, you step out |
 | **Slash** | Blue, with white foam along the edge | Orange, with tongues of fire along the edge |
-| **Skin** | Deep blue, faintly glowing | Glowing ember red, with small flames on the body |
+| **Outfit** | Blue clothes; a tunic and robe patterned with white waves; white headband, collar and bracers | Dark red clothes; a tunic and robe patterned with rising gold flames; gold headband, collar and bracers |
 | **Effect on every hit** | Takes 0.12 s off all your cooldowns | Sets the target burning: 14 damage a second for 4 s |
 | **Other change** | Sword attacks, Cyclone and Meteor Slam reach 20% further | None |
 | **Trial to unlock** | Take Water, then hit 4 dummies with one sword swing (60 s) | Take Flame, then have 3 dummies burning at once (60 s) |

@@ -26,10 +26,11 @@ import { initTuning, applyTune, resetTuning } from './tuning.js';
 import { initProgress, rankOf, startTrial, unlockAll, resetProgress } from './progress.js';
 import { DOJO, dojo, enterDojo, leaveDojo, setupTrial, clearTrial } from './dojo.js';
 import { updateSky } from './sky.js';
-import { STYLES, style, sources, giveStyle, forceStyle, clearStyle, reach, updateStyles, startTake } from './styles.js';
+import { STYLES, style, sources, outfit, giveStyle, forceStyle, clearStyle, reach, updateStyles, startTake } from './styles.js';
+import { lockFire, lockTarget } from './camera.js';
 import { styleUnlocked } from './progress.js';
 import { cutinActive, playCutin } from './cutin.js';
-import { playerMat } from './player.js';
+import { playerMat, player } from './player.js';
 import { quality, applyQuality, updateQuality } from './quality.js';
 
 // ================= loop =================
@@ -71,7 +72,7 @@ animatePlayer(0.016);
 // ?debug: run without pointer lock and expose internals for testing
 if (DEBUG !== null) {
   overlay.style.display = 'none';
-  window.SB = { startTake, playCutin, playerMat, STYLES, style, sources, giveStyle, forceStyle, clearStyle, reach, styleUnlocked, freeze: v => { frozen = v; }, setCamYaw, setCamPitch, setCamDist, trail, arcs, swirls, renderer, camera, quality, applyQuality, P, dummies, DTYPE, CLASSES, CLASS_ORDER, CH, chal, dlg, keys, pressed, scene, master, setClass, startChallenge, endChallenge,
+  window.SB = { lockFire: () => lockFire, lockTarget: () => lockTarget, player, outfit, startTake, playCutin, playerMat, STYLES, style, sources, giveStyle, forceStyle, clearStyle, reach, styleUnlocked, freeze: v => { frozen = v; }, setCamYaw, setCamPitch, setCamDist, trail, arcs, swirls, renderer, camera, quality, applyQuality, P, dummies, DTYPE, CLASSES, CLASS_ORDER, CH, chal, dlg, keys, pressed, scene, master, setClass, startChallenge, endChallenge,
     hurtPlayer, respawnPlayer, hitDummy, setMouse, step, updateCamera, updateHud, TUNE, applyTune, resetTuning, rankOf, startTrial, unlockAll, resetProgress, setHitSrc, DOJO, dojo, enterDojo, leaveDojo, setupTrial, clearTrial, totalDmg: () => totalDmg,
     get T() { return T; }, get CL() { return CL; } };
   // &quality=high (with ?debug) switches the graphics setting for this visit, for screenshots.

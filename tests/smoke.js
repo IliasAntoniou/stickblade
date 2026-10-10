@@ -396,10 +396,15 @@ check('Master Sen: offers to reset tuning in the hall', () => {
   return ok;
 });
 // sword styles: locked until their trial is passed, taken through a short scene, gone after 20 seconds
-const style = SB.style, PLAIN_SKIN = 0xeef1f8;
+const style = SB.style, PLAIN_SKIN = 0xeef1f8, outfit = SB.outfit;
+// Is the style's outfit on? Cloth-coloured body, patterned tunic and robe showing, and the head still skin.
+const dressedAs = id => SB.playerMat.color.getHex() === SB.STYLES[id].cloth && outfit.tunic.visible && outfit.robe.visible && outfit.band.visible
+  && outfit.tunic.material.map !== null && SB.player.head.material !== SB.playerMat && SB.playerMat.emissive.getHex() === 0;
+const undressed = () => SB.playerMat.color.getHex() === PLAIN_SKIN && !outfit.tunic.visible && !outfit.band.visible && SB.player.head.material === SB.playerMat;
 const pool = SB.sources.find(s => s.id === 'water'), firePit = SB.sources.find(s => s.id === 'flame');
 // Stand six units from a fire, facing it (the camera looks along -z after a respawn), and Blink Strike.
-function blinkAt(src) { P.pos.set(src.pos.x, src.pos.y, src.pos.z + 6); P.vel.set(0, 0, 0); P.cd.q = 0; run(3); pressed.add('KeyQ'); run(4); }
+function faceFire(src) { P.pos.set(src.pos.x, src.pos.y, src.pos.z + 6); P.vel.set(0, 0, 0); P.cd.q = 0; run(3); }
+function blinkAt(src) { faceFire(src); pressed.add('KeyQ'); run(4); }
 // Drop into a pool from above with Meteor Slam.
 function slamInto(src) { P.pos.set(src.pos.x, src.pos.y + 7, src.pos.z); P.vel.set(0, 0, 0); P.grounded = false; P.cd.r = 0; run(1); pressed.add('KeyR'); run(14); }
 // Pass a skill's first trial the quick way, to get on with the style checks.
@@ -417,25 +422,29 @@ check('style: locked at the start, and the fire is out', () => {
 check('style: each needs its skill first', () => SB.startTrial(trial('blade-flame')) === false && SB.startTrial(trial('blade-water')) === false && chal.cur === null);
 check('style: a locked fire is just a place to blink past', () => {
   if (!learn('blade-q1', 'q')) return false;
-  reset(); blinkAt(firePit); run(60);
+  reset(); faceFire(firePit);
+  if (SB.lockFire() !== null) return false;              // no ring on a fire that is out
+  pressed.add('KeyQ'); run(60);
   return style.cur === null && P.state === 'normal' && P.cd.q > 0;
 });
 check('style: Flame trial, played', () => {
   if (!begin('blade-flame')) return false;
   if (dojo.sources.length !== 1 || !SB.styleUnlocked('flame')) return false;    // lent for the trial
   const fire = dojo.sources[0];
-  blinkAt(fire);
+  faceFire(fire);
+  if (SB.lockFire() !== fire || SB.lockTarget() !== null) return false;    // the ring is on the fire
+  pressed.add('KeyQ'); run(4);
   // the scene: standing in the middle of the fire, held there, and nothing can hit him
   if (P.state !== 'ignite' || Math.hypot(P.pos.x - fire.pos.x, P.pos.z - fire.pos.z) > 0.01 || style.cur) return false;
   const hp = P.hp; SB.hurtPlayer(20, dummies[0].pos, dummies[0]);
   if (P.hp !== hp) return false;
   run(50);
   if (P.state !== 'normal' || !style.cur || style.cur.id !== 'flame') return false;
-  if (SB.playerMat.color.getHex() !== SB.STYLES.flame.skin) return false;       // his skin has changed
+  if (!dressedAs('flame')) return false;                 // he is dressed for it
   for (const d of spawned('basic')) skillHit('atk', d);
   if (!spawned('basic').every(d => d.burnT > 0)) return false;
   run(3);
-  return chal.cur === null && SB.styleUnlocked('flame') && style.cur === null && dojo.sources.length === 0 && SB.playerMat.color.getHex() === PLAIN_SKIN;
+  return chal.cur === null && SB.styleUnlocked('flame') && style.cur === null && dojo.sources.length === 0 && undressed();
 });
 check('style: Flame burns over time, then stops', () => {
   reset(); blinkAt(firePit); run(50);
@@ -450,6 +459,14 @@ check('style: Flame burns over time, then stops', () => {
   run(60);
   return burned >= 25 && d.burnT <= 0 && d.hp >= later;  // ticked, then went out (dummies heal, so only "not lower")
 });
+check('style: the ring only takes a fire that is aimed at and in reach', () => {
+  reset(); faceFire(firePit);
+  if (SB.lockFire() !== firePit) return false;
+  P.pos.z += 14; run(3);                                 // twenty units away: too far for a blink
+  if (SB.lockFire() !== null) return false;
+  P.pos.set(firePit.pos.x + 9, 0, firePit.pos.z + 6); run(3);    // close, but looking past it
+  return SB.lockFire() === null;
+});
 check('style: a sword swing at the fire no longer takes it', () => {
   reset(); P.pos.set(firePit.pos.x, 0, firePit.pos.z + 1.7); run(3); pressed.add('M0'); run(20);
   return style.cur === null;
@@ -460,7 +477,7 @@ check('style: lasts 20 seconds, then sword and skin are plain again', () => {
   run(60 * 18);
   if (!style.cur) return false;
   run(60 * 3);
-  return style.cur === null && SB.reach() === 1 && SB.playerMat.color.getHex() === PLAIN_SKIN;
+  return style.cur === null && SB.reach() === 1 && undressed();
 });
 check('style: a trial starts with a plain sword', () => {
   reset(); blinkAt(firePit); run(50);
@@ -482,7 +499,7 @@ check('style: Water trial, played', () => {
   if (P.state !== 'submerge' || !(P.sink > 0.5) || style.cur) return false;
   run(50);
   if (P.state !== 'normal' || P.sink !== 0 || !style.cur || style.cur.id !== 'water') return false;
-  if (SB.playerMat.color.getHex() !== SB.STYLES.water.skin) return false;
+  if (!dressedAs('water')) return false;
   run(80);                                                   // he leaps out of the pool: wait to land
   standAt(0, 0, -1.2); run(3); pressed.add('M0'); run(12);
   return chal.cur === null && SB.styleUnlocked('water');

@@ -10,6 +10,7 @@ import { shakeAmt, decayShake } from './fx.js';
 import { P } from './state.js';
 import { dummies } from './dummies.js';
 import { player } from './player.js';
+import { aimedFire } from './styles.js';
 
 // camera helpers
 export let camYaw = 0, camPitch = -0.12, camDist = 5.4;
@@ -22,7 +23,8 @@ export const camFwdH = out => out.set(-Math.sin(camYaw), 0, -Math.cos(camYaw));
 export const camRight = out => out.set(Math.cos(camYaw), 0, -Math.sin(camYaw));
 export const facing = (out, yaw = P.yaw) => out.set(Math.sin(yaw), 0, Math.cos(yaw));
 export const camFacingYaw = () => Math.atan2(-Math.sin(camYaw), -Math.cos(camYaw));
-export let lockTarget = null, aimHit = null, aimRaw = null;
+// lockFire = a lit fire the crosshair is on (see aimedFire in styles.js). While it is set, lockTarget is null.
+export let lockTarget = null, aimHit = null, aimRaw = null, lockFire = null;
 export const raycaster = new THREE.Raycaster();
 // world point under the crosshair
 export function aimPoint(out) {
@@ -76,6 +78,9 @@ export function updateCamera(rdt) {
     const ang = Math.acos(clamp(_a.dot(_b) / len, -1, 1));
     if (ang < bestA) { bestA = ang; lockTarget = d; }
   }
+  // A fire nearer the crosshair than any dummy takes the lock instead, so a Blink Strike goes into it.
+  lockFire = aimedFire(camera.position, _b, bestA);
+  if (lockFire) lockTarget = null;
 }
 
 // setters for other modules (an imported `let` is read-only)

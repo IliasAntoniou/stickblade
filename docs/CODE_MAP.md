@@ -42,10 +42,14 @@ Where everything is, what the short names mean, and how to add things. If this f
 | Box colours, the floor tiles, how dark boxes get at the base | `COL`, `tileTex`, `makeFloor()` and the shading block under `boxGeo` in `js/world.js` |
 | A sword style's colour, how long it lasts, how strong its effect is (burn damage, extra reach) | `STYLES` and `STYLE_TIME` in `js/styles.js` |
 | Where the pool and the fire stand in the arena | The two `addSource()` lines at the bottom of `js/styles.js` |
-| How a style is taken (how close a slam has to land, how well a blink has to be aimed) | `slamSources()` and `blinkSource()` in `js/styles.js` |
+| How a style is taken (how close a slam has to land; how far away a fire can be locked on to) | `slamSources()`, `aimedFire()` and `FIRE_LOCK_RANGE` in `js/styles.js` |
 | The scene when a style is taken (going under the water, standing in the fire, how long it lasts) | `startTake()`, `updateTake()` and the `TAKE_...` numbers in `js/styles.js` |
-| The close-up of the eyes | `js/cutin.js`; how it looks is the `#cutin` CSS in `index.html` |
-| The player's skin and body flames under a style | `skin` and `ember` in `STYLES`, and the end of `updateStyles()`, in `js/styles.js` |
+| The close-up of the eyes: their shape and how long it lasts | `SHAPE`, `EYE` and the two timings at the top of `js/cutin.js` |
+| The close-up of the eyes: colours, glow, shake and the other motion | The `#cutin` CSS in `index.html` |
+| The lock-on ring | The lock part of `updateHud()` in `js/hud.js`; what gets locked is decided at the end of `updateCamera()` in `js/camera.js` |
+| The outfit worn under a style: its colours | `cloth` and `trim` in `STYLES` in `js/styles.js` |
+| The outfit's patterns (waves, flames) | `clothTex()` in `js/styles.js` |
+| The outfit's pieces and where they sit on the body | `outfit` and `attachOutfit()` in `js/styles.js` |
 | How the water and the fire look | The textures and `addSource()` in `js/styles.js` |
 | How a style's slash is painted (foam, tongues of fire) | The `edge` part of `paintCrescent()` and `TRAIL_PAINTS` in `js/fx.js` |
 | The trial that unlocks a style | The entries with `style:` in `CLASSES.blade.trials` in `js/classes/blade.js` |
@@ -161,6 +165,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | iframes | Seconds during which the player cannot be hit |
 | pool | A fixed set of objects reused over and over, never created during play |
 | lock-on, `lockTarget` | The dummy nearest the crosshair |
+| `lockFire` | A lit fire the crosshair is on. When set, `lockTarget` is null and a Blink Strike goes into the fire |
 | `aimHit` | The point on the map under the crosshair |
 | sword style, `style` | A temporary change to the sword taken from an object in the world: new slash colour and look plus one extra effect. `style.cur` is the one in use, `style.left` its seconds remaining |
 | source | A pool or fire a style is taken from. Still and unlit until its style is unlocked |
@@ -216,7 +221,8 @@ Water and Flame in `js/styles.js` are the worked examples.
 1. Add it to `STYLES`: id, name, colour, `paint`, `reach`, the numbers for its effect, and the `how` and `perk` lines.
 2. Give it its effect in `onStyleHit()` (runs for every hit that lands), or read `style.cur` wherever else it should matter.
 3. Give it a look: add an `edge` kind to `paintCrescent()` in `js/fx.js` and a matching entry in `TRAIL_PAINTS`.
-4. Give it a source: a new kind in `addSource()`, a way to take it (like `slamSources()` or `blinkSource()`) that calls `startTake()`, a line in `sourceHint()`, and one in the arena.
+4. Give it a source: a new kind in `addSource()`, a way to take it (like `slamSources()`, or the lock-on used for fire) that calls `startTake()`, a line in `sourceHint()`, and one in the arena.
+   Give it an outfit: `cloth` and `trim` colours, a pattern in `clothTex()`, and an entry in `clothMats`.
 5. Add its trial to the class's `trials` with `style: '<id>'` and `arena.sources`. Passing it unlocks the style.
 6. Add checks to the style part of `tests/smoke.js`, and a column to Part 2 of `docs/ABILITIES.md`.
 
