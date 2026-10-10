@@ -45,6 +45,12 @@ Where everything is, what the short names mean, and how to add things. If this f
 | How long you stay stuck to the rock, and how fast and flat the throw is | `STUCK_TIME`, and `throwTime` and `throwArc` in `updateGrab()`, in `js/master.js` |
 | How his head and eyes follow the player | `updateMaster()` in `js/master.js` |
 | Camera distance, shake, zoom with speed, lock-on | `updateCamera()` in `js/camera.js` |
+| How far the mouse wheel can zoom in and out, and where the zoom starts | `CAM_NEAR`, `CAM_FAR` and `camDist` in `js/camera.js` |
+| A mount's speed, turning, jump and ramming damage | `MOUNTS` in `js/mounts.js` |
+| What a mount looks like | `buildCar()`, `buildHorse()`, `buildLion()` and `buildElephant()` in `js/mounts.js` |
+| How riding moves, and what ramming hits | `updateMounted()` in `js/mounts.js` |
+| How a mount's legs, wheels and flames move | `animateMount()` in `js/mounts.js` |
+| How the rider sits | The `mounted` branch of `animatePlayer()` in `js/anim.js` |
 | Which key does what | The "actions" block in `update()` in `js/update.js`; raw key handling is in `js/input.js` |
 | Mouse sensitivity | `sens` in `js/input.js` |
 | Skill bar, health bar, stats line | `js/hud.js`; their look is the CSS at the top of `index.html` |
@@ -104,7 +110,7 @@ Where everything is, what the short names mean, and how to add things. If this f
    6. advance the basic attack
    7. `integrate()`: move the player and resolve collisions
    8. update every dummy, every projectile, the challenge, and the story (`updateQuests()`)
-2. `animatePlayer()` (`js/anim.js`): work out the pose.
+2. `animatePlayer()` (`js/anim.js`): work out the pose. Then `animateMount()` (`js/mounts.js`) if one is being ridden.
 3. `updateFx()` (`js/fx.js`): fade the effects.
 4. `updateCamera()` (`js/camera.js`): place the camera, find what the crosshair is on.
 5. `updateDomFx()` and `updateHud()`: floating text and the on-screen display.
@@ -125,7 +131,8 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/dummies.js` | The `Dummy` class, the list of dummies, the damage functions |
 | `js/skins.js` | What each kind of enemy looks like |
 | `js/projectiles.js` | Kunai and javelin |
-| `js/player.js` | Player body, collision, taking damage, basic attack, dash, slide, rewind |
+| `js/player.js` | Player body, collision, taking damage, basic attack, dash, slide |
+| `js/mounts.js` | The mount called with X: car, fire horse, lightning lion, war elephant |
 | `js/camera.js` | Camera and aiming |
 | `js/classes/index.js` | Loads the class files; `setClass()` |
 | `js/classes/blade.js`, `ninja.js`, `monk.js`, `lancer.js` | One class each: skill functions and the class table |
@@ -174,7 +181,9 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `dlg` | Master Sen's dialog state |
 | `SK` | The skill bar's slots |
 | `S` | Shorthand for `CL.skills` inside `update()` |
-| `m2`, `q`, `e`, `r`, `f`, `x` | Skill slots: right mouse, the Q E R F keys, and Rewind |
+| `m2`, `q`, `e`, `r`, `f`, `x` | Skill slots: right mouse, the Q E R F keys, and the mount |
+| mount, `mount.cur` | What the player is riding (an entry of `MOUNTS`), or null on foot. Riding is the player state `mounted` |
+| `P.seat` | How far the body is drawn above where it stands, for sitting on a mount. 0 the rest of the time |
 | `M0`, `M2` | Left and right mouse button, as they appear in `pressed` |
 | `tp`, `pose` | Target pose and current pose |
 | hitstop | The brief slow motion when a hit lands |
@@ -269,6 +278,16 @@ Water, Flame and Thunder in `js/styles.js` are the worked examples.
 4. A new chapter needs a line in `CHAPTERS`.
 5. Add a row to `docs/STORY.md` and a check to the story part of `tests/smoke.js`.
 
+### Add a mount
+
+The four in `js/mounts.js` are the worked examples.
+
+1. Add it to `MOUNTS`: name, the `style` that calls it, speed, grip, jump, the ramming numbers, `reach`, `width`, `seat` and `sit`.
+2. Write its `build...()` function (copy `buildHorse()`): the model faces +z with its feet at y = 0. Join everything that does not move into one shape with `joined()`; legs and axles are separate pieces so they can move.
+3. Add the function to `builders` in `initMounts()`.
+4. Look at it: `http://localhost:8000/?debug=pose:mount&style=<style>` (add `&ride=1` to see it moving).
+5. Add it to the mount checks in `tests/smoke.js` and to Part 5 of `docs/ABILITIES.md`.
+
 ### Add a class
 
 1. Copy `js/classes/blade.js` to a new file and rename the table to `CLASSES.<id> = {`. All five slots (`m2`, `q`, `e`, `r`, `f`) must exist.
@@ -309,7 +328,9 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Glow needs `toneMapped: false`.** Any material meant to look like light (effects, the weapon, warning marks) must set it, or tone mapping dulls it. Lit objects must not set it.
 - **`lam()` needs baked shading.** It expects a `color` attribute on the shape, as `boxGeo` and every rock from `rockGeo()` have; on any other shape the result is black.
 - **Rocks are drawn chipped but collide as plain boxes.** A rock's top is exactly flat and at full height, and its sides only ever go inwards. Keep it that way, or the player will stand on air or sink into stone.
-- **Low quality has a draw budget.** The smoke test fails if one frame on Low needs more than 375 draw calls.
+- **Low quality has a draw budget.** The smoke test fails if one frame on Low needs more than 410 draw calls. (It is measured at the starting zoom, which is fully zoomed out.)
+- **Leaving the `mounted` state is what removes the mount.** `setState()` hides it whenever the player goes into any other state, so nothing else has to remember to. Do not hide the model by hand.
+- **Mount models are built in `initMounts()`, not at the top of the file,** because they use `joined()` from `js/skins.js`, which is not a base file.
 - **Enemy shapes cost draw calls.** Each shape on each enemy is one more. In `js/skins.js`, shapes that always go together are joined into one (`joined()`); do the same for new ones. Put expensive extras behind High in `js/quality.js`.
 - **A blade's slash must come from the blade.** Do not add a ready-made slash shape for a weapon attack: it will not line up with the swing. Change the pose in `js/anim.js` and the slash follows by itself.
 - **Poses are targets, not positions.** `animatePlayer()` sets where each joint should go (`tp`); springs move the real pose there. To make something happen instantly, set `pose` as well as `tp`.

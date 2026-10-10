@@ -1,5 +1,5 @@
 // player.js: the player's body and everything every class shares. Collision with the world, taking damage,
-// the basic attack combo, dash, slide and rewind. Class-specific skills are in classes/.
+// the basic attack combo, dash and slide. Class-specific skills are in classes/.
 // P.state says what the player is doing ('normal', 'dash', 'slide' or a skill name). update.js runs the matching block each frame.
 
 import * as THREE from 'three';
@@ -17,6 +17,7 @@ import { endChallenge } from './challenges.js';
 import { reach, slashColor, clearStyle, slamSources } from './styles.js';
 import { strikeMaster } from './master.js';
 import { questEvent } from './quests.js';
+import { stowMount } from './mounts.js';
 import { inDir, hasIn, inX, inZ, hsp } from './update.js';
 
 // ================= player =================
@@ -41,7 +42,7 @@ diveMark.visible = false; scene.add(diveMark);
 // Everything about the player. The main ones:
 // pos, vel = position and speed.  yaw = facing angle (yawT = the angle being turned towards).
 // state, st = current state and seconds spent in it.  cd = seconds left on each cooldown.  atk = the basic combo in progress.
-// history = recent positions for Rewind.  iframes = seconds of invulnerability left.
+// iframes = seconds of invulnerability left.
 Object.assign(P, {
   pos: SPAWN.clone(), vel: new V3(), yaw: Math.PI, yawT: Math.PI, grounded: false, justLanded: false,
   airJumps: 1, airJumpsMax: 1, run: 9.5, dashCharges: 2, dashRecharge: 0, state: 'normal', st: 0, grav: 0,
@@ -49,15 +50,15 @@ Object.assign(P, {
   dashDir: new V3(), skDir: new V3(), gPoint: new V3(), gTarget: null, tick: 0, skHit: new Set(), dragged: [], dTarget: new V3(),
   cd: { m2: 0, q: 0, e: 0, r: 0, f: 0, x: 0 },
   atk: { on: false, t: 0, combo: 0, hit: new Set(), queued: false, lastEnd: -9, lastCombo: 0, vfx: false },
-  history: [], histT: 0,
   hp: 100, maxHp: 100, hurtT: 99, iframes: 0, blocking: false, blockStart: -9,
   sink: 0,    // how far the body is drawn below where it stands (going under the water of a pool, see styles.js)
+  seat: 0,    // how far the body is drawn above where it stands (sitting on a mount, see mounts.js)
   castN: 0, castY: 0,    // castN counts skill uses, castY is the height the last slam started from (trials read these)
   smokeT: 0, dmgMult: 1, floatT: 0, clone: null, mark: null, jav: null, lmbHeld: 0, kunaiT: 0, chargeK: 0,
 });
 // Jump, gravity, dash and health numbers are in TUNE (state.js) so the tuning panel can change them.
-// PR, PH = the player's collision radius and height.  FLIP_T = length of a somersault.  REWIND_CD = Rewind cooldown.
-export const PR = 0.32, PH = 1.75, FLIP_T = 0.42, REWIND_CD = 8;
+// PR, PH = the player's collision radius and height.  FLIP_T = length of a somersault.
+export const PR = 0.32, PH = 1.75, FLIP_T = 0.42;
 // States that other actions cannot cancel.
 export const LOCKED = new Set(['slamUp', 'slamDown', 'dragoonUp', 'dragoonDown', 'submerge', 'ignite', 'storm', 'grabbed']);
 // pose = what the player looks like now. tp = the pose being blended towards (see anim.js).
@@ -139,6 +140,7 @@ export function setState(s) {
   if (o === 'pcharge') releaseDrag(P.st >= 0.5);
   if (o === 'charge') { P.chargeK = 0; playerMat.emissive.setHex(0); }
   if (o === 'dragoonUp' || o === 'dragoonDown') diveMark.visible = s === 'dragoonDown';
+  if (o === 'mounted' && s !== 'mounted') stowMount();    // any other state means the player is off the mount
   if (s !== 'cyclone' && s !== 'sweep') P.spin = 0;
   P.state = s; P.st = 0;
 }
@@ -188,7 +190,7 @@ export function playerDefeated() {
 }
 export function respawnPlayer() {
   cleanupClassObjects();
-  P.pos.copy(SPAWN); P.vel.set(0, 0, 0); P.hp = P.maxHp; P.atk.on = false; P.history.length = 0;
+  P.pos.copy(SPAWN); P.vel.set(0, 0, 0); P.hp = P.maxHp; P.atk.on = false;
   setState('normal'); P.yaw = P.yawT = Math.PI; setCamYaw(0); setCamPitch(-0.12); P.iframes = 1;
 }
 
@@ -206,7 +208,7 @@ export function startAttack(force = -1) {
   const along = P.vel.x * _a.x + P.vel.z * _a.z;
   if (along < lunge) { P.vel.x += _a.x * (lunge - along); P.vel.z += _a.z * (lunge - along); }
   if (!P.grounded) P.vel.y = Math.max(P.vel.y, 3);
-  if (P.state === 'dash' || P.state === 'slide') setState('normal');
+  if (P.state === 'dash' || P.state === 'slide' || P.state === 'mounted') setState('normal');    // attacking gets off a mount
 }
 // Runs every frame of the hit window. Each dummy can be hit once per swing (a.hit remembers who).
 export function attackHits() {
@@ -262,16 +264,6 @@ export function startSlide() {
   P.vel.x = _a.x * boost; P.vel.z = _a.z * boost;
   P.yaw = P.yawT = Math.atan2(_a.x, _a.z);
   P.atk.on = false; setState('slide');
-}
-// Jump back to where the player was about 2 s ago (P.history holds 40 positions, one every 0.05 s).
-export function doRewind() {
-  P.cd.x = REWIND_CD;
-  const h = P.history;
-  for (let i = h.length - 1; i >= 0; i -= 5) spawnGhost(player, 0xa974ff, h[i], 0.5);
-  P.pos.copy(h[0]); P.vel.set(0, 0, 0); h.length = 0;
-  P.atk.on = false; setState('normal'); P.airJumps = P.airJumpsMax; P.iframes = 0.3;
-  spawnRing(_fx.copy(P.pos).setY(P.pos.y + 0.05), 0.2, 2.5, 0.35, 0xa974ff);
-  shake(0.15);
 }
 // A row of afterimages between two points, for teleports.
 export function teleTrail(from, to, n = 6) {

@@ -6,6 +6,7 @@ A running list of everything a character can do, kept up to date whenever someth
 - **Part 2** is sword styles: temporary changes taken from the world.
 - **Part 3** is Master Sen: what he does when you hit him.
 - **Part 4** is the enemies: what each kind is and how it looks.
+- **Part 5** is the mounts: what X calls, and what each one is like.
 
 Damage numbers vary by about 10% either way on each hit. Distances are in world units; a character is about 1.9 tall.
 
@@ -20,7 +21,7 @@ Damage numbers vary by about 10% either way on each hit. Distances are in world 
 | Space | Jump | Jump, one more jump in the air, and a jump off any wall you are touching |
 | Shift | Dash | A short burst in the direction you are moving, or where you are looking if you are standing still. 2 charges, 1.1 s to regain one. You cannot be hit during it. Jumping out of a dash keeps its speed |
 | C | Slide | A speed boost along the ground that fades. Jumping out of it keeps the speed |
-| X | Rewind | Go back to where you were about 2 seconds ago. 8 s cooldown |
+| X | Mount | Call something to ride; X again gets off. Much faster than running, and it knocks aside what it runs into. See Part 5 |
 
 ## Blademaster
 
@@ -155,11 +156,29 @@ All of them are the same stick figure underneath. Colour and shape say what each
 
 ---
 
+# Part 5: Mounts
+
+Press X to get on and X again to get off (you hop off keeping your speed). Every class can ride. Which mount comes depends on the sword style in use, and it changes under you if the style changes or runs out.
+
+While riding: the movement keys steer, Space jumps. Running into an enemy at a fair pace hits it and throws it aside (the same enemy at most every 0.7 s), and the sword style's effect applies to that hit. Attacking, using a skill, dashing, being hit or being defeated all take you off the mount.
+
+| Mount | Comes with | Looks like | Top speed | Turning | Jump | Ramming |
+|---|---|---|---|---|---|---|
+| Car | No style | A low open car with a spoiler; its lights and stripe take your class colour | 21 | Medium | Low (75% of yours) | 8 damage |
+| Fire Horse | Flame | A black horse with a mane and tail of fire | 27, the fastest | Medium | A little higher than yours | 10 damage |
+| Lightning Lion | Thunder | A lion with a mane of yellow spikes and a spark on its tail | 24 | The tightest | The highest (150% of yours) | 12 damage |
+| War Elephant | Water | A grey elephant in glowing blue war gear, with white tusks | 16, the slowest | Wide | Low (60% of yours) | 28 damage, a heavy hit: big knockback, and it interrupts a brute's attack |
+
+For comparison the Blademaster runs at 9.5.
+
+---
+
 ## When adding something
 
 - **A new ability or a changed number:** update the class's table here (and its rank and trial rows if it has them).
 - **A new style:** add a column to the table in Part 2.
 - **A new class:** add a section in Part 1.
 - **A new kind of enemy:** add a row to Part 4.
+- **A new mount:** add a row to Part 5.
 
 Where the numbers live in the code: each class's table at the bottom of its file in `js/classes/`, and `STYLES` in `js/styles.js`.

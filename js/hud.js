@@ -6,7 +6,7 @@ import { clamp, $, DEBUG } from './util.js';
 import { camera, renderer } from './core.js';
 import { projV } from './fx.js';
 import { T, P, CL, dlg, combo, totalDmg, dmgLog, TUNE } from './state.js';
-import { REWIND_CD } from './player.js';
+import { MOUNT_CD, mountFor } from './mounts.js';
 import { lockTarget, lockFire, aimHit } from './camera.js';
 import { master } from './master.js';
 import { locked } from './input.js';
@@ -23,7 +23,7 @@ export function buildSkillBar() {
   const defs = [
     { k: 'LMB', n: CL.lmb }, { k: 'RMB', n: S.m2.n, slot: 'm2' }, { k: 'Q', n: S.q.n, slot: 'q' }, { k: 'E', n: S.e.n, slot: 'e' },
     { k: 'R', n: S.r.n, slot: 'r' }, { k: 'F', n: S.f.n, slot: 'f' },
-    { k: 'SHIFT', n: 'Dash', dash: true, gap: true }, { k: 'SPACE', n: 'Jump', jump: true }, { k: 'C', n: 'Slide' }, { k: 'X', n: 'Rewind', slot: 'x' },
+    { k: 'SHIFT', n: 'Dash', dash: true, gap: true }, { k: 'SPACE', n: 'Jump', jump: true }, { k: 'C', n: 'Slide' }, { k: 'X', n: 'Mount', slot: 'x' },
   ];
   SK = defs.map(s => {
     const el = document.createElement('div'); el.className = 'sk' + (s.gap ? ' gap' : '');
@@ -40,10 +40,18 @@ export function updateHud(rdt) {
   for (const s of SK) {
     let frac = 0, txt = '';
     if (s.slot) {
-      const max = s.slot === 'x' ? REWIND_CD : CL.skills[s.slot].cd, v = P.cd[s.slot];
+      const max = s.slot === 'x' ? MOUNT_CD : CL.skills[s.slot].cd, v = P.cd[s.slot];
       frac = max > 0 ? v / max : 0; txt = v > 0.05 && max > 1 ? (v * TUNE.cdMult).toFixed(1) : '';
       const alt = s.slot !== 'x' && CL.skills[s.slot].alt ? CL.skills[s.slot].alt() : null;
       if (!!alt !== s.altOn) { s.altOn = !!alt; s.el.classList.toggle('alt', s.altOn); s.nEl.textContent = alt || s.n; }
+      // The X slot names the mount it would call: it changes with the sword style.
+      if (s.slot === 'x') {
+        const name = mountFor().name;
+        if (name !== s.shown) {
+          s.shown = name;
+          s.nEl.textContent = name;
+        }
+      }
       // Skills with ranks show one diamond per rank, or LOCKED.
       if (s.slot !== 'x' && CL.skills[s.slot].lv) {
         const rank = rankOf(s.slot);

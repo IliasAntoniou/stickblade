@@ -43,7 +43,7 @@ for (const id of SB.CLASS_ORDER) {
     reset(); SB.keys.add('KeyW');
     press('ShiftLeft', 6); press('Space', 40); press('Space', 40); press('ShiftLeft', 30);
     SB.keys.add('KeyC'); press('KeyC', 30); press('Space', 60); SB.keys.delete('KeyC');
-    press('KeyX', 30); SB.keys.delete('KeyW'); run(60);
+    press('KeyX', 30); press('KeyX', 30); SB.keys.delete('KeyW'); run(60);    // onto the mount and off again
   });
   check(id + ' takes a hit', () => { reset(); const hp = P.hp; SB.hurtPlayer(10, dummies[0].pos, dummies[0]); run(10); return P.hp < hp; });
 }
@@ -235,10 +235,11 @@ check('quality: switch to High and back', () => {
 // Draw calls for one frame from the start point. About 310 after the rocks, about 350 once every enemy wore its own
 // shapes (the limit was raised on purpose for that). The limit leaves a little room; if this fails, something made
 // the cheap setting more expensive. Either undo that or raise the limit on purpose.
+// (Raised from 375 to 410 when the camera began fully zoomed out: more of the arena is in view, about 380 draws.)
 check('quality: Low stays within its draw budget', () => {
   reset(); SB.respawnPlayer(); run(30);
   SB.renderer.render(SB.scene, SB.camera);
-  return SB.renderer.info.render.calls <= 375;
+  return SB.renderer.info.render.calls <= 410;
 });
 
 // progression (Blademaster): locked skills, the training hall, trials, ranks, and the closed back doors
@@ -708,6 +709,47 @@ check('style: ends on respawn and on class change', () => {
   const cleared = style.cur === null;
   SB.setClass('blade');
   return cleared;
+});
+// mounts: X calls something to ride. Which one depends on the sword style; any other action gets the player off
+const mount = SB.mount, MOUNTS = SB.MOUNTS;
+// Stand in open ground, facing along -z with the camera behind, and press X.
+function mountUp() { reset(); P.pos.set(0, 0, 40); P.vel.set(0, 0, 0); SB.setCamYaw(0); run(3); press('KeyX', 3); }
+const riding = id => P.state === 'mounted' && mount.cur === MOUNTS[id] && P.seat > -0.2;
+check('mount: X calls the car, it is faster than running, and X gets off again', () => {
+  SB.setClass('blade'); mountUp();
+  if (!riding('car')) return false;
+  SB.keys.add('KeyW'); run(90); SB.keys.delete('KeyW');
+  const speed = Math.hypot(P.vel.x, P.vel.z);
+  if (speed < 18 || speed > 22) return false;            // the car's top speed is 21; running is 9.5
+  run(70); press('KeyX', 3);                              // past the short cooldown, then off
+  return P.state === 'normal' && mount.cur === null && P.seat === 0;
+});
+check('mount: each sword style has its own, and it changes mid-ride', () => {
+  mountUp(); if (!riding('car')) return false;
+  SB.giveStyle('flame'); run(3); if (!riding('horse')) return false;
+  SB.giveStyle('thunder'); run(3); if (!riding('lion')) return false;
+  SB.giveStyle('water'); run(3); if (!riding('elephant')) return false;
+  const high = P.seat > 1.5;                              // the rider sits well up on the elephant
+  SB.clearStyle(); run(3);
+  return high && riding('car');
+});
+check('mount: riding into an enemy hits it and throws it aside', () => {
+  mountUp();
+  const d = dummies.find(e => e.type === 'basic');
+  d.pos.set(0, 0, 28); d.anchor.copy(d.pos); run(2);
+  const hp = d.hp;
+  SB.keys.add('KeyW'); run(80); SB.keys.delete('KeyW');   // straight at it from 12 away
+  const hit = d.hp < hp;
+  d.anchor.copy(d.base); d.respawn(false);
+  return hit;
+});
+check('mount: an attack, a hit or a respawn gets the player off', () => {
+  mountUp(); press('M0', 4);
+  if (P.state === 'mounted' || mount.cur) return false;
+  mountUp(); P.iframes = 0; SB.hurtPlayer(5, dummies[0].pos, dummies[0]); run(2);
+  if (P.state === 'mounted' || mount.cur) return false;
+  mountUp(); SB.respawnPlayer(); run(2);
+  return P.state === 'normal' && mount.cur === null && P.seat === 0;
 });
 check('style: being defeated mid-scene leaves nothing stuck', () => {
   reset(); slamInto(pool);

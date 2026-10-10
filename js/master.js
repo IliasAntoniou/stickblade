@@ -358,7 +358,7 @@ export const TIPS = [
   'The grey ones raise a shield. Strike from behind them, or from above.',
   'The purple ones strike back. Watch the red marks on the ground. A dash cannot be hit.',
   'A Monk who blocks at the very moment a blow lands will parry, and appear behind the attacker.',
-  'Rewind (X) is a second chance. Use it after a failed jump.',
+  'Press X and something comes to carry you. What comes depends on the style your sword has taken.',
   'A Ninja can climb. Hold right-click against a wall and look up.',
   'A Lancer\'s javelin is also a door. Throw it, then press Q again.',
   'Throw a dummy hard into a wall and it takes extra damage.',

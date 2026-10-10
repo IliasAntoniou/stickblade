@@ -34,6 +34,7 @@ import { cutinActive, playCutin } from './cutin.js';
 import { playerMat, player } from './player.js';
 import { quality, applyQuality, updateQuality } from './quality.js';
 import { QUESTS, story, initStory, questState, acceptQuest, turnInQuest, questEvent, questLine, resetStory } from './quests.js';
+import { MOUNTS, mount, initMounts, toggleMount, animateMount, mountFor } from './mounts.js';
 
 // ================= loop =================
 const clock = new THREE.Clock();
@@ -42,6 +43,7 @@ function step(dt) {
   update(dt);
   updateStyles(dt);
   animatePlayer(dt);
+  animateMount(dt);
   updateFx(dt);
   pressed.clear();
 }
@@ -70,6 +72,7 @@ initTuning();    // loads saved tuning; must come before the first setClass
 setClass(save.cls, false);
 applyTune();
 applyQuality(save.quality);
+initMounts();    // builds the mount models (hidden until X is pressed)
 for (const d of dummies) d.update(0);
 animatePlayer(0.016);
 // ?debug: run without pointer lock and expose internals for testing
@@ -78,6 +81,7 @@ if (DEBUG !== null) {
   window.SB = { QUESTS, story, questState, acceptQuest, turnInQuest, questEvent, questLine, resetStory, styleSpeed, solids, strikeMaster, openDlg, renderDlg, lockFire: () => lockFire, lockTarget: () => lockTarget, player, outfit, startTake, playCutin, playerMat, STYLES, style, sources, giveStyle, forceStyle, clearStyle, reach, styleUnlocked, freeze: v => { frozen = v; }, setCamYaw, setCamPitch, setCamDist, trail, arcs, swirls, renderer, camera, quality, applyQuality, P, dummies, DTYPE, CLASSES, CLASS_ORDER, CH, chal, dlg, keys, pressed, scene, master, setClass, startChallenge, endChallenge,
     hurtPlayer, respawnPlayer, hitDummy, setMouse, step, updateCamera, updateHud, TUNE, applyTune, resetTuning, rankOf, startTrial, unlockAll, resetProgress, setHitSrc, DOJO, dojo, enterDojo, leaveDojo, setupTrial, clearTrial, totalDmg: () => totalDmg,
     get T() { return T; }, get CL() { return CL; } };
+  Object.assign(window.SB, { MOUNTS, mount, toggleMount, mountFor });
   // &quality=high (with ?debug) switches the graphics setting for this visit, for screenshots.
   const wantQuality = new URLSearchParams(location.search).get('quality');
   if (wantQuality) applyQuality(wantQuality);

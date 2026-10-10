@@ -5,7 +5,7 @@
 import { clamp, $ } from './util.js';
 import { renderer } from './core.js';
 import { toast } from './fx.js';
-import { camYaw, camPitch, camDist, setCamYaw, setCamPitch, setCamDist } from './camera.js';
+import { camYaw, camPitch, camDist, setCamYaw, setCamPitch, setCamDist, CAM_NEAR, CAM_FAR } from './camera.js';
 
 // ================= input =================
 export const keys = new Set(), pressed = new Set();
@@ -32,7 +32,7 @@ addEventListener('mousemove', e => {
   const s = 0.0022 * sens;
   setCamYaw(camYaw - e.movementX * s); setCamPitch(clamp(camPitch - e.movementY * s, -1.3, 1.15));
 });
-addEventListener('wheel', e => { setCamDist(clamp(camDist + Math.sign(e.deltaY) * 0.6, 2.5, 10)); });
+addEventListener('wheel', e => { setCamDist(clamp(camDist + Math.sign(e.deltaY) * 0.6, CAM_NEAR, CAM_FAR)); });
 export const overlay = $('overlay');
 $('sens').addEventListener('input', e => { sens = +e.target.value; });
 $('sens').addEventListener('click', e => e.stopPropagation());
