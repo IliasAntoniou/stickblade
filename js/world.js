@@ -220,60 +220,6 @@ export function removeBox(m) {
   m.geometry.dispose();    // every rock has a shape of its own
 }
 
-// ---------- grass tufts ----------
-// A few thousand small tufts standing up out of the arena floor. They are ONE object as far as the graphics card is
-// concerned (an "instanced mesh": the same little shape drawn in many places), so they cost a single draw call.
-// They are only decoration: nothing collides with them.
-const TUFTS = 2600;
-const tuftGeo = (() => {
-  // one tuft = three thin blades fanning out from a point, dark at the root and light at the tip
-  const pos = [], col = [], nor = [];
-  for (let b = 0; b < 3; b++) {
-    const a = b / 3 * Math.PI + 0.3, lean = (b - 1) * 0.1, c = Math.cos(a), s = Math.sin(a), tall = 0.3 + b * 0.07;
-    pos.push(-c * 0.045, 0, -s * 0.045, c * 0.045, 0, s * 0.045, s * lean, tall, -c * lean);
-    col.push(0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 1, 1, 1);
-    nor.push(0, 1, 0, 0, 1, 0, 0, 1, 0);    // lit as if facing straight up, the same as the ground they stand on
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-  return g;
-})();
-export const grass = new THREE.InstancedMesh(tuftGeo, new THREE.MeshLambertMaterial({ color: 0x7aa851, vertexColors: true, side: THREE.DoubleSide }), TUFTS);
-const tuftAt = [];    // where each tuft stands, so some can be cleared away later
-{
-  // The same "random" layout every time the game starts.
-  let seed = 12345;
-  const rand = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
-  const place = new THREE.Object3D();
-  for (let i = 0; i < TUFTS; i++) {
-    let x = 0, z = 0;
-    for (let tries = 0; tries < 8; tries++) {    // look for a spot that is not under a rock
-      x = (rand() * 2 - 1) * (ARENA - 1);
-      z = (rand() * 2 - 1) * (ARENA - 1);
-      const covered = solids.some(s => s.min.y < 0.1 && x > s.min.x - 0.2 && x < s.max.x + 0.2 && z > s.min.z - 0.2 && z < s.max.z + 0.2);
-      if (!covered) break;
-    }
-    place.position.set(x, 0, z);
-    place.rotation.y = rand() * Math.PI * 2;
-    place.scale.set(0.8 + rand() * 0.8, 0.7 + rand() * 1.1, 0.8 + rand() * 0.8);
-    place.updateMatrix();
-    grass.setMatrixAt(i, place.matrix);
-    tuftAt.push([x, z]);
-  }
-}
-grass.frustumCulled = false;    // spread over the whole arena, so it is always partly on screen
-scene.add(grass);
-// Remove the tufts inside a circle (where a pool or a fire pit is put down).
-const _flat = new THREE.Matrix4().makeScale(0, 0, 0);
-export function clearGrass(x, z, radius) {
-  for (let i = 0; i < TUFTS; i++) {
-    if (Math.hypot(tuftAt[i][0] - x, tuftAt[i][1] - z) < radius) grass.setMatrixAt(i, _flat);
-  }
-  grass.instanceMatrix.needsUpdate = true;
-}
-
 // Height of the highest surface under (x, z) that is not above y. Used to stand dummies and shadows on things.
 // The 0.35 lets something sunk slightly into a surface still count as standing on it.
 export function groundAt(x, z, y) {

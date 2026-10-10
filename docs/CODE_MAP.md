@@ -47,7 +47,6 @@ Where everything is, what the short names mean, and how to add things. If this f
 | Rock colours | `COL` in `js/world.js` |
 | How chipped and uneven the rocks are, and how finely they are faceted | `CHIP` and `rockGeo()` in `js/world.js` |
 | The grass on the ground: its colours | `grassTex` and the tint on the `ground` line in `js/world.js` |
-| The grass tufts: how many, how big, their colour | `TUFTS`, `tuftGeo` and the `grass` block in `js/world.js` |
 | The training hall's tiled floor | `tileTex` and `makeFloor()` in `js/world.js`, used from `js/dojo.js` |
 | A sword style's colour, how long it lasts, how strong its effect is (burn damage, extra reach) | `STYLES` and `STYLE_TIME` in `js/styles.js` |
 | Where the pool and the fire stand in the arena | The two `addSource()` lines at the bottom of `js/styles.js` |
@@ -58,7 +57,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | The lock-on ring | The lock part of `updateHud()` in `js/hud.js`; what gets locked is decided at the end of `updateCamera()` in `js/camera.js` |
 | The suit worn under a style: what colour it glows | `glow`, `core`, `glowHex` and `eyes` in `STYLES` in `js/styles.js` |
 | The thin wisps running along the sword under a style | `wispTex` and `wispMat` in `js/styles.js`; how fast they flow is the `wispTex.offset` line in `updateStyles()` |
-| The shape of the hood (height, width, how far the peak leans, the face opening) | `hoodGeo()` in `js/styles.js` |
+| The hat worn under a style, and the symbol painted on it | `hatTex()` and the hat lines in `attachOutfit()` in `js/styles.js` |
 | The size of each piece of armour | The numbers in `attachOutfit()` in `js/styles.js` |
 | The suit's glowing cracks, and the coat's ragged hem | `drawCracks()`, `armourGlow()`, `coatCloth()` and `coatGlow()` in `js/styles.js` |
 | The suit's pieces (hood, armour, coat, cape) and where they sit on the body | `attachOutfit()` in `js/styles.js` |
@@ -274,7 +273,6 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Glow needs `toneMapped: false`.** Any material meant to look like light (effects, the weapon, warning marks) must set it, or tone mapping dulls it. Lit objects must not set it.
 - **`lam()` needs baked shading.** It expects a `color` attribute on the shape, as `boxGeo` and every rock from `rockGeo()` have; on any other shape the result is black.
 - **Rocks are drawn chipped but collide as plain boxes.** A rock's top is exactly flat and at full height, and its sides only ever go inwards. Keep it that way, or the player will stand on air or sink into stone.
-- **Grass is decoration.** It is one instanced object with no collision. When something flat is placed on the arena floor, call `clearGrass()` so tufts do not poke through it.
 - **Low quality has a draw budget.** The smoke test fails if one frame on Low needs more than 335 draw calls. Put expensive extras behind High in `js/quality.js`.
 - **A blade's slash must come from the blade.** Do not add a ready-made slash shape for a weapon attack: it will not line up with the swing. Change the pose in `js/anim.js` and the slash follows by itself.
 - **Poses are targets, not positions.** `animatePlayer()` sets where each joint should go (`tp`); springs move the real pose there. To make something happen instantly, set `pose` as well as `tp`.

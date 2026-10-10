@@ -11,7 +11,6 @@
 import * as THREE from 'three';
 import { V3, clamp, easeOut, _fx } from './util.js';
 import { scene } from './core.js';
-import { clearGrass } from './world.js';
 import { glowTex, spawnRing, spawnSwirl, burst, toast, setTrailPaint } from './fx.js';
 import { P, CL } from './state.js';
 import { player, playerMat, bladeMat, bladeGlow, setState } from './player.js';
@@ -25,7 +24,7 @@ const PLAIN_SKIN = 0xeef1f8;     // the player's normal body colour (matches pla
 // The suit worn under a style is the same dark armour for all of them; these colour what glows on it:
 //   glow, core = the cracks in the armour and coat (a wide soft line and its bright centre), as CSS colours.
 //   glowHex = the same glow as a number, for the halo round the eyes, the haze round the body and the wisps on the sword.
-//   eyes = the two points of light under the hood.
+//   eyes = the two small points of light where his eyes are.
 //   spark = which kind of spark drifts off the body (see burst() in fx.js).
 // reach = multiplies how far sword attacks, Cyclone and Meteor Slam reach.
 // how = how to take it, perk = what it does (both shown to the player).
@@ -54,8 +53,8 @@ export function slashColor() { return style.cur ? style.cur.color : CL.color; }
 export function reach() { return style.cur ? style.cur.reach : 1; }
 
 // ---------- the suit ----------
-// Taking a style puts the character in a suit of dark armour that glows with the style's colour: a hood with the
-// face in shadow and two burning eyes under a tall, narrow assassin's hood, a slim chest plate, spiked shoulder guards, gauntlets and greaves split by
+// Taking a style puts the character in a suit of dark armour that glows with the style's colour: a wide straw sun
+// hat painted with the style's symbol, a chest plate, spiked shoulder guards, gauntlets and greaves split by
 // glowing cracks, a long ragged coat open at the front, and a torn cape. Thin wisps of the same colour run along the sword.
 // Everything here is built once, attached to the player's body the first time a style is worn, and hidden otherwise.
 const ARMOUR = 0x17151c;    // the dark colour of the suit, and of the limbs under it
@@ -138,44 +137,56 @@ function suitMats(s) {
   };
 }
 let mats = null;    // { water: {armour, coat}, flame: {...} }, made the first time a style is worn
-const hoodMat = new THREE.MeshLambertMaterial({ color: 0x2b2733, side: THREE.DoubleSide });
-// The shape of the hood: an assassin's hood. Close to the head and narrow, rising well above it to a peak that
-// tips forward over the brow, falling to the shoulders at the sides and back, with an arched opening for the face
-// that comes to a point at the top. It is built ring by ring from the shoulders up, around the centre of the head.
-function hoodGeo() {
-  const AROUND = 32, RINGS = 18;    // how finely it is divided: around the head, and from bottom to peak
-  const BOTTOM = -0.27, PEAK = 0.4; // its lowest and highest points, measured from the centre of the head
-  const pos = [], idx = [];
-  for (let j = 0; j <= RINGS; j++) {
-    const t = j / RINGS;            // 0 at the shoulders, 1 at the peak
-    // nearly straight sides up to the brow, then drawing in to a point
-    const r = t < 0.5 ? 0.2 - 0.025 * (t / 0.5) : 0.175 * Math.pow(Math.cos((t - 0.5) / 0.5 * Math.PI / 2), 0.7);
-    const lean = t > 0.5 ? 0.1 * Math.pow((t - 0.5) / 0.5, 1.5) : 0;    // the upper part tips forward
-    for (let i = 0; i <= AROUND; i++) {
-      const a = i / AROUND * Math.PI * 2;    // 0 = straight ahead
-      pos.push(Math.sin(a) * r * 0.9, BOTTOM + (PEAK - BOTTOM) * t, Math.cos(a) * r * 1.04 + lean);    // a little narrower than it is deep
+// The hat: a plain wide sun hat, a low cone of woven straw, with the style's symbol painted on it front and back
+// (a flame, or a drop of water). The picture wraps once around the cone: left to right is around the hat, top to
+// bottom is from the point down to the brim.
+function hatTex(s) {
+  return canvasTex(512, 128, x => {
+    x.fillStyle = '#c9ad74';
+    x.fillRect(0, 0, 512, 128);
+    // the weave: fine lines running from point to brim, and a few rings
+    x.strokeStyle = 'rgba(90,62,24,0.35)';
+    x.lineWidth = 1;
+    for (let px = 0; px < 512; px += 6) { x.beginPath(); x.moveTo(px, 0); x.lineTo(px, 128); x.stroke(); }
+    for (const py of [34, 68, 98]) { x.beginPath(); x.moveTo(0, py); x.lineTo(512, py); x.stroke(); }
+    x.fillStyle = '#5a3e1c';
+    x.fillRect(0, 116, 512, 12);    // a dark band round the brim
+    // the symbol, once at the front (which sits on the seam of the picture, so it is drawn at both ends) and
+    // once at the back
+    for (const cx of [0, 256, 512]) {
+      x.save();
+      x.translate(cx, 72);
+      x.fillStyle = '#1a1410';
+      x.beginPath(); x.arc(0, 0, 31, 0, Math.PI * 2); x.fill();
+      x.strokeStyle = s.glow; x.lineWidth = 3;
+      x.beginPath(); x.arc(0, 0, 27, 0, Math.PI * 2); x.stroke();
+      x.fillStyle = s.glow;
+      x.beginPath();
+      if (s.id === 'flame') {
+        // a flame: a tall tongue with a smaller one beside it
+        x.moveTo(0, -22);
+        x.bezierCurveTo(6, -8, 18, -4, 16, 10);
+        x.bezierCurveTo(15, 20, 6, 22, 0, 22);
+        x.bezierCurveTo(-8, 22, -17, 18, -16, 8);
+        x.bezierCurveTo(-15, 0, -9, -2, -8, -10);
+        x.bezierCurveTo(-4, -4, 0, -8, 0, -22);
+      } else {
+        // a drop of water
+        x.moveTo(0, -22);
+        x.bezierCurveTo(4, -8, 17, 0, 17, 9);
+        x.bezierCurveTo(17, 18, 9, 23, 0, 23);
+        x.bezierCurveTo(-9, 23, -17, 18, -17, 9);
+        x.bezierCurveTo(-17, 0, -4, -8, 0, -22);
+      }
+      x.fill();
+      x.fillStyle = s.core;    // a small bright centre
+      x.beginPath(); x.arc(0, 10, 5, 0, Math.PI * 2); x.fill();
+      x.restore();
     }
-  }
-  for (let j = 0; j < RINGS; j++) {
-    for (let i = 0; i < AROUND; i++) {
-      // Leave out the pieces in front of the face. The opening is widest at the cheeks and closes to a point
-      // above the brow and again under the chin.
-      const ahead = (i + 0.5) / AROUND * Math.PI * 2, off = ahead > Math.PI ? ahead - Math.PI * 2 : ahead;
-      const u = ((j + 0.5) / RINGS - 0.17) / 0.56;    // 0 at the chin, 1 at the top of the opening
-      const half = u > 0 && u < 1 ? 0.9 * Math.sin(Math.PI * Math.pow(u, 0.72)) : 0;
-      if (Math.abs(off) < half) continue;
-      const a = j * (AROUND + 1) + i, b = a + 1, c = a + AROUND + 1, d = c + 1;
-      idx.push(a, b, c, b, d, c);
-    }
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  geo.setIndex(idx);
-  geo.computeVertexNormals();
-  return geo;
+  });
 }
-// The hood's mantle uses the coat's ragged-hem cloth, without anything glowing on it.
-const mantleMat = new THREE.MeshLambertMaterial({ map: coatCloth(), alphaTest: 0.5, side: THREE.DoubleSide });
+const hatUnderMat = new THREE.MeshLambertMaterial({ color: 0x6a5230 });    // the shaded underside of the brim
+let hatMats = null;    // { water, flame }: the top of the hat with each style's symbol, made with the suit
 // Wisps for the sword: a strip of fine wavy lines, mostly along its two long edges, that repeats end to end.
 const wispTex = canvasTex(256, 64, x => {
   x.lineCap = 'round';
@@ -192,14 +203,15 @@ const wispTex = canvasTex(256, 64, x => {
 });
 const wispMat = new THREE.MeshBasicMaterial({ map: wispTex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
 const metalMat = new THREE.MeshLambertMaterial({ color: 0x2a2732 });
-// Under the hood the face is in shadow. It has its own material so that it stays dark and still fades with the body.
-const faceMat = new THREE.MeshLambertMaterial({ color: 0x07070a, transparent: true });
+// The head keeps its skin colour while the rest of the body turns dark, so it has a material of its own.
+// (It still fades in and out with the body.)
+const faceMat = new THREE.MeshLambertMaterial({ color: PLAIN_SKIN, transparent: true });
 const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
 const haloMat = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.9, toneMapped: false });
 const auraMat = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.2, toneMapped: false });
 
 // The pieces. suit.parts is all of them (to show and hide together); the named ones are swapped between styles.
-export const outfit = { parts: [], armoured: [], coats: [], hood: null, coat: null, chest: null, attached: false };
+export const outfit = { parts: [], armoured: [], coats: [], hat: null, coat: null, chest: null, attached: false };
 function attachOutfit() {
   mats = { water: suitMats(STYLES.water), flame: suitMats(STYLES.flame) };
   // put a piece on a part of the body and remember it. kind says which material set it follows.
@@ -216,47 +228,49 @@ function attachOutfit() {
   const tube = (top, bottom, height, mat, open = true) => new THREE.Mesh(new THREE.CylinderGeometry(top, bottom, height, 14, 1, open), mat);
 
   // chest plate: broad at the shoulders, narrow at the waist
-  outfit.chest = add(tube(0.15, 0.11, 0.5, armour, false), player.spine, 0, 0.33, 0, 'armour');
+  outfit.chest = add(tube(0.18, 0.13, 0.51, armour, false), player.spine, 0, 0.33, 0, 'armour');
   // shoulder guards with a spike each. A stick figure's arms start at its centre line; these give it shoulders.
   for (const side of [1, -1]) {
-    const guard = new THREE.Mesh(new THREE.SphereGeometry(0.088, 10, 8), armour);
-    guard.scale.set(1.25, 0.85, 1.1);
-    add(guard, player.chest, 0.15 * side, 0.0, 0, 'armour');
-    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.15, 6), metalMat);
+    const guard = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), armour);
+    guard.scale.set(1.28, 0.85, 1.12);
+    add(guard, player.chest, 0.185 * side, 0.0, 0, 'armour');
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.041, 0.195, 6), metalMat);
     spike.rotation.z = -0.75 * side;
-    add(spike, player.chest, 0.21 * side, 0.075, 0);
+    add(spike, player.chest, 0.26 * side, 0.1, 0);
   }
   // gauntlets and greaves
-  add(tube(0.068, 0.058, 0.2, armour), player.elL, 0, -0.2, 0, 'armour');
-  add(tube(0.068, 0.058, 0.2, armour), player.elR, 0, -0.2, 0, 'armour');
-  add(tube(0.066, 0.056, 0.3, armour), player.kneeL, 0, -0.24, 0, 'armour');
-  add(tube(0.066, 0.056, 0.3, armour), player.kneeR, 0, -0.24, 0, 'armour');
+  add(tube(0.078, 0.064, 0.21, armour), player.elL, 0, -0.2, 0, 'armour');
+  add(tube(0.078, 0.064, 0.21, armour), player.elR, 0, -0.2, 0, 'armour');
+  add(tube(0.076, 0.061, 0.31, armour), player.kneeL, 0, -0.24, 0, 'armour');
+  add(tube(0.076, 0.061, 0.31, armour), player.kneeR, 0, -0.24, 0, 'armour');
   // belt, with a buckle that glows
-  add(tube(0.135, 0.135, 0.06, metalMat), player.body, 0, 0.03, 0);
-  const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.05, 0.03), eyeMat);
-  add(buckle, player.body, 0, 0.03, 0.135);
+  add(tube(0.168, 0.168, 0.068, metalMat), player.body, 0, 0.03, 0);
+  const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.078, 0.06, 0.03), eyeMat);
+  add(buckle, player.body, 0, 0.03, 0.168);
   // the coat: a long flared tube from the waist almost to the ground, with a gap left open down the front so the
   // legs show. The last two numbers are where around the body the cloth starts and how far round it goes.
   const GAP = 0.6;    // half the width of the opening, in radians
-  outfit.coat = add(new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.3, 0.95, 20, 1, true, GAP, Math.PI * 2 - GAP * 2), coat), player.body, 0, -0.43, 0, 'coat');
+  outfit.coat = add(new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.38, 0.965, 20, 1, true, GAP, Math.PI * 2 - GAP * 2), coat), player.body, 0, -0.435, 0, 'coat');
   // the cape: a torn sheet hanging from the shoulders down the back, leaning away from the body
-  const cape = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 1.15), coat);
-  cape.rotation.x = 0.16;
-  add(cape, player.chest, 0, -0.58, -0.14, 'coat');
-  // The hood (see hoodGeo), and a short collar of the same cloth below it with a ragged edge.
-  outfit.hood = add(new THREE.Mesh(hoodGeo(), hoodMat), player.head, 0, 0, 0);
-  add(tube(0.105, 0.2, 0.17, mantleMat), player.chest, 0, -0.03, 0);
-  // the eyes: two points of light in the dark of the hood, each with a halo
+  const cape = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 1.2), coat);
+  cape.rotation.x = 0.18;
+  add(cape, player.chest, 0, -0.6, -0.17, 'coat');
+  // The hat: a low wide cone sitting on the head, tipped back a little. A cone has two surfaces, its sloping top
+  // and its flat underside, so it takes two materials.
+  hatMats = { water: new THREE.MeshLambertMaterial({ map: hatTex(STYLES.water) }), flame: new THREE.MeshLambertMaterial({ map: hatTex(STYLES.flame) }) };
+  outfit.hat = add(new THREE.Mesh(new THREE.ConeGeometry(0.37, 0.17, 28), [hatMats.water, hatUnderMat]), player.head, 0, 0.19, 0);
+  outfit.hat.rotation.x = -0.1;
+  // the eyes: two small points of light in the style's colour, each with a faint halo
   for (const side of [1, -1]) {
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), eyeMat);
     add(eye, player.head, 0.062 * side, 0.02, 0.158);
     const halo = new THREE.Sprite(haloMat);
-    halo.scale.setScalar(0.17);
+    halo.scale.setScalar(0.11);
     add(halo, player.head, 0.062 * side, 0.02, 0.19);
   }
   // a faint glow hanging around the whole body
   const aura = new THREE.Sprite(auraMat);
-  aura.scale.set(1.9, 2.9, 1);
+  aura.scale.set(2.25, 3.15, 1);
   add(aura, player.root, 0, 1.0, 0);
   // The sword: thin wisps of the style's colour running along both edges of the blade and flowing towards the
   // tip (a picture of fine wavy lines that slides along, see wispTex). Two flat strips at right angles, so the
@@ -284,6 +298,7 @@ function applyLook() {
   if (s) {
     for (const m of outfit.armoured) m.material = mats[s.id].armour;
     for (const m of outfit.coats) m.material = mats[s.id].coat;
+    outfit.hat.material = [hatMats[s.id], hatUnderMat];
     eyeMat.color.setHex(s.eyes);
     haloMat.color.setHex(s.glowHex);
     auraMat.color.setHex(s.glowHex);
@@ -444,7 +459,6 @@ export function addSource(id, x, y, z) {
     s.fire.add(glow);
     s.group.add(s.fire);
   }
-  clearGrass(x, z, id === 'water' ? POOL_RADIUS + 0.5 : FIRE_RADIUS + 0.6);    // no grass growing through it
   scene.add(s.group);
   sources.push(s);
   return s;

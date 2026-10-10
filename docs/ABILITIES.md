@@ -110,7 +110,7 @@ Rules for all styles:
 | **Needs first** | Meteor Slam learned | Blink Strike learned |
 | **The scene** | You go under the water; a close-up shows your eyes closed, a blue slash sweeps across, and they snap open blazing blue; you burst back out | You stand burning in the flames; the same close-up with an orange slash and orange eyes; you step out |
 | **Slash** | Blue, with white foam along the edge | Orange, with tongues of fire along the edge |
-| **Suit** | Dark hooded armour split by glowing blue cracks; pale blue eyes under the hood; thin blue wisps flowing along the sword; blue sparks | The same armour split by glowing lava-orange cracks; gold eyes under the hood; thin wisps of fire flowing along the sword; orange sparks |
+| **Suit** | Dark armour split by glowing blue cracks; a straw sun hat with a water drop painted on it; pale blue eyes; thin blue wisps flowing along the sword; blue sparks | The same armour split by glowing lava-orange cracks; a straw sun hat with a flame painted on it; gold eyes; thin wisps of fire flowing along the sword; orange sparks |
 | **Effect on every hit** | Takes 0.12 s off all your cooldowns | Sets the target burning: 14 damage a second for 4 s |
 | **Other change** | Sword attacks, Cyclone and Meteor Slam reach 20% further | None |
 | **Trial to unlock** | Take Water, then hit 4 dummies with one sword swing (60 s) | Take Flame, then have 3 dummies burning at once (60 s) |
@@ -119,7 +119,7 @@ Rules for all styles:
 
 ---
 
-The suit is the same for every style: a tall, narrow assassin's hood with a peak that tips forward, the face in shadow and two glowing eyes, a chest plate, spiked shoulder guards, gauntlets, greaves, a long ragged coat open at the front, and a torn cape. Only what glows changes.
+The suit is the same for every style: a wide straw sun hat with the style's symbol on it, small glowing eyes, a chest plate, spiked shoulder guards, gauntlets, greaves, a long ragged coat open at the front, and a torn cape. Only what glows changes.
 
 ---
 
