@@ -15,7 +15,7 @@ import { camPitch, camFwdH, camRight, facing, camFacingYaw } from './camera.js';
 import { removeClone, throwKunai } from './classes/ninja.js';
 import { mkPalmRelease } from './classes/monk.js';
 import { diveTarget } from './classes/lancer.js';
-import { master, openDlg, closeDlg } from './master.js';
+import { master, openDlg, closeDlg, updateMaster, strikeMaster } from './master.js';
 import { endChallenge, updateChallenge } from './challenges.js';
 import { keys, pressed, mouseL, mouseR } from './input.js';
 
@@ -177,6 +177,7 @@ export function update(dt) {
       if (P.tick <= 0) {
         P.tick = 0.075;
         setHitSrc('e');
+        strikeMaster(P.pos.x, P.pos.y, P.pos.z, eRad);    // spinning into Master Sen counts as hitting him
         for (const d of dummies) {
           if (d.dead) continue;
           const dx = d.pos.x - P.pos.x, dz = d.pos.z - P.pos.z, dy = d.pos.y - P.pos.y;
@@ -334,8 +335,5 @@ export function update(dt) {
   updateChallenge(dt);
 
   // master idle
-  master.yaw = angDamp(master.yaw, Math.atan2(mdx, mdz), 4, dt);
-  master.sm.root.rotation.y = master.yaw;
-  master.sm.body.position.y = 0.93 + Math.sin(T * 2) * 0.012 + (dlg.open ? Math.abs(Math.sin(T * 9)) * 0.02 : 0);
-  master.mark.position.y = 2.75 + Math.sin(T * 3) * 0.12; master.mark.rotation.y = T * 2; master.mark.visible = !dlg.open && !chal.cur;
+  updateMaster(dt);
 }

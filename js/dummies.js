@@ -12,6 +12,7 @@ import { ringGeo, spawnRing, burst, spawnText, shake, addHitstop } from './fx.js
 import { T, P, dlg, chal, TUNE, hitSrc, addHit } from './state.js';
 import { hitAllowed, onHit } from './progress.js';
 import { onStyleHit } from './styles.js';
+import { strikeMaster } from './master.js';
 import { tp, hurtPlayer } from './player.js';
 import { update } from './update.js';
 
@@ -327,6 +328,7 @@ export function hitDummy(d, dmg, kx, kz, up, heavy = false, stop = null, src = P
 // hit everything in a circle around a point
 // rad = radius, kb = knockback, falloff 0..1 = how much weaker the hit is at the edge of the circle.
 export function hitArea(cx, cy, cz, rad, dmg, kb, up, heavy, stop, top, falloff = 0) {
+  strikeMaster(cx, cy, cz, rad);    // a blast that reaches Master Sen counts as hitting him
   for (const d of dummies) {
     if (d.dead) continue;
     const dx = d.pos.x - cx, dz = d.pos.z - cz, dist = Math.hypot(dx, dz), dy = d.pos.y - cy;

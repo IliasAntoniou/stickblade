@@ -30,7 +30,11 @@ Where everything is, what the short names mean, and how to add things. If this f
 | The map (boxes, platforms, walls) | The `addBox()` lines in `js/world.js` |
 | Kunai and javelin | `js/projectiles.js` |
 | A challenge's goal, or a new challenge | `CH` and `updateChallenge()` in `js/challenges.js` |
-| Master Sen's lines and menu | `GREET`, `TIPS` and `renderDlg()` in `js/master.js` |
+| Master Sen's lines, and what is on each page of his menu | `GREET`, `TIPS` and `renderDlg()` in `js/master.js` |
+| How his menu looks (the window, the cards, his portrait) | The `#dlg` CSS and HTML in `index.html` |
+| The pictures on the menu cards | `ICONS` in `js/master.js` |
+| What happens when he is hit (the warning, how long it lasts, the kill) | `strikeMaster()`, `warnPlayer()`, `killPlayer()` and `WARNING_TIME` in `js/master.js` |
+| How his head and eyes follow the player | `updateMaster()` in `js/master.js` |
 | Camera distance, shake, zoom with speed, lock-on | `updateCamera()` in `js/camera.js` |
 | Which key does what | The "actions" block in `update()` in `js/update.js`; raw key handling is in `js/input.js` |
 | Mouse sensitivity | `sens` in `js/input.js` |
@@ -53,7 +57,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | How the water and the fire look | The textures and `addSource()` in `js/styles.js` |
 | How a style's slash is painted (foam, tongues of fire) | The `edge` part of `paintCrescent()` and `TRAIL_PAINTS` in `js/fx.js` |
 | The trial that unlocks a style | The entries with `style:` in `CLASSES.blade.trials` in `js/classes/blade.js` |
-| How Master Sen looks | The start of the `master` block in `js/master.js` |
+| How Master Sen looks (build, hair, eyes, poses) | The `master` block and the `POSE_...` tables at the top of `js/master.js` |
 | A sword or dagger slash: how long it hangs in the air | `TRAIL_LIFE` in `js/fx.js`. The slash is built from the blade's real positions by `updateTrail()`, so its path is the sword's path |
 | A slash's width and how far it reaches past the blade | `WEAPON_REACH` in `js/anim.js` |
 | When a slash is drawn (which moves, how fast the blade must be moving) | `TRAIL_STATES` and `SLASH_SPEED` in `js/anim.js` |
@@ -269,6 +273,8 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Only boxes.** Collision assumes every solid is an upright box. A slope or rotated wall will not collide correctly.
 - **A style ends whenever the player respawns.** That covers death, teleports, class changes and the start of a trial (`clearStyle()` is called from `cleanupClassObjects()`), which is what keeps styles from being carried into a trial.
 - **Use `slashColor()` and `reach()` in sword code,** not `CL.color` and a bare radius, or the effect ignores the style.
+- **The menu frees the mouse.** Opening Master Sen's menu releases the mouse so cards can be clicked, which also pauses the game; closing it captures the mouse again. If the browser refuses, the pause screen shows and one click resumes.
+- **New area attacks should call `strikeMaster()`.** Sword swings, `hitArea()`, Cyclone and Rising Slash already do. An attack that loops over dummies by hand will pass straight through Master Sen unless it calls it too.
 - **Trials and tuning.** A trial will not start, and fails if running, while any tuning value differs from default. That is deliberate: it stops tuned numbers being used to pass.
 - **Stale files.** Always serve the game with `serve.py` (or `play.bat`). A plain web server lets the browser keep running old copies of changed files.
 - **Saved tuning.** Slider changes are stored in the browser and come back next time. If the game feels wrong, press "Reset all" in the panel before looking for a bug. The smoke test always runs on defaults.

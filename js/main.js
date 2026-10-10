@@ -18,7 +18,7 @@ import { updateCamera, setCamYaw, setCamPitch, setCamDist } from './camera.js';
 import { CLASS_ORDER, setClass } from './classes/index.js';
 import { CH, startChallenge, endChallenge } from './challenges.js';
 import { keys, pressed, locked, overlay, setMouse } from './input.js';
-import { master } from './master.js';
+import { master, strikeMaster, openDlg, renderDlg } from './master.js';
 import { update } from './update.js';
 import { animatePlayer } from './anim.js';
 import { updateHud } from './hud.js';
@@ -72,7 +72,7 @@ animatePlayer(0.016);
 // ?debug: run without pointer lock and expose internals for testing
 if (DEBUG !== null) {
   overlay.style.display = 'none';
-  window.SB = { lockFire: () => lockFire, lockTarget: () => lockTarget, player, outfit, startTake, playCutin, playerMat, STYLES, style, sources, giveStyle, forceStyle, clearStyle, reach, styleUnlocked, freeze: v => { frozen = v; }, setCamYaw, setCamPitch, setCamDist, trail, arcs, swirls, renderer, camera, quality, applyQuality, P, dummies, DTYPE, CLASSES, CLASS_ORDER, CH, chal, dlg, keys, pressed, scene, master, setClass, startChallenge, endChallenge,
+  window.SB = { strikeMaster, openDlg, renderDlg, lockFire: () => lockFire, lockTarget: () => lockTarget, player, outfit, startTake, playCutin, playerMat, STYLES, style, sources, giveStyle, forceStyle, clearStyle, reach, styleUnlocked, freeze: v => { frozen = v; }, setCamYaw, setCamPitch, setCamDist, trail, arcs, swirls, renderer, camera, quality, applyQuality, P, dummies, DTYPE, CLASSES, CLASS_ORDER, CH, chal, dlg, keys, pressed, scene, master, setClass, startChallenge, endChallenge,
     hurtPlayer, respawnPlayer, hitDummy, setMouse, step, updateCamera, updateHud, TUNE, applyTune, resetTuning, rankOf, startTrial, unlockAll, resetProgress, setHitSrc, DOJO, dojo, enterDojo, leaveDojo, setupTrial, clearTrial, totalDmg: () => totalDmg,
     get T() { return T; }, get CL() { return CL; } };
   // &quality=high (with ?debug) switches the graphics setting for this visit, for screenshots.

@@ -15,6 +15,7 @@ import { camDir, facing, camFacingYaw, setCamYaw, setCamPitch } from './camera.j
 import { removeClone } from './classes/ninja.js';
 import { endChallenge } from './challenges.js';
 import { reach, slashColor, clearStyle, slamSources } from './styles.js';
+import { strikeMaster } from './master.js';
 import { inDir, hasIn, inX, inZ, hsp } from './update.js';
 
 // ================= player =================
@@ -211,6 +212,7 @@ export function attackHits() {
   setHitSrc(a.src || 'atk');
   const cx = P.pos.x + _a.x * A.off, cz = P.pos.z + _a.z * A.off;
   const rad = A.rad * reach();    // a sword style can widen the swing
+  strikeMaster(cx, P.pos.y, cz, rad);    // swinging at Master Sen has consequences (master.js)
   for (const d of dummies) {
     if (d.dead || a.hit.has(d)) continue;
     const dx = d.pos.x - cx, dz = d.pos.z - cz, dy = d.pos.y - P.pos.y;

@@ -2,7 +2,8 @@
 // the side. For checking animation and effects without having to catch the moment by hand.
 // Names: idle, run, slash0, slash1, slash2, cyclone, slam, rising, master, pool, fire, ignite, submerge.
 // Add &view=<angle> to turn the camera (radians), &style=water or &style=flame to see a sword style,
-// &lit=1 to show the pool and fire as unlocked, and &cutin=water or &cutin=flame to hold the eye close-up on screen.
+// &lit=1 to show the pool and fire as unlocked, &cutin=water or &cutin=flame to hold the eye close-up on screen,
+// and &menu=main, classes, chal, train or tips to open that page of Master Sen's menu.
 const SB = window.SB;
 const { P, pressed, keys } = SB;
 const params = new URLSearchParams(location.search);
@@ -44,4 +45,5 @@ SB.setCamYaw(Number(params.get('view') || 2.0));
 SB.setCamPitch(-0.22);
 SB.setCamDist(4.2);
 for (let i = 0; i < 90; i++) SB.updateCamera(DT);
+if (params.get('menu')) { SB.openDlg(); SB.dlg.page = params.get('menu'); SB.renderDlg(); }
 document.title = 'pose: ' + name;

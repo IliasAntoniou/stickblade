@@ -14,6 +14,7 @@ import { camDir, camFwdH, facing, camFacingYaw, lockTarget, lockFire, aimHit, ra
 import { inDir, hasIn } from '../update.js';
 import { style, slashColor, reach, startTake } from '../styles.js';
 import { dojo } from '../dojo.js';
+import { strikeMaster } from '../master.js';
 
 // ---------- Blademaster ----------
 // RMB: pull towards the locked dummy, or the wall under the crosshair.
@@ -91,6 +92,7 @@ export function bmRising() {
   setState('rising'); P.vel.y = 16; P.vel.x *= 0.4; P.vel.z *= 0.4; P.airJumps = P.airJumpsMax;
   const fx = _a.x, fz = _a.z;
   setHitSrc('f');
+  strikeMaster(P.pos.x, P.pos.y, P.pos.z, S.rad);
   for (const d of dummies) {
     if (d.dead) continue;
     const dx = d.pos.x - P.pos.x, dz = d.pos.z - P.pos.z, dist = Math.hypot(dx, dz), dy = d.pos.y - P.pos.y;

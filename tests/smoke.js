@@ -395,6 +395,63 @@ check('Master Sen: offers to reset tuning in the hall', () => {
   press('KeyG', 2);
   return ok;
 });
+// Master Sen: one hit earns a warning, a second inside ten seconds is fatal
+const sen = SB.master;
+// Stand right in front of him and swing the sword.
+function swingAtSen() { P.pos.set(sen.pos.x, sen.pos.y, sen.pos.z + 1.6); P.vel.set(0, 0, 0); P.iframes = 0; run(2); pressed.add('M0'); run(10); }
+check('Sen: the first hit is only a warning', () => {
+  SB.setClass('blade'); reset(); run(60 * 11);           // let any earlier warning run out
+  const hp = P.hp;
+  swingAtSen();
+  // warned, thrown back from him, but alive and not sent anywhere
+  return sen.warnT > 9 && P.hp === hp && Math.hypot(P.pos.x - sen.pos.x, P.pos.z - sen.pos.z) > 1.7 && !near(0, 14);
+});
+check('Sen: a second hit inside ten seconds kills, and you are back at the start', () => {
+  run(60 * 3);
+  if (!(sen.warnT > 0)) return false;
+  swingAtSen();
+  return sen.warnT === 0 && near(0, 14) && P.hp === P.maxHp && P.state === 'normal';
+});
+check('Sen: after ten seconds it is only a warning again', () => {
+  reset(); run(40);                                      // a moment after the last blow: hits less than 0.6 s apart count as one
+  swingAtSen();
+  if (!(sen.warnT > 0)) return false;
+  run(60 * 11);
+  if (sen.warnT !== 0) return false;
+  swingAtSen();
+  return sen.warnT > 9 && !near(0, 14);
+});
+check('Sen: a blast counts as a hit too, and one swing never counts twice', () => {
+  reset(); run(60 * 11);
+  SB.strikeMaster(sen.pos.x + 1, sen.pos.y, sen.pos.z, 3);
+  SB.strikeMaster(sen.pos.x + 1, sen.pos.y, sen.pos.z, 3);    // the same instant: ignored
+  const once = sen.warnT > 9 && !near(0, 14);
+  SB.strikeMaster(sen.pos.x + 30, sen.pos.y, sen.pos.z, 3);   // nowhere near him
+  run(60 * 11);
+  return once && sen.warnT === 0;
+});
+check('Sen: his head follows the player', () => {
+  reset(); P.pos.set(sen.pos.x + 6, 9, sen.pos.z); P.vel.set(0, 0, 0); run(5);   // up in the air to one side of him
+  const lookingUp = sen.headPitch > 0.3;
+  P.pos.set(sen.pos.x - 6, 0, sen.pos.z); run(4);             // suddenly on his other side: the head turns before the body
+  const turned = Math.abs(sen.headYaw) > 0.4;
+  run(120);
+  return lookingUp && turned && Math.abs(sen.headYaw) < 0.2;  // and then the body catches up
+});
+check('Sen: the menu is made of cards that can be clicked', () => {
+  reset(); P.pos.copy(sen.pos); P.pos.z -= 2; P.vel.set(0, 0, 0); run(2);
+  press('KeyG', 2);
+  const win = document.getElementById('dlg'), cards = win.querySelectorAll('.card');
+  if (!dlg.open || cards.length !== dlg.opts.length || cards.length !== 5 || !cards[0].querySelector('svg')) return false;
+  if (!document.body.classList.contains('sen')) return false;
+  cards[0].click();                                      // "Change fighting style"
+  if (dlg.page !== 'classes' || win.querySelectorAll('.card').length !== 5) return false;
+  win.querySelectorAll('.card')[2].click();              // the Monk
+  const picked = !dlg.open && SB.CL.id === 'monk' && !document.body.classList.contains('sen') && getComputedStyle(win).display === 'none';
+  SB.setClass('blade');
+  return picked;
+});
+
 // sword styles: locked until their trial is passed, taken through a short scene, gone after 20 seconds
 const style = SB.style, PLAIN_SKIN = 0xeef1f8, outfit = SB.outfit;
 // Is the style's outfit on? Cloth-coloured body, patterned tunic and robe showing, and the head still skin.
