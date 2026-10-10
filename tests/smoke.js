@@ -170,14 +170,38 @@ check('tuning panel', () => {
   return SB.CL.atk[0].dmg === 12 && SB.CL.skills.m2.cd === 0.5 && TUNE.runMult === 1 && !panel.querySelector('.tr.chg');
 });
 
-// painted slashes: a swing shows a two-layer crescent and a weapon trail, and both go away again
-check('slash: crescent and trail appear and clear', () => {
-  SB.setClass('blade'); reset(); P.pos.set(0, 0, 40); run(5);
-  pressed.add('M0'); run(7);
+// painted slashes: a sword's slash is drawn from the blade's own path, with no ready-made shape beside it
+const ribbon = SB.trail.children[0].geometry;
+check('slash: the sword slash follows the blade and then clears', () => {
+  SB.setClass('blade'); reset(); P.pos.set(0, 0, 40); run(40);
+  if (SB.trail.visible) return false;                    // nothing while the sword is only held
+  pressed.add('M0'); run(8);
+  if (!SB.trail.visible || SB.arcs.some(a => a.g.visible)) return false;
+  // every point of the ribbon is within sword-wave reach of the player: it is where the blade was, nowhere else
+  const pts = ribbon.attributes.position.array, used = ribbon.index.array;
+  for (let i = 0; i < ribbon.drawRange.count; i++) {
+    const v = used[i] * 3;
+    if (Math.hypot(pts[v] - P.pos.x, pts[v + 2] - P.pos.z) > 4.2) return false;
+  }
+  run(70);
+  if (SB.trail.visible) return false;
+  // two cuts in a row: no piece of ribbon may bridge the gap between them (no piece longer than a sword swing step)
+  pressed.add('M0'); run(17); pressed.add('M0'); run(17); pressed.add('M0'); run(9);
+  const p2 = ribbon.attributes.position.array, index = ribbon.index.array;
+  for (let i = 0; i < ribbon.drawRange.count; i += 6) {   // six numbers per ribbon piece
+    const a = index[i] * 3, b = index[i + 2] * 3;       // a corner and the matching corner of the next position
+    if (Math.hypot(p2[a] - p2[b], p2[a + 1] - p2[b + 1], p2[a + 2] - p2[b + 2]) > 1.6) return false;
+  }
+  run(70);
+  return !SB.trail.visible;
+});
+check('slash: fists still use the ready-made arc', () => {
+  SB.setClass('monk'); reset(); P.pos.set(0, 0, 40); run(5);
+  pressed.add('M0'); run(6);
   const arc = SB.arcs.find(a => a.g.visible);
-  const shown = !!arc && arc.body.material.opacity > 0.5 && arc.ink.material.opacity > 0.5 && SB.trail.visible;
-  run(60);
-  return shown && !SB.arcs.some(a => a.g.visible) && !SB.trail.visible;
+  const ok = !!arc && arc.body.material.opacity > 0.5 && arc.ink.material.opacity > 0.5 && !SB.trail.visible;
+  run(60); SB.setClass('blade');
+  return ok && !SB.arcs.some(a => a.g.visible);
 });
 check('slash: Cyclone whirlpool and Slam wave', () => {
   reset(); P.pos.set(0, 0, 40); run(5);
@@ -193,10 +217,9 @@ check('slash: fists leave no trail, a teleport does not stretch one', () => {
   const none = !SB.trail.visible;
   SB.setClass('blade'); reset(); pressed.add('M0'); run(5);
   P.pos.x += 60; run(1);                                 // far away in one frame
-  const box = new Float32Array(SB.trail.children[0].geometry.attributes.position.array);
-  const count = SB.trail.children[0].geometry.drawRange.count / 6 + 1;
+  const box = ribbon.attributes.position.array, joined = ribbon.index.array;
   let widest = 0;
-  for (let i = 1; i < count * 2; i++) widest = Math.max(widest, Math.abs(box[i * 3] - box[0]));
+  for (let i = 0; i < ribbon.drawRange.count; i += 6) widest = Math.max(widest, Math.abs(box[joined[i] * 3] - box[joined[i + 2] * 3]));
   run(60);
   return none && (!SB.trail.visible || widest < 14);
 });

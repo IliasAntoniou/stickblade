@@ -6,7 +6,7 @@
 
 import { _a, _b, _c, _fx } from '../util.js';
 import { solidMeshes } from '../world.js';
-import { spawnArc, spawnRing, spawnSwirl } from '../fx.js';
+import { spawnRing, spawnSwirl } from '../fx.js';
 import { P, CL, CLASSES, setHitSrc } from '../state.js';
 import { dummies, hitDummy } from '../dummies.js';
 import { depenetrate, ropeMesh, hookMesh, setState, startAttack, teleTrail } from '../player.js';
@@ -80,7 +80,6 @@ export function bmRising() {
   P.cd.f = S.cd; P.atk.on = false;
   P.yaw = P.yawT = camFacingYaw(); facing(_a);
   setState('rising'); P.vel.y = 16; P.vel.x *= 0.4; P.vel.z *= 0.4; P.airJumps = P.airJumpsMax;
-  spawnArc(2, _b.copy(P.pos).setY(P.pos.y + 1.1), P.yaw, CL.color, 1.35);
   const fx = _a.x, fz = _a.z;
   setHitSrc('f');
   for (const d of dummies) {

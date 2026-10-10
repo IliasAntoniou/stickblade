@@ -222,8 +222,10 @@ export function attackVfx() {
   const a = P.atk, c = a.combo, last = c === CL.atk.length - 1; facing(_a);
   _b.copy(P.pos).addScaledVector(_a, 0.2).setY(P.pos.y + 1.15);
   switch (CL.style) {
-    case 'slash': spawnArc(last ? 2 : c % 2, _b, P.yaw, CL.color); break;
-    case 'dagger': spawnArc(last ? 2 : c % 2, _b, P.yaw, CL.color, 0.72); break;
+    // Swords and daggers get no ready-made shape here: their slash is the ribbon drawn from the blade's real path
+    // (updateTrail in fx.js, fed from anim.js), so it can never be out of line with the weapon.
+    case 'slash': break;
+    case 'dagger': break;
     case 'punch': spawnArc(last ? 2 : c % 2, _b, P.yaw, CL.color, last ? 0.75 : 0.5); break;
     case 'thrust': {
       const A = CL.atk[c];

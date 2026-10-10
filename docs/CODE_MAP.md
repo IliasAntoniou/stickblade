@@ -38,11 +38,13 @@ Where everything is, what the short names mean, and how to add things. If this f
 | Sky colours, fog, overall brightness | `SKY` and `toneMappingExposure` in `js/core.js`; the sky itself is drawn in `js/sky.js` |
 | The lighting (sun colour, direction, strength; the soft light from the sky) | `sun`, `SUN_OFFSET` and `hemi` in `js/core.js` |
 | Box colours, the floor tiles, how dark boxes get at the base | `COL`, `tileTex`, `makeFloor()` and the shading block under `boxGeo` in `js/world.js` |
-| How a slash looks (the painted crescent: its shape, ink outline, foam) | `paintCrescent()` and the `crescent...` shape functions in `js/fx.js` |
-| How long a slash stays and how it swings in | The `arcs` part of `updateFx()` in `js/fx.js` |
+| A sword or dagger slash: how long it hangs in the air | `TRAIL_LIFE` in `js/fx.js`. The slash is built from the blade's real positions by `updateTrail()`, so its path is the sword's path |
+| A slash's width and how far it reaches past the blade | `WEAPON_REACH` in `js/anim.js` |
+| When a slash is drawn (which moves, how fast the blade must be moving) | `TRAIL_STATES` and `SLASH_SPEED` in `js/anim.js` |
+| How a slash is painted (shape, ink outline, foam) | `paintCrescent()` and the `trailOuter` / `trailInner` shape functions in `js/fx.js` |
+| The Monk's punch and kick arcs (ready-made shapes, since fists have no blade) | The `arcs` part of `js/fx.js`, called from `attackVfx()` in `js/player.js` |
 | How snappy or bouncy the character's movement is | `SPRING_ACTION` and `SPRING_CALM` in `js/anim.js` |
 | Breathing, leaning into turns, the landing dip | The idle block and the "weight" block in `animatePlayer()` in `js/anim.js` |
-| The ribbon that follows the weapon | `updateTrail()`, `TRAIL_LIFE` in `js/fx.js`; which moves leave one is `TRAIL_STATES` and `WEAPON_REACH` in `js/anim.js` |
 | The Cyclone whirlpool and the Meteor Slam wave | `spawnSwirl()` in `js/fx.js`, called from `bmCyclone()` and `groundImpact()` |
 | The Blademaster's stance, run and sword swings | The `id === 'blade'` blocks and `case 'slash'` in `animatePlayer()` in `js/anim.js` |
 | How much things glow (impact flashes, the halo on the weapon, afterimages) | `spawnGlow()` and the effect pools in `js/fx.js`; `bladeGlow` in `js/player.js` |
@@ -223,6 +225,7 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Glow needs `toneMapped: false`.** Any material meant to look like light (effects, the weapon, warning marks) must set it, or tone mapping dulls it. Lit objects must not set it.
 - **`lam()` is for boxes only.** It expects the shading baked into `boxGeo`; on any other shape the result is black.
 - **Low quality has a draw budget.** The smoke test fails if one frame on Low needs more than 335 draw calls. Put expensive extras behind High in `js/quality.js`.
+- **A blade's slash must come from the blade.** Do not add a ready-made slash shape for a weapon attack: it will not line up with the swing. Change the pose in `js/anim.js` and the slash follows by itself.
 - **Poses are targets, not positions.** `animatePlayer()` sets where each joint should go (`tp`); springs move the real pose there. To make something happen instantly, set `pose` as well as `tp`.
 - **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.
 - **`dt` or `rdt`.** Gameplay uses `dt` so it slows down during hitstop. Camera and on-screen display use `rdt`.

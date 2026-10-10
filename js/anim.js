@@ -23,8 +23,19 @@ let wasGrounded = true, lastYaw = 0, lastSpeed = 0, turnLean = 0, speedLean = 0;
 // The wrist angle that makes the blade point in a given direction whatever the arm is doing.
 // aim = 0 points it straight ahead, negative tilts the tip up, around 2.8 points it back behind the player.
 const bladeAim = (pose, aim) => aim - (pose.shRX + pose.elR);
-// The two ends of each weapon along the hand, used to draw the trail behind it. Fists have none.
-const WEAPON_REACH = { sword: [0.15, 1.2], daggers: [0.05, 0.6], spear: [1.3, 2.2] };
+// The painted slash is a ribbon stretched between the places the blade has just been, so it always follows the
+// weapon's real path. These are its two edges, measured along the blade from the hand: it starts partway up the
+// blade and carries on past the tip, like a wave thrown off the edge. Fists have none.
+const WEAPON_REACH = { sword: [0.35, 2.3], daggers: [0.1, 1.25], spear: [1.3, 2.9] };
+// The blade has to be moving at least this fast (units per second) to leave a slash. Stops a ribbon being drawn
+// while the sword is just being held, and makes the slash end exactly when the swing does.
+const SLASH_SPEED = 5;
+// How long a swing spends drawing the weapon back before the cut starts (seconds). It ends just before the attack
+// can first hit, so the visible cut and the damage happen together. The slash is not drawn during it, otherwise
+// the ribbon would trace the sword going back up as well as coming down.
+const coilTime = A => Math.max(0.03, A.a0 - 0.02);
+const lastTip = _b.clone();
+let bladeFast = false;
 // States in which the weapon is swinging even though no basic attack is running.
 const TRAIL_STATES = new Set(['cyclone', 'rising', 'slamDown', 'blinkStrike', 'sweep', 'pcharge', 'dragoonDown']);
 export function animatePlayer(dt) {
@@ -147,10 +158,10 @@ export function animatePlayer(dt) {
         // stance drops and leans into it, and the swing carries well past the target (the follow-through is what
         // sells the weight, since a game swing has no time for a wind-up). e runs 0..1 through the cut.
         tp.elR = -0.12; tp.elL = -0.5;
-        // cut = 0..1 through the swing itself. It waits a few hundredths of a second first, so the body coils
+        // cut = 0..1 through the swing itself. It waits for the coil first (see coilTime), so the body draws
         // back before it whips through. drift = 0..1 over the time after the cut: the swing keeps easing onwards
         // there, so the pose is never held still.
-        const COIL = 0.03;
+        const COIL = coilTime(A);
         const cut = easeOut(clamp((a.t - COIL) / (A.a1 + 0.03 - COIL), 0, 1));
         const drift = clamp((a.t - A.a1) / (A.dur - A.a1 + 0.12), 0, 1);
         if (a.combo < 2) {
@@ -233,14 +244,18 @@ export function animatePlayer(dt) {
   playerMat.opacity = op; bladeMat.opacity = op;
   bladeGlow.material.opacity = op * 0.2;
 
-  // weapon trail: follows the blade while it is swinging
+  // the painted slash: drawn from the blade's own positions (see WEAPON_REACH)
   const reach = WEAPON_REACH[CL.weapon];
   if (reach) {
-    const A = a.on ? CL.atk[a.combo] : null;
-    const swinging = (a.on && a.t <= A.a1 + 0.06) || TRAIL_STATES.has(st);
     player.wrist.localToWorld(_a.set(0, 0, reach[0]));
     player.wrist.localToWorld(_b.set(0, 0, reach[1]));
-    updateTrail(dt, swinging && P.smokeT <= 0, _a, _b, CL.color);
+    if (dt > 0.004) {    // not during hitstop, when dt is almost nothing
+      bladeFast = _b.distanceTo(lastTip) / dt > SLASH_SPEED;
+      lastTip.copy(_b);
+    }
+    // Only during an attack or a sword skill, after the coil back, and only while the blade is really moving.
+    const attacking = (a.on && a.t >= coilTime(CL.atk[a.combo])) || TRAIL_STATES.has(st);
+    updateTrail(dt, attacking && bladeFast && P.smokeT <= 0, _a, _b, CL.color);
   } else updateTrail(dt, false, _a, _b, CL.color);
 
   if (P.clone) { cloneSm.root.position.copy(P.clone.pos); cloneMat.opacity = 0.45 + Math.sin(T * 8) * 0.2; }

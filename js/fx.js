@@ -156,7 +156,8 @@ const crescentInner = u => crescentOuter(u) - 0.72 * crescentThick(u);
 const crescentBody = paintCrescent('body', crescentOuter, crescentInner, 0.25, 0.97);
 const crescentInk = paintCrescent('ink', crescentOuter, crescentInner, 0.25, 0.97);
 
-// Slash arcs. arcH = the half circle in front of the player for sideways swings, arcV = the tall one for overhead swings.
+// Ready-made slash arcs, used only for attacks without a blade (the Monk's fists and kicks).
+// arcH = the half circle in front of the player for sideways swings, arcV = the tall one for overhead swings.
 export const arcH = arcGeo(1.0, 2.5, Math.PI, Math.PI);
 export const arcV = arcGeo(0.9, 2.4, -Math.PI / 3, 5 * Math.PI / 6);
 export const arcs = [];
@@ -210,20 +211,19 @@ export function spawnSwirl(pos, radius, color, dur, spin = 12, grow = 0, follow 
   w.g.visible = true;
 }
 
-// Weapon trail: a painted ribbon stretched between where the blade was over the last moments.
+// The slash of every bladed weapon: a painted ribbon stretched between where the blade was over the last moments.
+// Because it is built from the blade's real positions, it follows the swing exactly.
 // trailPts holds recent blade positions (base and tip), newest first. The strip is rebuilt from them every frame.
-const TRAIL_MAX = 48;       // most positions remembered (three per frame, see updateTrail)
-const TRAIL_LIFE = 0.17;    // seconds a position stays part of the ribbon
+const TRAIL_MAX = 96;       // most positions remembered (up to three per frame, see updateTrail)
+const TRAIL_LIFE = 0.26;    // seconds a position stays part of the ribbon: longer = a longer slash left hanging in the air
 const trailOuter = () => 0.9;
 const trailInner = u => Math.min(0.88, 0.08 + 0.82 * Math.pow(u, 1.25));    // full width at the blade, a point at the tail
 const trailGeo = new THREE.BufferGeometry();
 trailGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TRAIL_MAX * 6), 3).setUsage(THREE.DynamicDrawUsage));
 trailGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(TRAIL_MAX * 4), 2).setUsage(THREE.DynamicDrawUsage));
-{
-  const idx = [];
-  for (let k = 0; k < TRAIL_MAX - 1; k++) idx.push(k * 2, k * 2 + 1, k * 2 + 2, k * 2 + 1, k * 2 + 3, k * 2 + 2);
-  trailGeo.setIndex(idx);
-}
+// Which positions are joined into ribbon pieces. Rewritten every frame, because separate swings must not be joined.
+const trailIndex = new THREE.BufferAttribute(new Uint16Array((TRAIL_MAX - 1) * 6), 1).setUsage(THREE.DynamicDrawUsage);
+trailGeo.setIndex(trailIndex);
 const [trailBodyMat, trailInkMat] = paintMats(paintCrescent('body', trailOuter, trailInner, 0.02, 0.6), paintCrescent('ink', trailOuter, trailInner, 0.02, 0.6));
 trailBodyMat.opacity = 0.92; trailInkMat.opacity = 1;
 export const trail = new THREE.Group();
@@ -235,14 +235,15 @@ export const trail = new THREE.Group();
 }
 trail.visible = false; scene.add(trail);
 const trailPts = [];
-for (let i = 0; i < TRAIL_MAX; i++) trailPts.push({ base: new V3(), tip: new V3(), age: 0 });
-let trailCount = 0;
+// first = this position began a new swing, so it is not joined to the older one after it.
+for (let i = 0; i < TRAIL_MAX; i++) trailPts.push({ base: new V3(), tip: new V3(), age: 0, first: false });
+let trailCount = 0, wasEmitting = false;
 const _tb = new V3(), _tt = new V3();
 // Put a position at the front of the list (newest first) by recycling the oldest slot.
 function addTrailPoint(base, tip, age) {
   const p = trailPts.pop();
   trailPts.unshift(p);
-  p.base.copy(base); p.tip.copy(tip); p.age = age;
+  p.base.copy(base); p.tip.copy(tip); p.age = age; p.first = false;
   trailCount = Math.min(TRAIL_MAX, trailCount + 1);
 }
 // A point a fraction f of the way from b to c, on a smooth curve that also takes the earlier point a into account
@@ -263,7 +264,8 @@ export function updateTrail(dt, emitting, base, tip, color) {
   if (emitting) {
     // A fast swing only gives a handful of positions, which would make the ribbon a row of straight pieces.
     // So two extra positions are filled in on a smooth curve between the last one and this one.
-    if (trailCount >= 2) {
+    // (Only on slower frames: at high frame rates there are plenty of positions already.)
+    if (wasEmitting && trailCount >= 2 && !trailPts[0].first && dt > 1 / 100) {
       const prev = trailPts[0], older = trailPts[1];
       for (const f of [1 / 3, 2 / 3]) {
         curvePoint(_tb, older.base, prev.base, base, f);
@@ -272,8 +274,12 @@ export function updateTrail(dt, emitting, base, tip, color) {
       }
     }
     addTrailPoint(base, tip, 0);
+    // The first position of a swing starts a new ribbon. Without this, a new cut would be joined to the end of
+    // the last one by a long straight piece across the gap.
+    if (!wasEmitting) trailPts[0].first = true;
     trailBodyMat.color.setHex(color);
   }
+  wasEmitting = emitting;
   trail.visible = trailCount >= 2;
   if (!trail.visible) return;
   const pos = trailGeo.attributes.position, uv = trailGeo.attributes.uv;
@@ -285,7 +291,17 @@ export function updateTrail(dt, emitting, base, tip, color) {
     uv.setXY(i * 2 + 1, u, 1);
   }
   pos.needsUpdate = true; uv.needsUpdate = true;
-  trailGeo.setDrawRange(0, (trailCount - 1) * 6);
+  // join each position to the next older one, except across the start of a swing
+  let n = 0;
+  for (let i = 0; i < trailCount - 1; i++) {
+    if (trailPts[i].first) continue;
+    const k = i * 2;
+    trailIndex.array[n++] = k; trailIndex.array[n++] = k + 1; trailIndex.array[n++] = k + 2;
+    trailIndex.array[n++] = k + 1; trailIndex.array[n++] = k + 3; trailIndex.array[n++] = k + 2;
+  }
+  trailIndex.needsUpdate = true;
+  trailGeo.setDrawRange(0, n);
+  if (n === 0) trail.visible = false;
 }
 export const ringGeo = new THREE.RingGeometry(0.85, 1, 40).rotateX(-Math.PI / 2);
 export const rings = [];
