@@ -116,7 +116,9 @@ export const master = (() => {
     grabFrom: new V3(), slamFrom: new V3(), slamTo: new V3(), slamming: false,
     // which punishment comes next ('slam' or 'throw': they take turns), which one is happening now, and for a
     // throw: the rock top being aimed at, how long the flight takes and how high it goes
-    nextMove: 'slam', move: 'slam', throwTo: new V3(), throwTime: 1, throwArc: 6 };
+    nextMove: 'slam', move: 'slam', throwTo: new V3(), throwTime: 1, throwArc: 1,
+    // the throw's end: which way the rock face he is thrown at faces, and whether (and since when) the player is stuck to it
+    wallN: new V3(), stuck: false, stuckAt: 0 };
 })();
 
 // Move Master Sen, his gold ring and his shadow to another spot (the training hall and back).
@@ -184,7 +186,8 @@ function warnPlayer() {
 // Second hit inside the warning: he catches the player by the neck and holds them off the ground. What he does
 // next alternates from one time to the next:
 //   'slam'  = he leaps into the air with them and slams them down from the top of the jump.
-//   'throw' = he winds up and hurls them in a long arc onto the top of one of the rocks.
+//   'throw' = he winds up and hurls them flat and hard at one of the tall rocks. They smack into its side, hang
+//             there spread out for a moment, and drop.
 // Either costs a large share of their health but never the last of it. Times are seconds since the grab began.
 const GRAB_PULL = 0.18;       // the player has been hauled into his hand
 const GRAB_HOLD = 0.6;        // he stops just holding them up
@@ -193,26 +196,40 @@ const SLAM_END = 1.2;         // slam: he lands, and the player hits the ground
 const JUMP_HEIGHT = 4.4;      // slam: how high he leaps
 const SLAM_DAMAGE = 0.6;      // slam: share of the player's full health it takes
 const THROW_RELEASE = 0.9;    // throw: he lets go (between GRAB_HOLD and this he is winding up)
-const THROW_DAMAGE = 0.4;     // throw: share of the player's full health the landing takes
+const THROW_DAMAGE = 0.4;     // throw: share of the player's full health hitting the rock takes
+const STUCK_TIME = 0.45;      // throw: seconds the player stays flat against the rock before dropping
 const NECK_HEIGHT = 1.5;      // how far above the player's feet their neck is
 const _hold = new V3();
-// Somewhere to throw the player: the top of a rock that is big enough to land on, well above the ground, and
-// neither too close nor too far. Returns false if there is none (the training hall has none), true if master.throwTo is set.
-function pickRock() {
-  const good = solids.filter(s => {
-    const cx = (s.min.x + s.max.x) / 2, cz = (s.min.z + s.max.z) / 2, away = Math.hypot(cx - master.pos.x, cz - master.pos.z);
-    return s.max.x - s.min.x >= 3 && s.max.z - s.min.z >= 3 && s.max.y > master.pos.y + 3 && s.max.y < master.pos.y + 30 && away > 7 && away < 55;
+// Something to throw the player at: a tall rock standing on the ground, neither too close nor too far. Works out
+// which of its sides faces him, and the spot on that side the player will hit (master.throwTo), and which way that
+// side faces (master.wallN). Returns false if there is no such rock.
+function pickWall() {
+  const ox = master.pos.x, oz = master.pos.z;
+  const good = solids.filter(r => {
+    const away = Math.hypot((r.min.x + r.max.x) / 2 - ox, (r.min.z + r.max.z) / 2 - oz);
+    return r.max.y - r.min.y >= 8 && r.min.y < master.pos.y + 1 && away > 7 && away < 60;
   });
   if (!good.length) return false;
   const rock = pick(good);
-  master.throwTo.set((rock.min.x + rock.max.x) / 2, rock.max.y, (rock.min.z + rock.max.z) / 2);
+  // Follow a straight line from him towards the middle of the rock. It meets the rock at one of its sides: the
+  // one it reaches last, of the two it is heading for (one facing him along x, one along z).
+  const dx = (rock.min.x + rock.max.x) / 2 - ox, dz = (rock.min.z + rock.max.z) / 2 - oz;
+  const alongX = dx !== 0 ? ((dx > 0 ? rock.min.x : rock.max.x) - ox) / dx : -Infinity;
+  const alongZ = dz !== 0 ? ((dz > 0 ? rock.min.z : rock.max.z) - oz) / dz : -Infinity;
+  const k = Math.max(alongX, alongZ);
+  if (alongX > alongZ) master.wallN.set(-Math.sign(dx), 0, 0); else master.wallN.set(0, 0, -Math.sign(dz));
+  // partway up the rock, and just clear of its surface so the player is against it, not inside it
+  const height = clamp(master.pos.y + 5, rock.min.y + 1.5, rock.max.y - 1.5);
+  master.throwTo.set(ox + dx * k + master.wallN.x * 0.38, height - 0.9, oz + dz * k + master.wallN.z * 0.38);
   return true;
 }
 function grabPlayer() {
   master.warnT = 0;
   master.slamming = false;
   // take turns, falling back to the slam when there is nothing to throw the player onto
-  master.move = master.nextMove === 'throw' && pickRock() ? 'throw' : 'slam';
+  master.move = master.nextMove === 'throw' && pickWall() ? 'throw' : 'slam';
+  master.stuck = false;
+  P.splat = false;
   master.nextMove = master.move === 'slam' ? 'throw' : 'slam';
   master.poseTo = POSE_GRAB;
   master.grabFrom.copy(P.pos);
@@ -226,8 +243,9 @@ function grabPlayer() {
   shake(0.45);
   centerMsg('"I warned you."<small>Master Sen</small>', 1.5);
 }
-// What both endings share: the damage, the crash, and letting the player go. share = part of full health taken.
-function grabImpact(share, bounceX, bounceZ) {
+// What both endings share. grabHurt = the damage and the crash (share = part of full health taken).
+// grabRelease = letting the player go, moving at the given speed.
+function grabHurt(share) {
   const dmg = Math.min(P.hp - 1, Math.round(P.maxHp * share));    // never the last point of health
   P.hp -= dmg;
   P.hurtT = 0;
@@ -238,9 +256,12 @@ function grabImpact(share, bounceX, bounceZ) {
   burst(_fx, 16, 9, 1);
   spawnText(_fx.setY(P.pos.y + 1.6), '-' + dmg, 'hurt');
   shake(1.3); addHitstop(0.12); flashHurt();
+}
+function grabRelease(vx, vy, vz) {
   P.thrown = false;
+  P.splat = false;
   setState('normal');
-  P.vel.set(bounceX, 5, bounceZ);
+  P.vel.set(vx, vy, vz);
   P.iframes = 1.2;
   master.slamming = false;
   master.poseT = 0.8;     // he holds his last pose for a moment
@@ -254,7 +275,7 @@ export function updateGrab() {
   // Where the player belongs while held: hanging from his raised hand by the neck.
   master.sm.handR.getWorldPosition(_hold);
   _hold.y -= NECK_HEIGHT;
-  if (!P.thrown) P.yaw = P.yawT = Math.atan2(master.pos.x - P.pos.x, master.pos.z - P.pos.z);    // face him
+  if (!P.thrown && !P.splat) P.yaw = P.yawT = Math.atan2(master.pos.x - P.pos.x, master.pos.z - P.pos.z);    // face him
   if (t < GRAB_PULL) {
     P.pos.lerpVectors(master.grabFrom, _hold, t / GRAB_PULL);
   } else if (master.move === 'slam') {
@@ -282,7 +303,8 @@ export function updateGrab() {
       master.sm.root.position.y = master.pos.y;
       spawnRing(_fx.set(master.pos.x, master.pos.y + 0.1, master.pos.z), 0.6, 9, 0.55, 0xffffff);
       P.pos.copy(master.slamTo);
-      grabImpact(SLAM_DAMAGE, Math.sin(master.yaw) * 5, Math.cos(master.yaw) * 5);    // a small bounce away from him
+      grabHurt(SLAM_DAMAGE);
+      grabRelease(Math.sin(master.yaw) * 5, 5, Math.cos(master.yaw) * 5);    // a small bounce away from him
     }
   } else if (t < THROW_RELEASE) {
     // held up; then, from GRAB_HOLD, swung back behind his shoulder as he winds up
@@ -290,23 +312,33 @@ export function updateGrab() {
     P.pos.copy(_hold);
     P.pos.x += Math.sin(T * 38) * 0.012;
   } else {
-    if (!P.thrown) {
+    if (!P.thrown && !master.stuck) {
       // let go: from here the player flies on their own, tumbling
       P.thrown = true;
       master.poseTo = POSE_THROW;
       master.slamFrom.copy(P.pos);
       const far = Math.hypot(master.throwTo.x - P.pos.x, master.throwTo.z - P.pos.z);
-      master.throwTime = 0.75 + far * 0.013;    // further away takes longer
-      master.throwArc = 5 + far * 0.13;         // and goes higher
+      master.throwTime = 0.3 + far * 0.014;     // fast: further away takes only a little longer
+      master.throwArc = 0.6 + far * 0.03;       // and nearly flat: a line drive, not a lob
       shake(0.5);
     }
     const k = (t - THROW_RELEASE) / master.throwTime;
     if (k < 1) {
       P.pos.lerpVectors(master.slamFrom, master.throwTo, k);
-      P.pos.y += master.throwArc * 4 * k * (1 - k);    // the arc: highest halfway there
-    } else {
+      P.pos.y += master.throwArc * 4 * k * (1 - k);    // a slight rise in the middle
+    } else if (!master.stuck) {
+      // the smack: flat against the side of the rock, back to it, arms and legs flung wide
+      master.stuck = true;
+      master.stuckAt = t;
+      P.thrown = false;
+      P.splat = true;
       P.pos.copy(master.throwTo);
-      grabImpact(THROW_DAMAGE, 0, 0);
+      P.yaw = P.yawT = Math.atan2(master.wallN.x, master.wallN.z);
+      grabHurt(THROW_DAMAGE);
+    } else if (t < master.stuckAt + STUCK_TIME) {
+      P.pos.copy(master.throwTo);    // held there
+    } else {
+      grabRelease(master.wallN.x * 2.5, 0, master.wallN.z * 2.5);    // peels off the rock and drops
     }
   }
 }
@@ -350,6 +382,7 @@ const ICONS = {
   hook: '<path d="M12 3 V14 a4 4 0 0 1 -8 0"/><circle cx="12" cy="3" r="1.6"/>',
   water: '<path d="M12 3 C7 10 6 13 6 15 a6 6 0 0 0 12 0 C18 13 17 10 12 3 Z"/>',
   flame: '<path d="M12 2 C14 7 18 9 18 14 a6 6 0 0 1 -12 0 C6 11 8 10 9 7 C10 10 12 9 12 2 Z"/>',
+  thunder: '<path d="M7 13 a4 4 0 0 1 1 -8 a5 5 0 0 1 9.5 1.5 a3.4 3.4 0 0 1 -0.5 6.5"/><path d="M13 11 L9.5 16.5 H12.5 L10.5 22 L16 15 H13 Z"/>',
   rings: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',
   flag: '<path d="M6 21 V3"/><path d="M6 4 H18 L15 8 L18 12 H6"/>',
   smash: '<path d="M5 5 L19 19 M19 5 L5 19"/><circle cx="12" cy="12" r="9"/>',

@@ -35,7 +35,8 @@ Where everything is, what the short names mean, and how to add things. If this f
 | The pictures on the menu cards | `ICONS` in `js/master.js` |
 | What happens when he is hit: the warning and how long it lasts | `strikeMaster()`, `warnPlayer()` and `WARNING_TIME` in `js/master.js` |
 | The grab, then the slam or the throw: timing, how high he leaps, how much health each takes | `grabPlayer()`, `updateGrab()` and the `GRAB_...`, `SLAM_...`, `THROW_...` and `JUMP_HEIGHT` numbers in `js/master.js` |
-| Which rocks he can throw you onto | `pickRock()` in `js/master.js` |
+| Which rocks he can throw you at, and where on them you hit | `pickWall()` in `js/master.js` |
+| How long you stay stuck to the rock, and how fast and flat the throw is | `STUCK_TIME`, and `throwTime` and `throwArc` in `updateGrab()`, in `js/master.js` |
 | How his head and eyes follow the player | `updateMaster()` in `js/master.js` |
 | Camera distance, shake, zoom with speed, lock-on | `updateCamera()` in `js/camera.js` |
 | Which key does what | The "actions" block in `update()` in `js/update.js`; raw key handling is in `js/input.js` |
@@ -51,20 +52,22 @@ Where everything is, what the short names mean, and how to add things. If this f
 | The training hall's tiled floor | `tileTex` and `makeFloor()` in `js/world.js`, used from `js/dojo.js` |
 | A sword style's colour, how long it lasts, how strong its effect is (burn damage, extra reach) | `STYLES` and `STYLE_TIME` in `js/styles.js` |
 | Where the pool and the fire stand in the arena | The two `addSource()` lines at the bottom of `js/styles.js` |
-| How a style is taken (how close a slam has to land; how far away a fire can be locked on to) | `slamSources()`, `aimedFire()` and `FIRE_LOCK_RANGE` in `js/styles.js` |
-| The scene when a style is taken (going under the water, standing in the fire, how long it lasts) | `startTake()`, `updateTake()` and the `TAKE_...` numbers in `js/styles.js` |
+| How a style is taken (how close a slam has to land; how far away a fire can be locked on to; how wide a storm is) | `slamSources()`, `aimedFire()`, `FIRE_LOCK_RANGE`, `stormAt()` and `STORM_RADIUS` in `js/styles.js` |
+| Thunder's jump from one enemy to the next (share of damage, range) | `chainLightning()` and `chain`, `chainRange` in `STYLES.thunder` in `js/styles.js` |
+| The scene when a style is taken (going under the water, standing in the fire, spinning in the storm, how long it lasts) | `startTake()`, `updateTake()` and the `TAKE_...` numbers in `js/styles.js` |
 | The close-up of the eyes: their shape, the path of the slash, and the timing | `SHAPE`, `EYE`, `SLASH_PATH` and the three timings at the top of `js/cutin.js` |
 | The close-up of the eyes: colours, glow, shake and the other motion | The `#cutin` CSS in `index.html` |
 | The lock-on ring | The lock part of `updateHud()` in `js/hud.js`; what gets locked is decided at the end of `updateCamera()` in `js/camera.js` |
 | The suit worn under a style: what colour it glows | `glow`, `core`, `glowHex` and `eyes` in `STYLES` in `js/styles.js` |
 | The thin wisps running along the sword under a style | `wispTex` and `wispMat` in `js/styles.js`; how fast they flow is the `wispTex.offset` line in `updateStyles()` |
-| The hair worn under a style: the tongues of fire, the strands of water | `TONGUES`, `STRANDS` and the hair lines in `attachOutfit()` in `js/styles.js` |
+| The hair worn under a style: the tongues of fire, the strands of water, the spikes of lightning | `TONGUES`, `STRANDS`, `SPIKES` and the hair lines in `attachOutfit()` in `js/styles.js` |
 | How the hair moves (flicker, sway, how far it streams out behind) | `updateHair()` in `js/styles.js` |
 | What each kind of enemy looks like (bucket, helm, wings, horns) | `dressDummy()` and the shapes above it in `js/skins.js` |
 | The size of each piece of armour | The numbers in `attachOutfit()` in `js/styles.js` |
 | The suit's glowing cracks, and the coat's ragged hem | `drawCracks()`, `armourGlow()`, `coatCloth()` and `coatGlow()` in `js/styles.js` |
 | The suit's pieces (hood, armour, coat, cape) and where they sit on the body | `attachOutfit()` in `js/styles.js` |
 | How the water and the fire look | The textures and `addSource()` in `js/styles.js` |
+| The storm: the cloud, how often lightning strikes, how a bolt is drawn | `addSource()`, `updateStorm()`, `strike()` and `makeBolt()` in `js/styles.js` |
 | How a style's slash is painted (foam, tongues of fire) | The `edge` part of `paintCrescent()` and `TRAIL_PAINTS` in `js/fx.js` |
 | The trial that unlocks a style | The entries with `style:` in `CLASSES.blade.trials` in `js/classes/blade.js` |
 | How Master Sen looks (build, hair, eyes, poses) | The `master` block and the `POSE_...` tables at the top of `js/master.js` |
@@ -129,7 +132,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/tuning.js` | The tuning panel shown while paused |
 | `js/progress.js` | Skill ranks and the trials that earn them |
 | `js/dojo.js` | The training hall: teleporting there, building and clearing each trial's layout |
-| `js/styles.js` | Sword styles (Water, Flame), the pools and fires they are taken from, and the scene of taking one |
+| `js/styles.js` | Sword styles (Water, Flame, Thunder), the pools, fires and storms they are taken from, and the scene of taking one |
 | `js/cutin.js` | The close-up of the eyes that cuts across the screen when a style is taken |
 | `js/sky.js` | The dusk sky: gradient dome, sun, stars |
 | `js/quality.js` | The Low / High graphics setting |
@@ -185,6 +188,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | sword style, `style` | A temporary change to the sword taken from an object in the world: new slash colour and look plus one extra effect. `style.cur` is the one in use, `style.left` its seconds remaining |
 | source | A pool or fire a style is taken from. Still and unlit until its style is unlocked |
 | cut-in | The band across the screen showing the eyes change colour. The game stands still while it plays |
+| `P.splat` | True while the player is stuck flat against a rock after Master Sen's throw |
 | `P.sink` | How far the body is drawn below where it stands, for going under the water. 0 the rest of the time |
 | `reach()` | How much further sword attacks reach under the current style (1 = normal) |
 | `slashColor()` | The colour sword effects should use: the style's, or the class's when there is none |
@@ -231,12 +235,12 @@ A class with no `lv` on any skill has no progression: everything is usable from 
 
 ### Add a sword style
 
-Water and Flame in `js/styles.js` are the worked examples.
+Water, Flame and Thunder in `js/styles.js` are the worked examples.
 
 1. Add it to `STYLES`: id, name, colour, `paint`, `reach`, the numbers for its effect, and the `how` and `perk` lines.
 2. Give it its effect in `onStyleHit()` (runs for every hit that lands), or read `style.cur` wherever else it should matter.
 3. Give it a look: add an `edge` kind to `paintCrescent()` in `js/fx.js` and a matching entry in `TRAIL_PAINTS`.
-4. Give it a source: a new kind in `addSource()`, a way to take it (like `slamSources()`, or the lock-on used for fire) that calls `startTake()`, a line in `sourceHint()`, and one in the arena.
+4. Give it a source: a new kind in `addSource()`, a way to take it (like `slamSources()`, the lock-on used for fire, or `stormAt()` called from Cyclone) that calls `startTake()`, a line in `sourceHint()`, and one in the arena.
    Give its suit a colour: `glow`, `core`, `glowHex`, `eyes` and `spark`, and an entry in `mats` in `attachOutfit()`.
 5. Add its trial to the class's `trials` with `style: '<id>'` and `arena.sources`. Passing it unlocks the style.
 6. Add checks to the style part of `tests/smoke.js`, and a column to Part 2 of `docs/ABILITIES.md`.

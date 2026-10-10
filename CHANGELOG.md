@@ -2,17 +2,18 @@
 
 Newest first. One entry per merged feature: what changed, where, how to check it, and the git tag to go back to.
 
-## v0.8-world: grass, rocks, element hair, enemy looks, and Sen's throw
+## v0.8-world: grass, rocks, element hair, enemy looks, Sen's throw, and the Thunder style
 
 - **Grass:** the arena floor is painted grass, flat on the ground. (A first version also had tufts standing up out of it; those were removed.) The training hall keeps its tiled floor.
 - **Rocks:** every block in the world is now drawn as a faceted rock with chipped, uneven sides and rock colours (grey stone, sandstone platforms, mossy stairs), and the outline edges are gone. Collision is unchanged: each rock still behaves as the plain box it was, its top is exactly flat, and its sides only go inwards.
 - **Suit:** the same design at a new size, halfway between the original bulky build and a slim one that was tried: chest plate, shoulder guards and spikes, gauntlets, greaves, belt, coat and cape.
 - **Hair:** no hood and no hat. A style now gives the character hair made of its element. Flame: a head of fire, tongues of flame standing up and back, each flickering. Water: long hair of running water down the back that sways, streams out behind when you run and lifts when you fall. The face is its normal colour, with two small glowing eyes. (A deep cowl, an assassin's hood and a sun hat were each tried first.)
 - **Enemy looks:** each kind of enemy now has shapes that say what it does. Practice dummies wear a bucket and a painted target. Shield ones are guards with a steel helm, shoulder plates and thick limbs. Flying ones have wings that flap. Fighters are horned brutes with spiked shoulders, thick arms and glowing red eyes, and are bigger than the rest.
-- **Master Sen's throw:** his punishment for a second hit now takes turns. One time it is the leap and slam (60% of your health); the next he winds up and hurls you in a long arc onto the top of one of the rocks (40%). Where there is no rock to land on, such as the training hall, it is always the slam.
-- **Where:** `rockGeo()` and `grassTex` in `js/world.js`; the hair and the sizes in `attachOutfit()`, and `updateHair()`, in `js/styles.js`; new `js/skins.js`; the grab section of `js/master.js`.
+- **Master Sen's throw:** his punishment for a second hit now takes turns. One time it is the leap and slam (60% of your health); the next the next he winds up and hurls you flat and fast at one of the tall rocks: you smack into its side, hang there spread out for a moment, then drop (40%). In the training hall he throws you at the wall. (A first version lobbed you onto the top of a rock.)
+- **Thunder style:** a third sword style. A dark cloud hangs over a scorched circle behind the start, with lightning striking inside it. Use Cyclone in there and you spin with the sword raised while the bolts come down on you, then the eye close-up in yellow. Yellow slash with lightning along it, yellow cracks in the armour, hair of twitching spikes with small arcs between them. Every hit sends 40% of its damage along a bolt to the nearest other enemy within 6, and you run 15% faster. Unlocked by a new trial with Master Sen (needs Cyclone learned): take Thunder, then make lightning jump 6 times in 60 seconds. Until then the cloud is thin and quiet.
+- **Where:** `rockGeo()` and `grassTex` in `js/world.js`; the hair and the sizes in `attachOutfit()`, and `updateHair()`, in `js/styles.js`; new `js/skins.js`; the grab section of `js/master.js` (`pickWall()`, `updateGrab()`); for Thunder, `STYLES.thunder`, `chainLightning()`, `updateStorm()` and `stormAt()` in `js/styles.js`, `bmCyclone()` and the `blade-thunder` trial in `js/classes/blade.js`, the `'bolt'` edge in `paintCrescent()` in `js/fx.js`, and the `storm` pose in `js/anim.js`.
 - **Load on Low:** about 340 draw calls in the arena, up from 328: the rocks removed about 20 (no outline edges) and the enemy shapes added about 30. The draw budget in the smoke test was raised from 335 to 375 on purpose for this. Triangles went from about 14,400 to about 17,000.
-- **Check:** `bash tests/smoke.sh`; `bash tests/drawcost.sh`.
+- **Check:** `bash tests/smoke.sh`; `bash tests/drawcost.sh`. To look without playing: `?debug=pose:idle&style=thunder`, `?debug=pose:storm&lit=1`, `?debug=pose:cloud&lit=1&dist=16`, `?debug=pose:splat`.
 
 ## v0.7-styles: sword styles from the world, and a new Master Sen
 

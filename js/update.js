@@ -7,7 +7,7 @@ import { V3, TAU, clamp, lerp, damp, angDamp, _a, _b, _c, _d, _fx } from './util
 import { spawnArc, spawnRing, burst, spawnGhost, centerMsg } from './fx.js';
 import { T, P, CL, dlg, chal, TUNE, addT, tickCombo, resetDamage, setHitSrc } from './state.js';
 import { skillReady } from './progress.js';
-import { reach, updateTake } from './styles.js';
+import { reach, styleSpeed, updateTake } from './styles.js';
 import { dummies, hitDummy } from './dummies.js';
 import { updateProjs } from './projectiles.js';
 import { playerMat, player, diveMark, FLIP_T, LOCKED, integrate, setState, startAttack, attackHits, attackVfx, startDash, startSlide, doRewind, groundImpact } from './player.js';
@@ -87,7 +87,7 @@ export function update(dt) {
   switch (P.state) {
     case 'normal': {
       let hx = P.vel.x, hz = P.vel.z; const spd = hsp;
-      const run = P.run * TUNE.runMult * (P.smokeT > 0 ? 1.35 : 1) * (P.blocking ? 0.35 : 1);
+      const run = P.run * TUNE.runMult * styleSpeed() * (P.smokeT > 0 ? 1.35 : 1) * (P.blocking ? 0.35 : 1);
       if (P.grounded) {
         if (spd > run + 0.3 && !P.atk.on) {
           const m = damp(spd, run, hasIn ? 2.2 : 6, dt);
@@ -124,9 +124,10 @@ export function update(dt) {
       if (CL.id === 'ninja' && rmb && !P.grounded && P.wallT > 0 && P.wallrunCd <= 0 && P.state === 'normal') { setState('wallrun'); P.airJumps = P.airJumpsMax; P.atk.on = false; }
       break;
     }
-    // taking a sword style: under the water of a pool, or standing in a fire (the scene is in styles.js)
+    // taking a sword style: under the water of a pool, standing in a fire, or spinning in a storm (the scene is in styles.js)
     case 'submerge':
-    case 'ignite': {
+    case 'ignite':
+    case 'storm': {
       updateTake();
       break;
     }

@@ -58,7 +58,7 @@ Object.assign(P, {
 // PR, PH = the player's collision radius and height.  FLIP_T = length of a somersault.  REWIND_CD = Rewind cooldown.
 export const PR = 0.32, PH = 1.75, FLIP_T = 0.42, REWIND_CD = 8;
 // States that other actions cannot cancel.
-export const LOCKED = new Set(['slamUp', 'slamDown', 'dragoonUp', 'dragoonDown', 'submerge', 'ignite', 'grabbed']);
+export const LOCKED = new Set(['slamUp', 'slamDown', 'dragoonUp', 'dragoonDown', 'submerge', 'ignite', 'storm', 'grabbed']);
 // pose = what the player looks like now. tp = the pose being blended towards (see anim.js).
 export const pose = { ...BASE }, tp = { ...BASE };
 
@@ -144,7 +144,7 @@ export function setState(s) {
 
 // ---------- taking damage ----------
 // Hits pass through the player while this is true.
-export function isInvuln() { return P.iframes > 0 || P.state === 'dash' || P.state === 'blinkStrike' || P.state === 'dragonKick' || P.state === 'submerge' || P.state === 'ignite' || P.state === 'grabbed'; }
+export function isInvuln() { return P.iframes > 0 || P.state === 'dash' || P.state === 'blinkStrike' || P.state === 'dragonKick' || P.state === 'submerge' || P.state === 'ignite' || P.state === 'storm' || P.state === 'grabbed'; }
 // The player is hit for dmg from position src. attacker (optional) is the dummy, needed for the monk's parry.
 export function hurtPlayer(dmg, src, attacker) {
   if (dlg.open || chal.phase === 'count') return;

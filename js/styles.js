@@ -1,20 +1,21 @@
 // styles.js: sword styles. A style is a temporary change to the character: a new colour and painted look for the
 // slashes, a suit of armour, and one extra effect on top of the normal moves. It lasts STYLE_TIME seconds.
 // Styles are taken from places in the world ("sources"): Meteor Slam into a pool for Water, Blink Strike into a
-// fire for Flame. Taking one plays a short scene: the character goes under the water or stands burning in the
-// fire, a close-up of his eyes blazing in the style's colour cuts across the screen (cutin.js), and he comes out
-// in a suit of dark armour that glows with the style's colour.
+// fire for Flame, Cyclone inside a storm for Thunder. Taking one plays a short scene: the character goes under the
+// water, stands burning in the fire or spins under the lightning, a close-up of his eyes blazing in the style's
+// colour cuts across the screen (cutin.js), and he comes out in a suit of dark armour that glows with that colour.
 // A source does nothing until its style has been unlocked by passing its trial (progress.js); until then the pool
-// is still and grey and the fire is out.
+// is still and grey, the fire is out and the storm is a thin quiet cloud.
 // Dying, teleporting, changing class and starting a trial all end the current style, so trials start plain.
 
 import * as THREE from 'three';
 import { V3, clamp, damp, easeOut, _fx } from './util.js';
 import { scene } from './core.js';
-import { glowTex, spawnRing, spawnSwirl, burst, toast, setTrailPaint } from './fx.js';
+import { glowTex, spawnRing, spawnSwirl, spawnBeam, spawnText, burst, toast, setTrailPaint } from './fx.js';
 import { P, CL } from './state.js';
 import { player, playerMat, bladeMat, bladeGlow, setState } from './player.js';
-import { styleUnlocked } from './progress.js';
+import { styleUnlocked, onHit } from './progress.js';
+import { dummies } from './dummies.js';
 import { playCutin } from './cutin.js';
 
 export const STYLE_TIME = 20;    // seconds a style lasts once taken
@@ -42,6 +43,14 @@ export const STYLES = {
     burnDps: 14,       // burn damage per second
     how: 'Lock on to a fire and Blink Strike into it', perk: 'Every hit sets the target burning',
   },
+  thunder: {
+    id: 'thunder', name: 'Thunder', color: 0xffe24a, paint: 'thunder', reach: 1,
+    glow: '#ffe24a', core: '#ffffff', glowHex: 0xffe24a, eyes: 0xfff6b0, spark: 3,
+    chain: 0.4,        // share of each hit's damage that jumps on to one more enemy
+    chainRange: 6,     // how far that jump can reach
+    speed: 1.15,       // multiplies running speed
+    how: 'Use Cyclone inside a storm', perk: 'Every hit arcs to a second enemy nearby, and you run faster',
+  },
 };
 
 // The style in use right now: cur = one of STYLES or null, left = seconds remaining.
@@ -51,6 +60,8 @@ export const style = { cur: null, left: 0 };
 export function slashColor() { return style.cur ? style.cur.color : CL.color; }
 // Multiplier for how far sword attacks reach.
 export function reach() { return style.cur ? style.cur.reach : 1; }
+// Multiplier for running speed.
+export function styleSpeed() { return style.cur && style.cur.speed ? style.cur.speed : 1; }
 
 // ---------- the suit ----------
 // Taking a style puts the character in a suit of dark armour that glows with the style's colour: hair made of the
@@ -136,11 +147,12 @@ function suitMats(s) {
     coat: new THREE.MeshLambertMaterial({ map: coatCloth(), emissive: 0xffffff, emissiveMap: coatGlow(s), alphaTest: 0.5, side: THREE.DoubleSide }),
   };
 }
-let mats = null;    // { water: {armour, coat}, flame: {...} }, made the first time a style is worn
+let mats = null;    // one { armour, coat } per style, made the first time a style is worn
 // ---------- hair ----------
 // A style gives the character hair made of its element.
 //   Flame: tongues of fire standing up and back from the head, each one flickering on its own.
 //   Water: long hair of running water that hangs down the back, sways, and streams out behind when he moves.
+//   Thunder: sharp spikes standing straight out from the head, twitching, with small arcs jumping between them.
 // Both sit on the head and are hidden until that style is worn. updateHair() moves them every frame.
 
 // One tongue of fire: a cone standing on its base, pale yellow at the root through orange to red at the tip.
@@ -166,6 +178,29 @@ const TONGUES = [
 ];
 // A cap over the top and back of the head, so there is something for the hair to grow from.
 const hairCapGeo = new THREE.SphereGeometry(0.183, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.52);
+
+// One spike of the lightning hair: longer and sharper than a tongue of fire, yellow at the root and white at the tip.
+const spikeGeo = (() => {
+  const HEIGHT = 0.42;
+  const geo = new THREE.ConeGeometry(0.045, HEIGHT, 5, 2).translate(0, HEIGHT / 2, 0);
+  const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
+  const root = new THREE.Color('#ffd42a'), tip = new THREE.Color('#ffffff'), c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    c.copy(root).lerp(tip, pos.getY(i) / HEIGHT);
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return geo;
+})();
+// Where each spike stands: x, y, z, how far it leans back, how far to the side, and its size. They fan out like a
+// starburst, where the fire leans back together.
+const SPIKES = [
+  [0, 0.15, 0.02, 0.05, 0, 1.2], [0.08, 0.14, 0.02, -0.05, -0.7, 1.05], [-0.08, 0.14, 0.02, -0.05, 0.7, 1.05],
+  [0.13, 0.08, 0, -0.1, -1.25, 0.95], [-0.13, 0.08, 0, -0.1, 1.25, 0.95], [0, 0.14, -0.08, -0.7, 0, 1.15],
+  [0.1, 0.1, -0.1, -0.85, -0.75, 1.0], [-0.1, 0.1, -0.1, -0.85, 0.75, 1.0], [0.05, 0.03, -0.16, -1.5, -0.3, 0.95], [-0.05, 0.03, -0.16, -1.5, 0.3, 0.95],
+];
+const ARC_POINTS = 5;       // how many corners one of the little arcs between spikes has
+let arcT = 0;               // seconds until the arcs jump somewhere new
 
 // Water hair is made of flat strands. A strand is a ribbon of STRAND_CUTS pieces, rebuilt every frame so it can flow.
 const STRAND_CUTS = 12;
@@ -246,6 +281,31 @@ function updateHair(t, dt) {
     }
     waterHairTex.offset.y = -t * 0.55;
   }
+  if (outfit.thunderHair.visible) {
+    // the spikes twitch: a small random change every frame, which reads as crackling
+    for (const spike of outfit.thunderHair.children) {
+      if (!spike.userData.spike) continue;
+      const [, , , back, lean, size] = spike.userData.spike;
+      spike.scale.set(size, size * (0.92 + Math.random() * 0.2), size);
+      spike.rotation.set(back + (Math.random() - 0.5) * 0.07, 0, lean + (Math.random() - 0.5) * 0.07);
+    }
+    // every so often each arc jumps to a new pair of spike tips
+    arcT -= dt;
+    if (arcT <= 0) {
+      arcT = 0.05 + Math.random() * 0.06;
+      for (const arc of outfit.thunderArcs) {
+        const a = outfit.thunderTips[Math.floor(Math.random() * outfit.thunderTips.length)];
+        const b = outfit.thunderTips[Math.floor(Math.random() * outfit.thunderTips.length)];
+        const pos = arc.geometry.attributes.position;
+        for (let i = 0; i < ARC_POINTS; i++) {
+          const k = i / (ARC_POINTS - 1), wobble = i === 0 || i === ARC_POINTS - 1 ? 0 : 0.07;
+          pos.setXYZ(i, a.x + (b.x - a.x) * k + (Math.random() - 0.5) * wobble, a.y + (b.y - a.y) * k + (Math.random() - 0.5) * wobble, a.z + (b.z - a.z) * k + (Math.random() - 0.5) * wobble);
+        }
+        pos.needsUpdate = true;
+        arc.visible = a !== b;
+      }
+    }
+  }
 }
 // Wisps for the sword: a strip of fine wavy lines, mostly along its two long edges, that repeats end to end.
 const wispTex = canvasTex(256, 64, x => {
@@ -271,9 +331,11 @@ const haloMat = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.Additiv
 const auraMat = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.2, toneMapped: false });
 
 // The pieces. suit.parts is all of them (to show and hide together); the named ones are swapped between styles.
-export const outfit = { parts: [], armoured: [], coats: [], flameHair: null, waterHair: null, coat: null, chest: null, attached: false };
+export const outfit = { parts: [], armoured: [], coats: [], flameHair: null, waterHair: null, thunderHair: null, thunderTips: [], thunderArcs: [],
+  coat: null, chest: null, attached: false };
 function attachOutfit() {
-  mats = { water: suitMats(STYLES.water), flame: suitMats(STYLES.flame) };
+  mats = {};
+  for (const id in STYLES) mats[id] = suitMats(STYLES[id]);
   // put a piece on a part of the body and remember it. kind says which material set it follows.
   const add = (mesh, parent, x, y, z, kind) => {
     mesh.position.set(x, y, z);
@@ -338,8 +400,34 @@ function attachOutfit() {
     strand.userData.strand = spec;
     outfit.waterHair.add(strand);
   }
+  outfit.thunderHair = new THREE.Group();
+  const boltCap = new THREE.Mesh(hairCapGeo, new THREE.MeshBasicMaterial({ color: 0xffd42a, toneMapped: false }));
+  boltCap.rotation.x = -0.45;
+  outfit.thunderHair.add(boltCap);
+  const spikeMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
+  const upright = new THREE.Vector3(), turn = new THREE.Euler();
+  for (const spec of SPIKES) {
+    const spike = new THREE.Mesh(spikeGeo, spikeMat);
+    spike.position.set(spec[0], spec[1], spec[2]);
+    spike.rotation.set(spec[3], 0, spec[4]);
+    spike.userData.spike = spec;
+    outfit.thunderHair.add(spike);
+    // remember where its tip is, for the arcs to jump between
+    upright.set(0, 0.4 * spec[5], 0).applyEuler(turn.set(spec[3], 0, spec[4]));
+    outfit.thunderTips.push(new V3(spec[0] + upright.x, spec[1] + upright.y, spec[2] + upright.z));
+  }
+  const arcMat = new THREE.LineBasicMaterial({ color: 0xffffff, toneMapped: false });
+  for (let i = 0; i < 3; i++) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(ARC_POINTS * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    const arc = new THREE.Line(g, arcMat);
+    arc.frustumCulled = false;
+    outfit.thunderArcs.push(arc);
+    outfit.thunderHair.add(arc);
+  }
   player.head.add(outfit.flameHair);
   player.head.add(outfit.waterHair);
+  player.head.add(outfit.thunderHair);
   // the eyes: two small points of light in the style's colour, each with a faint halo
   for (const side of [1, -1]) {
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), eyeMat);
@@ -377,6 +465,7 @@ function applyLook() {
   for (const m of outfit.parts) m.visible = !!s;
   outfit.flameHair.visible = !!s && s.id === 'flame';
   outfit.waterHair.visible = !!s && s.id === 'water';
+  outfit.thunderHair.visible = !!s && s.id === 'thunder';
   if (s) {
     for (const m of outfit.armoured) m.material = mats[s.id].armour;
     for (const m of outfit.coats) m.material = mats[s.id].coat;
@@ -423,6 +512,29 @@ export function onStyleHit(ev) {
   if (s.flow) {
     for (const k in P.cd) P.cd[k] = Math.max(0, P.cd[k] - s.flow);
   }
+  if (s.chain && ev.src !== 'chain') chainLightning(ev, s);
+}
+// Thunder: part of a hit's damage jumps to the nearest other enemy in range, along a bolt.
+const _from = new V3(), _to = new V3();
+function chainLightning(ev, s) {
+  let next = null, nearest = s.chainRange;
+  for (const d of dummies) {
+    if (d === ev.d || d.dead) continue;
+    const dist = d.pos.distanceTo(ev.d.pos);
+    if (dist < nearest) { nearest = dist; next = d; }
+  }
+  const dmg = Math.round(ev.dmg * s.chain);
+  if (!next || dmg < 1) return;
+  next.hp -= dmg;
+  next.flash = 0.8;
+  next.sinceHit = 0;
+  ev.d.chest(_from); next.chest(_to);
+  spawnBeam(_from, _to, 0xfff3a0, 0.16, 2.2);
+  spawnText(_to, dmg, 'burn');
+  burst(_to, 4, 6, 3);
+  if (next.hp <= 0) next.ko(next.pos.x - ev.d.pos.x, next.pos.z - ev.d.pos.z);
+  // tell a running trial about it, marked as a jump so that it does not jump again
+  onHit({ d: next, dmg, src: 'chain', ko: next.dead, targetAir: !next.grounded, interrupted: false });
 }
 
 // ---------- textures for the water and the fire, each drawn once ----------
@@ -510,11 +622,95 @@ const stoneMat = new THREE.MeshLambertMaterial({ color: 0x8a8496 });
 export const sources = [];
 let sparkT = 0;    // seconds until the next spark drifts off a player wearing a style
 
-// Put a source in the world. id = the style it gives ('water' makes a pool, 'flame' a fire pit). Returns the source.
+// The storm: a dark cloud hanging over a scorched circle, with lightning striking down inside it.
+const STORM_RADIUS = 3.6, CLOUD_HEIGHT = 9, BOLT_CUTS = 9, BOLT_TIME = 0.13;
+const cloudGeo = new THREE.SphereGeometry(1, 9, 7);
+const cloudMat = new THREE.MeshLambertMaterial({ color: 0x34313f });
+const scorchGeo = new THREE.CircleGeometry(STORM_RADIUS, 36).rotateX(-Math.PI / 2);
+const stormRimGeo = new THREE.RingGeometry(STORM_RADIUS - 0.12, STORM_RADIUS + 0.08, 40).rotateX(-Math.PI / 2);
+// One bolt: a thin jagged strip from the cloud to the ground, drawn twice at right angles so it shows from any side.
+function makeBolt(group) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((BOLT_CUTS + 1) * 6), 3).setUsage(THREE.DynamicDrawUsage));
+  const idx = [];
+  for (let i = 0; i < BOLT_CUTS; i++) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
+  geo.setIndex(idx);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xfff6b8, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+  const a = new THREE.Mesh(geo, mat), b = new THREE.Mesh(geo, mat);
+  b.rotation.y = Math.PI / 2;
+  a.frustumCulled = b.frustumCulled = false;
+  a.visible = b.visible = false;
+  group.add(a); group.add(b);
+  return { geo, mat, meshes: [a, b], life: 0 };
+}
+// Make a storm's next free bolt strike the ground at (x, z), given relative to the middle of the storm.
+function strike(s, x, z) {
+  const bolt = s.bolts[s.nextBolt = (s.nextBolt + 1) % s.bolts.length];
+  const pos = bolt.geo.attributes.position;
+  for (let i = 0; i <= BOLT_CUTS; i++) {
+    const k = i / BOLT_CUTS, sway = i === BOLT_CUTS ? 0 : (Math.random() - 0.5) * 1.1;    // jagged on the way down, exact where it lands
+    // both copies of the strip are drawn around the storm's own centre, so the strip is built standing on that
+    // centre and the whole bolt is moved to where it strikes
+    pos.setXYZ(i * 2, sway - 0.07, CLOUD_HEIGHT * (1 - k), 0);
+    pos.setXYZ(i * 2 + 1, sway + 0.07, CLOUD_HEIGHT * (1 - k), 0);
+  }
+  pos.needsUpdate = true;
+  for (const m of bolt.meshes) { m.position.set(x, 0, z); m.visible = true; }
+  bolt.life = BOLT_TIME;
+  burst(_fx.set(s.pos.x + x, s.pos.y + 0.2, s.pos.z + z), 3, 5, 3);
+}
+// Once per frame for each storm: lightning now and then while it is live, and fading the bolts already struck.
+function updateStorm(s, open, dt) {
+  s.rim.visible = open;
+  s.cloud.scale.setScalar(open ? 1 : 0.6);    // a thin grey wisp of cloud until the style is unlocked
+  if (open) {
+    s.strikeT -= dt;
+    if (s.strikeT <= 0) {
+      s.strikeT = 0.16 + Math.random() * 0.42;
+      const angle = Math.random() * Math.PI * 2, out = Math.sqrt(Math.random()) * (STORM_RADIUS - 0.4);
+      strike(s, Math.cos(angle) * out, Math.sin(angle) * out);
+    }
+  }
+  for (const bolt of s.bolts) {
+    if (bolt.life <= 0) continue;
+    bolt.life -= dt;
+    bolt.mat.opacity = Math.max(0, bolt.life / BOLT_TIME);
+    if (bolt.life <= 0) { for (const m of bolt.meshes) m.visible = false; }
+  }
+}
+// Is this spot inside a live storm? Returns the storm, or null. Called by Cyclone (classes/blade.js).
+export function stormAt(pos) {
+  for (const s of sources) {
+    if (s.id !== 'thunder' || !styleUnlocked('thunder')) continue;
+    if (Math.hypot(s.pos.x - pos.x, s.pos.z - pos.z) < STORM_RADIUS && Math.abs(s.pos.y - pos.y) < 2) return s;
+  }
+  return null;
+}
+
+// Put a source in the world. id = the style it gives ('water' makes a pool, 'flame' a fire pit, 'thunder' a storm).
+// Returns the source.
 export function addSource(id, x, y, z) {
   const s = { id, pos: new V3(x, y, z), group: new THREE.Group(), emberT: 0 };
   s.group.position.set(x, y, z);
-  if (id === 'water') {
+  if (id === 'thunder') {
+    s.scorch = new THREE.Mesh(scorchGeo, new THREE.MeshBasicMaterial({ color: 0x100e16, transparent: true, opacity: 0.6, depthWrite: false }));
+    s.scorch.position.y = 0.03;
+    s.rim = new THREE.Mesh(stormRimGeo, new THREE.MeshBasicMaterial({ color: 0xffe24a, transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false }));
+    s.rim.position.y = 0.04;
+    // the cloud: a few flattened balls bunched together overhead
+    s.cloud = new THREE.Group();
+    for (const [cx, cy, cz, size] of [[0, 0, 0, 2.6], [1.9, 0.2, 0.6, 1.9], [-1.8, -0.1, -0.5, 2.0], [0.4, 0.3, -1.7, 1.7], [-0.5, 0.1, 1.6, 1.8]]) {
+      const puff = new THREE.Mesh(cloudGeo, cloudMat);
+      puff.position.set(cx, cy, cz);
+      puff.scale.set(size, size * 0.42, size);
+      s.cloud.add(puff);
+    }
+    s.cloud.position.y = CLOUD_HEIGHT;
+    s.group.add(s.scorch); s.group.add(s.rim); s.group.add(s.cloud);
+    s.bolts = [makeBolt(s.group), makeBolt(s.group), makeBolt(s.group)];
+    s.nextBolt = 0;
+    s.strikeT = 0.3;
+  } else if (id === 'water') {
     s.depth = new THREE.Mesh(poolGeo, new THREE.MeshBasicMaterial({ map: depthTex, transparent: true, opacity: 0.94, depthWrite: false }));
     s.depth.position.y = 0.03;
     s.ripples = new THREE.Mesh(poolGeo, new THREE.MeshBasicMaterial({ map: rippleTex, transparent: true, opacity: 0.5, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
@@ -548,6 +744,9 @@ export function removeSource(s) {
   const i = sources.indexOf(s);
   if (i >= 0) sources.splice(i, 1);
   scene.remove(s.group);
+  if (s.bolts) {    // each bolt has a shape and a material of its own
+    for (const bolt of s.bolts) { bolt.geo.dispose(); bolt.mat.dispose(); }
+  }
 }
 
 // Called by groundImpact (player.js) when a slam lands: landing in a pool starts the Water scene.
@@ -592,15 +791,26 @@ export function startTake(s) {
     spawnRing(_fx, 0.6, POOL_RADIUS + 1.5, 0.5, 0x9fd0ff);
     spawnSwirl(_fx, POOL_RADIUS * 0.7, STYLES.water.color, 0.7, 5, 0.6);
     burst(_fx.setY(s.pos.y + 0.4), 22, 10, 1);
+  } else if (s.id === 'thunder') {
+    setState('storm');
+    P.takeSrc = s;
+    P.takeTick = -1;
+    spawnRing(_fx, 0.4, STORM_RADIUS + 1, 0.45, STYLES.thunder.color);
+    burst(_fx.setY(s.pos.y + 1), 20, 10, 3);
   } else {
     setState('ignite');
     spawnRing(_fx, 0.4, 3.2, 0.4, STYLES.flame.color);
     burst(_fx.setY(s.pos.y + 0.8), 24, 9);
   }
 }
-// Runs every frame of the 'submerge' and 'ignite' states (from the state switch in update.js).
+// Runs every frame of the 'submerge', 'ignite' and 'storm' states (from the state switch in update.js).
 export function updateTake() {
-  const water = P.state === 'submerge', id = water ? 'water' : 'flame';
+  const id = { submerge: 'water', ignite: 'flame', storm: 'thunder' }[P.state], water = id === 'water';
+  if (id === 'thunder') {
+    // spinning in the middle of the storm while bolt after bolt comes down on him
+    const tick = Math.floor(P.st / 0.07);
+    if (tick !== P.takeTick && P.takeSrc) { P.takeTick = tick; strike(P.takeSrc, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5); }
+  }
   P.vel.set(0, 0, 0);
   P.grav = 0;
   if (water) P.sink = SINK_DEPTH * easeOut(clamp(P.st / 0.26, 0, 1));
@@ -622,7 +832,7 @@ export function sourceHint() {
   for (const s of sources) {
     const dist = Math.hypot(s.pos.x - P.pos.x, s.pos.z - P.pos.z);
     if (dist > (s.id === 'water' ? POOL_RADIUS + 2.5 : 7) || Math.abs(s.pos.y - P.pos.y) > 3) continue;
-    const st = STYLES[s.id], thing = s.id === 'water' ? 'Pool' : 'Fire pit';
+    const st = STYLES[s.id], thing = { water: 'Pool', flame: 'Fire pit', thunder: 'Storm' }[s.id];
     if (!styleUnlocked(s.id)) return `${thing} · you cannot draw on it yet. <b>Master Sen</b> can teach you.`;
     return `${thing} · ${st.how} to take <b>${st.name}</b> for ${STYLE_TIME}s`;
   }
@@ -639,6 +849,7 @@ export function updateStyles(dt) {
   rippleTex.offset.set(t * 0.035, t * 0.022);    // the ripples drift
   for (const s of sources) {
     const open = styleUnlocked(s.id);
+    if (s.id === 'thunder') { updateStorm(s, open, dt); continue; }
     if (s.id === 'water') {
       // locked: still, grey and dull. unlocked: deep blue with moving light on it.
       s.depth.material.color.setHex(open ? 0xffffff : 0x5a5f6e);
@@ -686,3 +897,4 @@ export function updateStyles(dt) {
 // The sources in the main arena. (Trials add their own to the training hall through dojo.js.)
 addSource('water', -17, 0, 12);
 addSource('flame', 15, 0, 14);
+addSource('thunder', 0, 0, 28);
