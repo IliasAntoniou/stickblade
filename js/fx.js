@@ -49,7 +49,6 @@ export function spawnGlow(pos, color, size = 2, dur = 0.2) {
 // techniques): a flat crescent of colour with a dark ink outline and white foam along its leading edge. It is drawn,
 // not lit, so there is no glow. Each slash is two flat layers sharing one shape: the BODY, which takes the class
 // colour, and the INK (outline, foam, streaks), which stays dark and white whatever the colour.
-// A slash also moves "on twos": its animation advances in a few visible steps, like hand-drawn frames.
 const INK = '#0a1030';
 const PAINT_W = 512, PAINT_H = 192;
 const PEN = PAINT_W / 256;    // pen sizes below are written for a 256-wide picture and scaled by this
@@ -161,7 +160,6 @@ const crescentInk = paintCrescent('ink', crescentOuter, crescentInner, 0.25, 0.9
 export const arcH = arcGeo(1.0, 2.5, Math.PI, Math.PI);
 export const arcV = arcGeo(0.9, 2.4, -Math.PI / 3, 5 * Math.PI / 6);
 export const arcs = [];
-const ARC_FRAMES = 7;    // how many visible steps a slash's animation has
 for (let i = 0; i < 8; i++) {
   const g = new THREE.Group(); g.rotation.order = 'YXZ';
   const piv = new THREE.Group();
@@ -170,7 +168,7 @@ for (let i = 0; i < 8; i++) {
   ink.renderOrder = 1;    // the ink is always drawn over the colour
   piv.add(body); piv.add(ink);
   g.add(piv); g.visible = false; scene.add(g);
-  arcs.push({ g, piv, body, ink, life: 0, max: 0.26, base: 1, yaw: 0, dir: 1, sweep: 0 });
+  arcs.push({ g, piv, body, ink, life: 0, max: 0.3, base: 1, yaw: 0, dir: 1, sweep: 0 });
 }
 export let arcIdx = 0;
 // Slash arc. type 0 / 1 = sideways swing right-to-left / left-to-right, 2 = vertical swing.
@@ -183,7 +181,7 @@ export function spawnArc(type, pos, yaw, color = 0x00d8f0, scale = 1) {
   a.piv.scale.x = type === 1 ? -1 : 1;    // mirrored for the swing going the other way
   a.yaw = yaw;
   a.dir = type === 1 ? -1 : 1;
-  a.sweep = type === 2 ? 0 : 0.9;         // sideways slashes start turned back and swing round into place
+  a.sweep = type === 2 ? 0 : 1.1;         // sideways slashes start turned back and swing round into place
   a.body.material.color.setHex(color); a.life = a.max; a.base = scale; a.g.visible = true;
 }
 
@@ -214,7 +212,7 @@ export function spawnSwirl(pos, radius, color, dur, spin = 12, grow = 0, follow 
 
 // Weapon trail: a painted ribbon stretched between where the blade was over the last moments.
 // trailPts holds recent blade positions (base and tip), newest first. The strip is rebuilt from them every frame.
-const TRAIL_MAX = 18;       // most positions remembered
+const TRAIL_MAX = 48;       // most positions remembered (three per frame, see updateTrail)
 const TRAIL_LIFE = 0.17;    // seconds a position stays part of the ribbon
 const trailOuter = () => 0.9;
 const trailInner = u => Math.min(0.88, 0.08 + 0.82 * Math.pow(u, 1.25));    // full width at the blade, a point at the tail
@@ -239,6 +237,23 @@ trail.visible = false; scene.add(trail);
 const trailPts = [];
 for (let i = 0; i < TRAIL_MAX; i++) trailPts.push({ base: new V3(), tip: new V3(), age: 0 });
 let trailCount = 0;
+const _tb = new V3(), _tt = new V3();
+// Put a position at the front of the list (newest first) by recycling the oldest slot.
+function addTrailPoint(base, tip, age) {
+  const p = trailPts.pop();
+  trailPts.unshift(p);
+  p.base.copy(base); p.tip.copy(tip); p.age = age;
+  trailCount = Math.min(TRAIL_MAX, trailCount + 1);
+}
+// A point a fraction f of the way from b to c, on a smooth curve that also takes the earlier point a into account
+// (a Catmull-Rom curve). Used to round off the trail.
+function curvePoint(out, a, b, c, f) {
+  const f2 = f * f, f3 = f2 * f;
+  const wa = -0.5 * f + f2 - 0.5 * f3;
+  const wb = 1 - 2.5 * f2 + 1.5 * f3;
+  const wc = 0.5 * f + 2 * f2 - 1.5 * f3 - 0.5 * f2 + 0.5 * f3;    // the last two terms stand in for a missing fourth point
+  return out.set(a.x * wa + b.x * wb + c.x * wc, a.y * wa + b.y * wb + c.y * wc, a.z * wa + b.z * wb + c.z * wc);
+}
 // Once per frame (anim.js). emitting = the weapon is swinging right now; base and tip = the two ends of the blade.
 export function updateTrail(dt, emitting, base, tip, color) {
   for (let i = 0; i < trailCount; i++) trailPts[i].age += dt;
@@ -246,11 +261,17 @@ export function updateTrail(dt, emitting, base, tip, color) {
   // A jump of many units in one frame is a teleport, not a swing: start the ribbon again instead of stretching it there.
   if (emitting && trailCount > 0 && trailPts[0].tip.distanceTo(tip) > 14) trailCount = 0;
   if (emitting) {
-    // put the newest position first by recycling the oldest slot
-    const p = trailPts.pop();
-    trailPts.unshift(p);
-    p.base.copy(base); p.tip.copy(tip); p.age = 0;
-    trailCount = Math.min(TRAIL_MAX, trailCount + 1);
+    // A fast swing only gives a handful of positions, which would make the ribbon a row of straight pieces.
+    // So two extra positions are filled in on a smooth curve between the last one and this one.
+    if (trailCount >= 2) {
+      const prev = trailPts[0], older = trailPts[1];
+      for (const f of [1 / 3, 2 / 3]) {
+        curvePoint(_tb, older.base, prev.base, base, f);
+        curvePoint(_tt, older.tip, prev.tip, tip, f);
+        addTrailPoint(_tb, _tt, dt * (1 - f));
+      }
+    }
+    addTrailPoint(base, tip, 0);
     trailBodyMat.color.setHex(color);
   }
   trail.visible = trailCount >= 2;
@@ -357,12 +378,12 @@ export function updateFx(dt) {
   for (const a of arcs) {
     if (a.life <= 0) continue;
     a.life -= dt;
-    // t goes 0..1 over the slash's life, but in a few steps, so it moves like hand-drawn frames
-    const t = Math.floor((1 - a.life / a.max) * ARC_FRAMES) / ARC_FRAMES;
-    const swing = easeOut(Math.min(1, t / 0.45));
-    a.g.rotation.y = a.yaw - a.dir * a.sweep * (1 - swing);
-    a.g.scale.setScalar(a.base * (0.82 + 0.22 * swing));
-    const fade = t < 0.55 ? 1 : 1 - (t - 0.55) / 0.45;    // fully painted for the first half, then gone quickly
+    const t = 1 - a.life / a.max;    // 0..1 over the slash's life
+    // The slash never stops moving: it swings round quickly, then keeps drifting on and growing while it fades.
+    const swing = easeOut(Math.min(1, t / 0.5));
+    a.g.rotation.y = a.yaw - a.dir * a.sweep * (1 - swing) + a.dir * 0.25 * t;
+    a.g.scale.setScalar(a.base * (0.8 + 0.2 * swing + 0.1 * t));
+    const fade = t < 0.4 ? 1 : 1 - (t - 0.4) / 0.6;       // fully painted at first, then a long soft fade
     a.body.material.opacity = 0.92 * fade; a.ink.material.opacity = fade;
     if (a.life <= 0) a.g.visible = false;
   }

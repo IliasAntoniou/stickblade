@@ -39,7 +39,9 @@ Where everything is, what the short names mean, and how to add things. If this f
 | The lighting (sun colour, direction, strength; the soft light from the sky) | `sun`, `SUN_OFFSET` and `hemi` in `js/core.js` |
 | Box colours, the floor tiles, how dark boxes get at the base | `COL`, `tileTex`, `makeFloor()` and the shading block under `boxGeo` in `js/world.js` |
 | How a slash looks (the painted crescent: its shape, ink outline, foam) | `paintCrescent()` and the `crescent...` shape functions in `js/fx.js` |
-| How long a slash stays, how it swings in, how many steps its animation has | The `arcs` part of `updateFx()` and `ARC_FRAMES` in `js/fx.js` |
+| How long a slash stays and how it swings in | The `arcs` part of `updateFx()` in `js/fx.js` |
+| How snappy or bouncy the character's movement is | `SPRING_ACTION` and `SPRING_CALM` in `js/anim.js` |
+| Breathing, leaning into turns, the landing dip | The idle block and the "weight" block in `animatePlayer()` in `js/anim.js` |
 | The ribbon that follows the weapon | `updateTrail()`, `TRAIL_LIFE` in `js/fx.js`; which moves leave one is `TRAIL_STATES` and `WEAPON_REACH` in `js/anim.js` |
 | The Cyclone whirlpool and the Meteor Slam wave | `spawnSwirl()` in `js/fx.js`, called from `bmCyclone()` and `groundImpact()` |
 | The Blademaster's stance, run and sword swings | The `id === 'blade'` blocks and `case 'slash'` in `animatePlayer()` in `js/anim.js` |
@@ -135,8 +137,8 @@ Where everything is, what the short names mean, and how to add things. If this f
 | tone mapping | Squeezing very bright colours into what a screen can show, so they glow instead of turning flat white |
 | additive | A way of drawing where colour is added on top of what is behind, so the object looks like light |
 | painted slash | A flat crescent with an ink outline and white foam, in the style of Japanese wave prints. Two layers: body (class colour) and ink |
-| on twos | Animation that advances in visible steps, like hand-drawn frames. Slashes do this |
 | chudan | The basic ready stance of Japanese swordsmanship: sword in front, tip at the opponent's eyes. The Blademaster's idle |
+| spring (animation) | Each joint is pulled towards its target pose, overshoots slightly and settles, which gives follow-through. `poseVel` holds the joint speeds |
 | `bladeAim()` | Works out the wrist angle that points the blade a given way whatever the arm is doing. In `js/anim.js` |
 | rim light | Extra brightness on the edges of a character, so its outline shows against a dark background |
 | `SKY` | The dusk palette that both the sky and the fog are made from |
@@ -221,6 +223,7 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Glow needs `toneMapped: false`.** Any material meant to look like light (effects, the weapon, warning marks) must set it, or tone mapping dulls it. Lit objects must not set it.
 - **`lam()` is for boxes only.** It expects the shading baked into `boxGeo`; on any other shape the result is black.
 - **Low quality has a draw budget.** The smoke test fails if one frame on Low needs more than 335 draw calls. Put expensive extras behind High in `js/quality.js`.
+- **Poses are targets, not positions.** `animatePlayer()` sets where each joint should go (`tp`); springs move the real pose there. To make something happen instantly, set `pose` as well as `tp`.
 - **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.
 - **`dt` or `rdt`.** Gameplay uses `dt` so it slows down during hitstop. Camera and on-screen display use `rdt`.
 - **Only boxes.** Collision assumes every solid is an upright box. A slope or rotated wall will not collide correctly.
