@@ -55,7 +55,8 @@ const PEN = PAINT_W / 256;    // pen sizes below are written for a 256-wide pict
 // Draw one layer of a crescent onto a canvas and return it as a texture.
 //   outer(u), inner(u) = where the two edges of the shape are, 0..1 across the strip, for u = 0..1 along it.
 //   foamFrom, foamTo = the part of the outer edge that gets foam.
-//   edge = what runs along the leading edge: 'foam' (water), 'flame' (tongues of fire) or 'plain' (nothing).
+//   edge = what runs along the leading edge: 'foam' (water), 'flame' (tongues of fire), 'bolt' (lightning) or
+//          'plain' (nothing).
 function paintCrescent(layer, outer, inner, foamFrom, foamTo, edge = 'foam') {
   const canvas = document.createElement('canvas');
   canvas.width = PAINT_W;
@@ -94,14 +95,16 @@ function paintCrescent(layer, outer, inner, foamFrom, foamTo, edge = 'foam') {
     flowLine(0.58, 0.12, 0.95);
   } else {
     const flame = edge === 'flame';
-    const ink = flame ? '#3a0c04' : INK;    // fire is outlined in dark red-brown, everything else in ink blue
+    const bolt = edge === 'bolt';
+    // fire is outlined in dark red-brown, lightning in dark violet, everything else in ink blue
+    const ink = flame ? '#3a0c04' : bolt ? '#1c1238' : INK;
     ctx.lineJoin = 'round';
     ctx.strokeStyle = ink;
     ctx.lineWidth = 3 * PEN;
     outline();
     ctx.stroke();
     // light streaks flowing along the inside
-    ctx.strokeStyle = flame ? 'rgba(255,232,150,0.9)' : 'rgba(255,255,255,0.9)';
+    ctx.strokeStyle = flame || bolt ? 'rgba(255,240,170,0.9)' : 'rgba(255,255,255,0.9)';
     ctx.lineWidth = 2 * PEN;
     flowLine(0.44, 0.2, 0.9);
     flowLine(0.74, 0.3, 0.96);
@@ -148,6 +151,31 @@ function paintCrescent(layer, outer, inner, foamFrom, foamTo, edge = 'foam') {
         ctx.arc(px(u + 0.03), py(Math.min(0.99, outer(u) + 0.04 + Math.random() * 0.16)), (1 + Math.random() * 1.6) * PEN, 0, Math.PI * 2);
         ctx.fill();
       }
+    } else if (bolt) {
+      // lightning running along the leading edge: a jagged line with short forks. Drawn three times: wide and
+      // dark so it stands out from the yellow slash, then yellow, then thin and white on top.
+      // A second, smaller one runs through the middle of the slash.
+      const zig = [], forks = [], mid = [];
+      for (let u = 0.14; u <= 0.94; u += 0.045) {
+        const half = inner(u) + (outer(u) - inner(u)) * 0.5;
+        mid.push([u, half + (Math.random() - 0.5) * 0.16 * (outer(u) - inner(u) + 0.2)]);
+      }
+      let up = false;
+      for (let u = foamFrom; u <= foamTo; u += 0.028) {
+        up = !up;
+        const y = outer(u) + (up ? 0.03 + Math.random() * 0.11 : -0.035 - Math.random() * 0.03);
+        zig.push([u, y]);
+        if (up && Math.random() < 0.4) forks.push([[u, y], [u + 0.02 + Math.random() * 0.03, Math.min(0.99, y + 0.05 + Math.random() * 0.08)]]);
+      }
+      for (const [stroke, width, blur] of [[ink, 8 * PEN, 0], ['#ffe24a', 4.5 * PEN, 6 * PEN], ['#ffffff', 1.8 * PEN, 0]]) {
+        ctx.strokeStyle = stroke; ctx.lineWidth = width; ctx.shadowColor = '#ffe24a'; ctx.shadowBlur = blur;
+        for (const line of [zig, mid, ...forks]) {
+          ctx.beginPath();
+          for (const [u, y] of line) ctx.lineTo(px(u), py(Math.min(0.99, y)));
+          ctx.stroke();
+        }
+      }
+      ctx.shadowBlur = 0;
     }
     // edge === 'plain': just the outline and streaks
   }
@@ -253,8 +281,8 @@ trailGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(TRAIL_MAX
 // Which positions are joined into ribbon pieces. Rewritten every frame, because separate swings must not be joined.
 const trailIndex = new THREE.BufferAttribute(new Uint16Array((TRAIL_MAX - 1) * 6), 1).setUsage(THREE.DynamicDrawUsage);
 trailGeo.setIndex(trailIndex);
-// The slash has three painted looks, one per sword style (styles.js): plain for the bare sword, water with foam,
-// flame with tongues of fire. Each is a [body, ink] pair of materials; setTrailPaint swaps which pair is in use.
+// The slash has four painted looks: plain for the bare sword, and one per sword style (styles.js): water with foam,
+// flame with tongues of fire, thunder with a line of lightning. Each is a [body, ink] pair of materials; setTrailPaint swaps which pair is in use.
 const trailOuterFlame = () => 0.78;    // the flame look keeps its edge lower, leaving room above it for the fire
 function trailPaint(edge, outer) {
   const mats = paintMats(paintCrescent('body', outer, trailInner, 0.02, 0.6, edge), paintCrescent('ink', outer, trailInner, 0.02, 0.6, edge));
@@ -262,7 +290,7 @@ function trailPaint(edge, outer) {
   mats[1].opacity = 1;
   return mats;
 }
-const TRAIL_PAINTS = { plain: trailPaint('plain', trailOuter), water: trailPaint('foam', trailOuter), flame: trailPaint('flame', trailOuterFlame) };
+const TRAIL_PAINTS = { plain: trailPaint('plain', trailOuter), water: trailPaint('foam', trailOuter), flame: trailPaint('flame', trailOuterFlame), thunder: trailPaint('bolt', trailOuterFlame) };
 export const trail = new THREE.Group();
 {
   const body = new THREE.Mesh(trailGeo, TRAIL_PAINTS.plain[0]), ink = new THREE.Mesh(trailGeo, TRAIL_PAINTS.plain[1]);
@@ -270,7 +298,7 @@ export const trail = new THREE.Group();
   ink.renderOrder = 1;
   trail.add(body); trail.add(ink);
 }
-// Switch the slash to another painted look: 'plain', 'water' or 'flame'.
+// Switch the slash to another painted look: 'plain', 'water', 'flame' or 'thunder'.
 export function setTrailPaint(name) {
   const mats = TRAIL_PAINTS[name] || TRAIL_PAINTS.plain;
   trail.children[0].material = mats[0];
@@ -359,11 +387,11 @@ export function spawnRing(pos, s0, s1, dur, color = 0xffffff) {
   r.m.position.copy(pos); r.life = r.max = dur; r.s0 = s0; r.s1 = s1; r.m.material.color.setHex(color); r.m.visible = true;
 }
 export const partGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
-export const partMats = [new THREE.MeshBasicMaterial({ color: 0xffc23d, toneMapped: false }), new THREE.MeshBasicMaterial({ color: 0xaab2c4 }), new THREE.MeshBasicMaterial({ color: 0x8fd0ff, toneMapped: false })];
+export const partMats = [new THREE.MeshBasicMaterial({ color: 0xffc23d, toneMapped: false }), new THREE.MeshBasicMaterial({ color: 0xaab2c4 }), new THREE.MeshBasicMaterial({ color: 0x8fd0ff, toneMapped: false }), new THREE.MeshBasicMaterial({ color: 0xfff3a0, toneMapped: false })];
 export const parts = [];
 for (let i = 0; i < 110; i++) { const m = new THREE.Mesh(partGeo, partMats[0]); m.visible = false; scene.add(m); parts.push({ m, v: new V3(), life: 0 }); }
 export let partIdx = 0;
-// n small cubes flying out from pos. mat 0 = orange sparks, 1 = grey dust, 2 = pale blue sparks.
+// n small cubes flying out from pos. mat 0 = orange sparks, 1 = grey dust, 2 = pale blue sparks, 3 = pale yellow sparks.
 export function burst(pos, n, speed = 8, mat = 0) {
   for (let i = 0; i < n; i++) {
     const p = parts[partIdx = (partIdx + 1) % parts.length];

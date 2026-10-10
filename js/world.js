@@ -2,6 +2,7 @@
 // Owns solids (collision boxes), solidMeshes (the same boxes as visible objects) and the blob shadows.
 // Used by player.js (collision), dummies.js, projectiles.js and camera.js (so the camera stays out of walls).
 // The whole world is boxes lined up with the axes. There are no slopes or rotated shapes, and the collision code relies on that.
+// The boxes are DRAWN as chipped rocks (rockGeo), but collide as the plain boxes they really are.
 
 import * as THREE from 'three';
 import { V3, clamp } from './util.js';
@@ -32,14 +33,60 @@ export const matCache = {};
 // vertexColors makes the material use the baked shading above. Only use lam() on boxGeo: any other shape has no
 // baked shading and would come out black.
 export const lam = c => matCache[c] || (matCache[c] = new THREE.MeshLambertMaterial({ color: c, vertexColors: true }));
-// Box colours, chosen for dusk: muted cool stone and walls, with warm amber platforms and crates as the accents.
-export const COL = { stone: 0xa9a2b4, pillar: 0x8f9bbd, plat: 0xe09a55, wall: 0x74788f, green: 0x6fb09d, crate: 0xb9835a };
+// Rock colours: grey stone for the big shapes and walls, sandstone for the platforms, a brown boulder colour for the
+// small blocks, and a mossy green for the stairs.
+export const COL = { stone: 0x9a96a2, pillar: 0x878c9c, plat: 0xb09a78, wall: 0x73747e, green: 0x74916a, crate: 0x9a8470 };
 
-// Add a solid box. x, z = centre. y = the BOTTOM of the box. w, h, d = size along x, y, z. c = colour.
+// The shape of one rock: a block of the given size with its sides chipped and uneven, so it reads as stone and
+// not as a building. What matters for play stays exact: the TOP is perfectly flat and at full height, because it
+// is walked on, and nothing ever sticks out past the block's true size, because collision uses the plain box.
+// salt = any number; it makes two blocks of the same size come out differently.
+const CHIP = 0.22;    // the most a side is pushed in, in world units (less on small blocks)
+function rockGeo(w, h, d, salt) {
+  const cuts = n => clamp(Math.round(n / 2.6), 1, 5);    // how many pieces each edge is cut into: bigger block, more facets
+  const cw = cuts(w), ch = cuts(h), cd = cuts(d);
+  const box = new THREE.BoxGeometry(w, h, d, cw, ch, cd);
+  const pos = box.attributes.position, hw = w / 2, hh = h / 2, hd = d / 2, EDGE = 1e-4;
+  const inX = Math.min(CHIP, w * 0.15), inZ = Math.min(CHIP, d * 0.15);
+  // A repeatable "random" number 0..1 from a position. The corners of a box are stored once per face; because the
+  // number depends only on where the corner is, every copy of a corner moves the same way and no gaps open up.
+  const rnd = (x, y, z, k) => {
+    const v = Math.sin(Math.round(x * 1000) * 0.012989 + Math.round(y * 1000) * 0.078233 + Math.round(z * 1000) * 0.037719 + k * 4.137 + salt) * 43758.5453;
+    return v - Math.floor(v);
+  };
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const onX = Math.abs(Math.abs(x) - hw) < EDGE, onZ = Math.abs(Math.abs(z) - hd) < EDGE;
+    const onTopOrBottom = Math.abs(Math.abs(y) - hh) < EDGE;
+    let nx = x, ny = y, nz = z;
+    if (onX) nx -= Math.sign(x) * inX * rnd(x, y, z, 1);          // sides are pushed inwards by differing amounts
+    else nx += (rnd(x, y, z, 2) - 0.5) * (w / cw) * 0.35;         // other corners slide about a little
+    if (onZ) nz -= Math.sign(z) * inZ * rnd(x, y, z, 3);
+    else nz += (rnd(x, y, z, 4) - 0.5) * (d / cd) * 0.35;
+    if (!onTopOrBottom) ny += (rnd(x, y, z, 5) - 0.5) * (h / ch) * 0.4;    // top and bottom stay level
+    pos.setXYZ(i, nx, ny, nz);
+  }
+  // Give every triangle its own flat face (that is what makes it look cut from stone), and its own slight shade,
+  // darker towards the base.
+  const geo = box.toNonIndexed();
+  box.dispose();
+  geo.computeVertexNormals();
+  const p = geo.attributes.position, shade = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i += 3) {
+    const tone = 0.8 + 0.2 * rnd(p.getX(i) + p.getX(i + 1), p.getY(i) + p.getY(i + 2), p.getZ(i + 1) + p.getZ(i + 2), 6);
+    for (let k = i; k < i + 3; k++) {
+      const v = tone * (0.55 + 0.45 * (p.getY(k) + hh) / h);
+      shade[k * 3] = v; shade[k * 3 + 1] = v; shade[k * 3 + 2] = v;
+    }
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(shade, 3));
+  return geo;
+}
+
+// Add a solid block, drawn as a rock. x, z = centre. y = the BOTTOM of the block. w, h, d = size along x, y, z. c = colour.
 export function addBox(x, y, z, w, h, d, c = COL.stone) {
-  const m = new THREE.Mesh(boxGeo, lam(c));
-  m.scale.set(w, h, d); m.position.set(x, y + h / 2, z);
-  m.add(new THREE.LineSegments(edgeGeo, edgeMat));
+  const m = new THREE.Mesh(rockGeo(w, h, d, x * 0.37 + z * 0.91 + y * 0.53), lam(c));
+  m.position.set(x, y + h / 2, z);
   m.castShadow = m.receiveShadow = true;    // only has an effect on High quality (real shadows)
   scene.add(m); solidMeshes.push(m);
   solids.push({ min: new V3(x - w / 2, y, z - d / 2), max: new V3(x + w / 2, y + h, z + d / 2) });
@@ -66,17 +113,48 @@ export const tileTex = (() => {
   tex.anisotropy = 4;                      // keeps the tiles sharp when seen at a shallow angle
   return tex;
 })();
-// A square tiled floor of the given size, tinted with a colour. Not added to the scene; the caller places it.
-export function makeFloor(size, tint) {
+// Grass for the arena floor: a picture of many short strokes in several greens, repeated like the tiles.
+export const grassTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const x = c.getContext('2d');
+  x.fillStyle = '#44702f';
+  x.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 40; i++) {           // soft darker and lighter patches
+    x.fillStyle = Math.random() < 0.5 ? 'rgba(20,45,15,0.16)' : 'rgba(150,190,90,0.12)';
+    x.beginPath();
+    x.arc(Math.random() * 256, Math.random() * 256, 14 + Math.random() * 30, 0, Math.PI * 2);
+    x.fill();
+  }
+  x.lineCap = 'round';
+  const greens = ['#2f5a24', '#3d6f2b', '#5a933c', '#74ad4c', '#8fbf5a'];
+  for (let i = 0; i < 2600; i++) {         // the blades
+    const px = Math.random() * 256, py = Math.random() * 256, len = 4 + Math.random() * 9;
+    x.strokeStyle = greens[Math.floor(Math.random() * greens.length)];
+    x.lineWidth = 1 + Math.random() * 1.2;
+    x.beginPath();
+    x.moveTo(px, py);
+    x.lineTo(px + (Math.random() - 0.5) * 5, py - len);
+    x.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+})();
+// A square floor of the given size, tinted with a colour: tiles by default, or another repeating picture.
+// Not added to the scene; the caller places it.
+export function makeFloor(size, tint, tex = tileTex) {
   const geo = new THREE.PlaneGeometry(size, size);
   const uv = geo.attributes.uv;
   for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * size / TILE, uv.getY(i) * size / TILE);
-  const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tileTex, color: tint }));
+  const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tex, color: tint }));
   m.rotation.x = -Math.PI / 2;
   m.receiveShadow = true;
   return m;
 }
-export const ground = makeFloor(400, 0x7c7e99);
+export const ground = makeFloor(400, 0xa3b48e, grassTex);    // the tint mutes the green a little for dusk
 scene.add(ground);
 
 // Half the size of the playable square: it runs from -60 to +60 on x and z. The four boxes below are its walls.
@@ -139,6 +217,7 @@ export function removeBox(m) {
   solidMeshes.splice(i, 1);
   solids.splice(i, 1);    // solids and solidMeshes are kept in the same order
   scene.remove(m);
+  m.geometry.dispose();    // every rock has a shape of its own
 }
 
 // Height of the highest surface under (x, z) that is not above y. Used to stand dummies and shadows on things.

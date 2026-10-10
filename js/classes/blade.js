@@ -12,7 +12,7 @@ import { dummies, hitDummy } from '../dummies.js';
 import { depenetrate, ropeMesh, hookMesh, setState, startAttack, teleTrail } from '../player.js';
 import { camDir, camFwdH, facing, camFacingYaw, lockTarget, lockFire, aimHit, raycaster, setCamYaw } from '../camera.js';
 import { inDir, hasIn } from '../update.js';
-import { style, slashColor, reach, startTake } from '../styles.js';
+import { style, slashColor, reach, startTake, stormAt } from '../styles.js';
 import { dojo } from '../dojo.js';
 import { strikeMaster } from '../master.js';
 
@@ -68,8 +68,14 @@ export function bmBlink() {
   spawnRing(_fx.copy(P.pos).setY(P.pos.y + 1), 0.3, 2, 0.25, CL.color);
 }
 // E: spinning dash that hits repeatedly. P.castN numbers each use, so a trial can tell one spin from the next.
+// Used inside a live storm it draws the lightning down instead, which is how the Thunder style is taken (styles.js).
 export function bmCyclone() {
   P.cd.e = CL.skills.e.cd; P.atk.on = false;
+  const storm = stormAt(P.pos);
+  if (storm) {
+    startTake(storm);
+    return;
+  }
   P.castN++;
   if (hasIn) P.skDir.copy(inDir); else camFwdH(P.skDir);
   setState('cyclone'); P.tick = 0; P.ghostT = 0;
@@ -228,6 +234,10 @@ CLASSES.blade.trials = [
     tick(st) { st.n = dojo.spawned.filter(d => d.burnT > 0 && !d.dead).length; },
     // spread out, so all three have to be reached before the first stops burning
     arena: { sources: [['flame', 0, 12]], spawn: [['basic', -7, 0, -3], ['basic', 0, 0, -8], ['basic', 7, 0, -3]] } },
+  { id: 'blade-thunder', style: 'thunder', needs: { e: 1 }, name: 'Trial: Thunder style', desc: 'Use Cyclone inside the storm to take Thunder, then make lightning jump between enemies 6 times', time: 60, goal: 6,
+    onHit(st, ev) { if (ev.src === 'chain') st.n++; },
+    // four dummies close together, so every hit has somewhere to jump to
+    arena: { sources: [['thunder', 0, 10]], spawn: [['basic', -2, 0, -3], ['basic', 2, 0, -3], ['basic', -2, 0, -7], ['basic', 2, 0, -7]] } },
 
   { id: 'blade-q1', slot: 'q', rank: 1, name: 'Trial: Blink Strike', desc: 'Land Blink Strike on all 3 flying dummies', time: 60, goal: 3, allow: ['q'], onHit: countFlying,
     arena: { spawn: [['flying', -10, 6, -4, { radius: 4 }], ['flying', 10, 8, -4, { radius: 4 }], ['flying', 0, 11, -14, { radius: 5 }]],

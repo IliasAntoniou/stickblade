@@ -4,6 +4,8 @@ A running list of everything a character can do, kept up to date whenever someth
 
 - **Part 1** is abilities: what every class has, and what each rank changes.
 - **Part 2** is sword styles: temporary changes taken from the world.
+- **Part 3** is Master Sen: what he does when you hit him.
+- **Part 4** is the enemies: what each kind is and how it looks.
 
 Damage numbers vary by about 10% either way on each hit. Distances are in world units; a character is about 1.9 tall.
 
@@ -29,7 +31,7 @@ Sword and grapple hook. The only class with progression so far: skills are learn
 | LMB | Slash | Three-hit combo: 12, 14, then an overhead finisher for 24 that knocks back | none |
 | RMB | Grapple | Pulls you to the dummy you are locked on, or the wall under the crosshair. Hold to keep pulling, jump to let go | 0.5 s |
 | Q | Blink Strike | Teleport behind the locked dummy and strike. With no target, blink 14 forward. With the lock-on ring on a lit fire, blink into it (see Flame) | 4 s |
-| E | Cyclone | A spinning dash that hits everything it passes, about 13 times a second | 5 s |
+| E | Cyclone | A spinning dash that hits everything it passes, about 13 times a second. Used inside a storm it takes Thunder | 5 s |
 | R | Meteor Slam | A hop, then a dive straight down and a blast around the landing. Landing in a pool takes Water | 6 s |
 | F | Rising Slash | An uppercut that launches dummies into the air, and you with them | 3 s |
 
@@ -104,22 +106,23 @@ Rules for all styles:
 - It ends on death, on any teleport, on changing class, and at the start and end of any trial.
 - The place it comes from does nothing until the style is unlocked by its trial with Master Sen.
 
-| | Water | Flame |
-|---|---|---|
-| **Taken by** | Meteor Slam into a pool | Aim at a fire until the lock-on ring is on it (within 15), then Blink Strike |
-| **Needs first** | Meteor Slam learned | Blink Strike learned |
-| **The scene** | You go under the water; a close-up shows your eyes closed, a blue slash sweeps across, and they snap open blazing blue; you burst back out | You stand burning in the flames; the same close-up with an orange slash and orange eyes; you step out |
-| **Slash** | Blue, with white foam along the edge | Orange, with tongues of fire along the edge |
-| **Suit** | Dark hooded armour split by glowing blue cracks; pale blue eyes under the hood; thin blue wisps flowing along the sword; blue sparks | The same armour split by glowing lava-orange cracks; gold eyes under the hood; thin wisps of fire flowing along the sword; orange sparks |
-| **Effect on every hit** | Takes 0.12 s off all your cooldowns | Sets the target burning: 14 damage a second for 4 s |
-| **Other change** | Sword attacks, Cyclone and Meteor Slam reach 20% further | None |
-| **Trial to unlock** | Take Water, then hit 4 dummies with one sword swing (60 s) | Take Flame, then have 3 dummies burning at once (60 s) |
-| **Where it is** | Left of the start in the arena | Right of the start in the arena |
-| **Before it is unlocked** | The pool is still and grey | The fire is out |
+| | Water | Flame | Thunder |
+|---|---|---|---|
+| **Taken by** | Meteor Slam into a pool | Aim at a fire until the lock-on ring is on it (within 15), then Blink Strike | Use Cyclone while standing inside a storm |
+| **Needs first** | Meteor Slam learned | Blink Strike learned | Cyclone learned |
+| **The scene** | You go under the water; a close-up shows your eyes closed, a blue slash sweeps across, and they snap open blazing blue; you burst back out | You stand burning in the flames; the same close-up with an orange slash and orange eyes; you step out | You spin in the middle of the storm with the sword held up while bolt after bolt comes down on you; the same close-up with a yellow slash and yellow eyes |
+| **Slash** | Blue, with white foam along the edge | Orange, with tongues of fire along the edge | Yellow, with a jagged line of lightning along the edge and another through the middle |
+| **Hair** | Long hair of running water down the back. It sways, streams out behind when you run and lifts when you fall | A head of fire: tongues of flame standing up and back, each flickering | Sharp yellow spikes standing straight out from the head, twitching, with small white arcs jumping between them |
+| **Suit** | Dark armour split by glowing blue cracks; pale blue eyes; thin blue wisps flowing along the sword; blue sparks | The same armour split by glowing lava-orange cracks; gold eyes; thin wisps of fire flowing along the sword; orange sparks | The same armour split by glowing yellow cracks; pale yellow eyes; thin yellow wisps along the sword; yellow sparks |
+| **Effect on every hit** | Takes 0.12 s off all your cooldowns | Sets the target burning: 14 damage a second for 4 s | 40% of the damage jumps along a bolt to the nearest other enemy within 6. A jump does not jump again |
+| **Other change** | Sword attacks, Cyclone and Meteor Slam reach 20% further | None | You run 15% faster |
+| **Trial to unlock** | Take Water, then hit 4 dummies with one sword swing (60 s) | Take Flame, then have 3 dummies burning at once (60 s) | Take Thunder, then make lightning jump between enemies 6 times (60 s) |
+| **Where it is** | Left of the start in the arena | Right of the start in the arena | Behind the start in the arena, under the dark cloud |
+| **Before it is unlocked** | The pool is still and grey | The fire is out | A thin grey cloud over a scorched circle, and no lightning |
 
 ---
 
-The suit is the same for every style: a long hood that hangs onto the shoulders, with the face in shadow and two glowing eyes, a chest plate, spiked shoulder guards, gauntlets, greaves, a long ragged coat open at the front, and a torn cape. Only what glows changes.
+The suit is the same for every style: small glowing eyes, a chest plate, spiked shoulder guards, gauntlets, greaves, a long ragged coat open at the front, and a torn cape. Only what glows changes.
 
 ---
 
@@ -130,10 +133,23 @@ He cannot be hurt, but he reacts to being hit. Sword swings, blasts, Cyclone and
 | What you do | What he does |
 |---|---|
 | Hit him once | He points at you, throws you back, and his eyes burn brighter for 10 seconds |
-| Hit him again within those 10 seconds | He catches you by the neck, holds you off the ground for a moment, leaps into the air with you, and slams you into the ground from the top of the jump. It takes 60% of your full health, but never your last point |
+| Hit him again within those 10 seconds | He catches you by the neck and holds you off the ground. Then one of two things, taking turns: **the slam** (he leaps into the air with you and slams you into the ground from the top of the jump, for 60% of your full health) or **the throw** (he winds up and hurls you flat and fast at one of the tall rocks; you smack into its side, hang there spread out for a moment, then drop, for 40%). Neither ever takes your last point. In the training hall he throws you at the wall. Where there is nothing tall to throw you at, it is always the slam |
 | Hit him again after the 10 seconds | Another warning |
 
 Hits less than 0.6 seconds apart count as one. For about a second and a half after a slam he cannot be provoked again.
+
+---
+
+# Part 4: Enemies
+
+All of them are the same stick figure underneath. Colour and shape say what each one does.
+
+| Kind | Colour | Looks like | What it does | Health |
+|---|---|---|---|---|
+| Practice dummy | Red | A bucket on its head and a painted target on its chest | Stands still, or slides side to side | 600 |
+| Guard | Grey | A steel helm with a crest, heavy shoulder plates, thick limbs, a big shield held in front | Turns to face you and blocks every hit from the front. Strike from behind or from above | 700 |
+| Winged | Blue | Two flapping wings, a halo, a slight body | Circles in the air | 400 |
+| Brute | Purple | Horns, spiked shoulders, thick arms, glowing red eyes; bigger than the rest | Comes after you. Slams the ground around it when you are close, lunges when you are further away. Red marks on the ground warn of both | 900 |
 
 ---
 
@@ -142,5 +158,6 @@ Hits less than 0.6 seconds apart count as one. For about a second and a half aft
 - **A new ability or a changed number:** update the class's table here (and its rank and trial rows if it has them).
 - **A new style:** add a column to the table in Part 2.
 - **A new class:** add a section in Part 1.
+- **A new kind of enemy:** add a row to Part 4.
 
 Where the numbers live in the code: each class's table at the bottom of its file in `js/classes/`, and `STYLES` in `js/styles.js`.

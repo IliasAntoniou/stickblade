@@ -232,12 +232,13 @@ check('quality: switch to High and back', () => {
   SB.applyQuality('low'); run(5); SB.renderer.render(SB.scene, SB.camera);
   return high && SB.quality.level === 'low' && SB.renderer.shadowMap.enabled === false && document.getElementById('quality').value === 'low';
 });
-// Draw calls for one frame from the start point. 319 before the dusk look, 322 after it. The limit leaves a little
-// room; if this fails, something made the cheap setting more expensive. Either undo that or raise the limit on purpose.
+// Draw calls for one frame from the start point. About 310 after the rocks, about 350 once every enemy wore its own
+// shapes (the limit was raised on purpose for that). The limit leaves a little room; if this fails, something made
+// the cheap setting more expensive. Either undo that or raise the limit on purpose.
 check('quality: Low stays within its draw budget', () => {
   reset(); SB.respawnPlayer(); run(30);
   SB.renderer.render(SB.scene, SB.camera);
-  return SB.renderer.info.render.calls <= 335;
+  return SB.renderer.info.render.calls <= 375;
 });
 
 // progression (Blademaster): locked skills, the training hall, trials, ranks, and the closed back doors
@@ -378,12 +379,12 @@ check('Master Sen: to the hall, a trial, and back', () => {
   press('KeyG', 2); press('Digit2', 2);                  // "Train my skills"
   if (!dojo.inside || dlg.open) return false;
   run(5); press('KeyG', 2);                              // he is next to where you arrive
-  if (dlg.page !== 'train' || dlg.opts.length !== 7) return false;    // 4 skills, 2 sword styles, return
+  if (dlg.page !== 'train' || dlg.opts.length !== 8) return false;    // 4 skills, 3 sword styles, return
   press('Digit1', 2);                                    // first skill listed is Blink Strike
   if (chal.cur !== trial('blade-q1') || dlg.open) return false;
   SB.endChallenge(); run(2);
   SB.respawnPlayer(); run(2);
-  press('KeyG', 2); press('Digit7', 2);                  // "Return to the arena"
+  press('KeyG', 2); press('Digit8', 2);                  // "Return to the arena"
   return !dojo.inside && near(0, 14);
 });
 check('Master Sen: offers to reset tuning in the hall', () => {
@@ -391,7 +392,7 @@ check('Master Sen: offers to reset tuning in the hall', () => {
   press('KeyG', 2);
   if (dlg.opts.length !== 2) { SB.resetTuning(); return false; }    // only "reset tuning" and "return"
   press('Digit1', 2);
-  const ok = TUNE.jump === 13 && dlg.opts.length === 7;              // tuning is default again and the trials are listed
+  const ok = TUNE.jump === 13 && dlg.opts.length === 8;              // tuning is default again and the trials are listed
   press('KeyG', 2);
   return ok;
 });
@@ -409,6 +410,7 @@ check('Sen: the first hit is only a warning', () => {
 check('Sen: a second hit inside ten seconds gets you grabbed by the neck and slammed', () => {
   run(60 * 3);
   if (!(sen.warnT > 0)) return false;
+  sen.nextMove = 'slam';
   swingAtSen();
   if (P.state !== 'grabbed') return false;
   run(26);                                               // about half a second in: held up in front of him
@@ -426,13 +428,61 @@ check('Sen: the slam never takes the last of your health', () => {
   reset(); run(120);
   swingAtSen(); run(50);
   P.hp = 25;
+  sen.nextMove = 'slam';
   swingAtSen();
   if (P.state !== 'grabbed') return false;
   run(90);
-  return P.state === 'normal' && P.hp === 1 && !near(0, 14);
+  return P.state === 'normal' && P.hp === 1 && !near(0, 14) && sen.nextMove === 'throw';    // and next time it is the throw
+});
+// Get thrown by him, and stop at the moment the player hits the rock. Returns false if that never happens.
+function thrownAtWall() {
+  swingAtSen(); run(50);
+  sen.nextMove = 'throw';
+  swingAtSen();
+  if (P.state !== 'grabbed') return false;
+  run(60);                                               // let go by now: tumbling through the air
+  if (P.thrown !== true || P.hp !== P.maxHp) return false;
+  for (let i = 0; i < 150 && !P.splat; i++) run(1);
+  return P.splat === true;
+}
+// Is the player flat against the upright side of something tall? (Within reach of one of its sides, below its top.)
+function againstWall() {
+  return SB.solids.some(r => r.max.y - r.min.y >= 8 && P.pos.y + 0.9 < r.max.y
+    && P.pos.x > r.min.x - 0.5 && P.pos.x < r.max.x + 0.5 && P.pos.z > r.min.z - 0.5 && P.pos.z < r.max.z + 0.5
+    && (P.pos.x < r.min.x || P.pos.x > r.max.x || P.pos.z < r.min.z || P.pos.z > r.max.z));
+}
+check('Sen: the other time he throws you into the side of a rock', () => {
+  reset(); run(120);
+  if (!thrownAtWall()) return false;
+  // flat against the side of a rock, well off the ground, for 40 of 100 health, and held there
+  const at = P.pos.clone();
+  const smacked = againstWall() && P.pos.y > sen.pos.y + 2 && P.hp === P.maxHp - 40 && P.state === 'grabbed';
+  run(12);
+  const held = P.pos.distanceTo(at) < 0.01 && P.state === 'grabbed';
+  run(200);
+  // then he drops to the ground at its foot, free again; next time it is the slam
+  return smacked && held && P.state === 'normal' && P.splat === false && P.grounded && P.pos.y < at.y - 1 && sen.nextMove === 'slam';
+});
+check('Sen: in the training hall he throws you at its wall', () => {
+  reset(); run(120); SB.enterDojo(); run(5);
+  const smacked = thrownAtWall() && againstWall() && P.hp === P.maxHp - 40;
+  run(200);
+  const down = P.state === 'normal' && P.grounded;
+  SB.leaveDojo();
+  return smacked && down;
+});
+check('enemies: each type wears its own shapes', () => {
+  const of = type => dummies.find(d => d.type === type);
+  const basic = of('basic'), guard = of('shield'), winged = of('flying'), brute = of('fighter');
+  if (!basic.sm.head.children.length || !guard.sm.head.children.length || !brute.sm.head.children.length) return false;    // bucket, helm, horns
+  if (!winged.wings || winged.wings.length !== 2) return false;
+  const before = winged.wings[0].rotation.y;
+  run(4);
+  if (winged.wings[0].rotation.y === before) return false;                    // the wings flap
+  return brute.sm.root.scale.x > guard.sm.root.scale.x && guard.sm.root.scale.x > winged.sm.root.scale.x;    // brute biggest, winged slightest
 });
 check('Sen: after ten seconds it is only a warning again', () => {
-  reset(); run(120);                                     // after a slam he cannot be provoked again for a moment
+  reset(); run(200);                                     // after a slam or a throw he cannot be provoked again for a moment
   swingAtSen();
   if (!(sen.warnT > 0)) return false;
   run(60 * 11);
@@ -475,12 +525,16 @@ check('Sen: the menu is made of cards that can be clicked', () => {
 const style = SB.style, PLAIN_SKIN = 0xeef1f8, outfit = SB.outfit;
 let flameArmour = null;    // remembered from the Flame check, to make sure Water wears different colours
 // Is the style's suit on? Dark limbs, every piece showing, the armour and coat glowing in that style's cracks
-// (each style has its own pictures for those), and the face in shadow under the hood.
+// (each style has its own pictures for those), and that style's hair, and only that style's, on the head.
 const dressedAs = id => SB.playerMat.color.getHex() !== PLAIN_SKIN && outfit.parts.length > 15 && outfit.parts.every(m => m.visible)
   && outfit.chest.material.emissiveMap !== null && outfit.coat.material.emissiveMap !== null
-  && outfit.chest.material !== outfit.coat.material && SB.player.head.material !== SB.playerMat;
-const undressed = () => SB.playerMat.color.getHex() === PLAIN_SKIN && outfit.parts.every(m => !m.visible) && SB.player.head.material === SB.playerMat;
-const pool = SB.sources.find(s => s.id === 'water'), firePit = SB.sources.find(s => s.id === 'flame');
+  && outfit.chest.material !== outfit.coat.material && SB.player.head.material !== SB.playerMat
+  && outfit.flameHair.visible === (id === 'flame') && outfit.waterHair.visible === (id === 'water') && outfit.thunderHair.visible === (id === 'thunder');
+const undressed = () => SB.playerMat.color.getHex() === PLAIN_SKIN && outfit.parts.every(m => !m.visible) && SB.player.head.material === SB.playerMat
+  && !outfit.flameHair.visible && !outfit.waterHair.visible && !outfit.thunderHair.visible;
+const pool = SB.sources.find(s => s.id === 'water'), firePit = SB.sources.find(s => s.id === 'flame'), storm = SB.sources.find(s => s.id === 'thunder');
+// Stand in the middle of a storm and use Cyclone.
+function cycloneIn(src) { P.pos.copy(src.pos); P.vel.set(0, 0, 0); P.cd.e = 0; run(3); pressed.add('KeyE'); run(4); }
 // Stand six units from a fire, facing it (the camera looks along -z after a respawn), and Blink Strike.
 function faceFire(src) { P.pos.set(src.pos.x, src.pos.y, src.pos.z + 6); P.vel.set(0, 0, 0); P.cd.q = 0; run(3); }
 function blinkAt(src) { faceFire(src); pressed.add('KeyQ'); run(4); }
@@ -498,7 +552,8 @@ check('style: locked at the start, and the fire is out', () => {
   SB.resetProgress(); SB.setClass('blade'); reset(); run(3);
   return !SB.styleUnlocked('flame') && !SB.styleUnlocked('water') && SB.giveStyle('flame') === false && firePit.fire.visible === false && pool.ripples.visible === false;
 });
-check('style: each needs its skill first', () => SB.startTrial(trial('blade-flame')) === false && SB.startTrial(trial('blade-water')) === false && chal.cur === null);
+check('style: each needs its skill first', () => SB.startTrial(trial('blade-flame')) === false && SB.startTrial(trial('blade-water')) === false
+  && SB.startTrial(trial('blade-thunder')) === false && chal.cur === null);
 check('style: a locked fire is just a place to blink past', () => {
   if (!learn('blade-q1', 'q')) return false;
   reset(); faceFire(firePit);
@@ -593,6 +648,56 @@ check('style: Water from a slam into the pool', () => {
 check('style: a slam outside the pool gives nothing', () => {
   reset(); P.pos.set(pool.pos.x + 12, 7, pool.pos.z); P.vel.set(0, 0, 0); P.grounded = false; P.cd.r = 0; press('KeyR', 30); run(60);
   return style.cur === null && P.state === 'normal';
+});
+check('style: a locked storm is quiet, and Cyclone in it is just Cyclone', () => {
+  reset(); run(60);
+  if (SB.styleUnlocked('thunder') || storm.rim.visible || storm.bolts.some(b => b.life > 0)) return false;
+  P.pos.copy(storm.pos); P.vel.set(0, 0, 0); run(3);
+  SB.CL.skills.e.fn(); run(2);                           // Cyclone itself is not learned yet here, so call it directly
+  if (P.state !== 'cyclone') return false;
+  run(90);
+  return style.cur === null;
+});
+check('style: Thunder trial, played', () => {
+  reset();
+  if (!learn('blade-e1', 'e')) return false;             // Thunder needs Cyclone, so learn that first
+  if (!begin('blade-thunder')) return false;
+  if (dojo.sources.length !== 1 || !SB.styleUnlocked('thunder')) return false;    // lent for the trial
+  const cloud = dojo.sources[0];
+  run(60);
+  if (!cloud.rim.visible || !cloud.bolts.some(b => b.life > 0 || b.meshes[0].position.lengthSq() > 0)) return false;    // lightning is falling
+  for (const d of spawned('basic')) skillHit('atk', d);
+  if (chal.st.n !== 0) return false;                     // with a plain sword nothing jumps, so nothing counts
+  cycloneIn(cloud);
+  // the scene: held in the middle of the storm, and nothing can hit him
+  if (P.state !== 'storm' || Math.hypot(P.pos.x - cloud.pos.x, P.pos.z - cloud.pos.z) > 0.01 || style.cur) return false;
+  const hp = P.hp; SB.hurtPlayer(20, dummies[0].pos, dummies[0]);
+  if (P.hp !== hp) return false;
+  run(50);
+  if (P.state !== 'normal' || !style.cur || style.cur.id !== 'thunder' || !dressedAs('thunder')) return false;
+  if (outfit.chest.material === flameArmour) return false;    // and not in Flame's colours
+  for (let i = 0; i < 6 && chal.cur; i++) skillHit('atk', spawned('basic')[i % 2]);
+  run(3);
+  return chal.cur === null && SB.styleUnlocked('thunder') && style.cur === null && undressed();
+});
+check('style: Thunder from Cyclone in the storm; hits jump once, and he runs faster', () => {
+  reset(); run(30);
+  cycloneIn(storm); run(55);
+  if (!style.cur || style.cur.id !== 'thunder' || !storm.rim.visible || SB.styleSpeed() <= 1) return false;
+  // two dummies side by side and one far off
+  const [a, b, far] = dummies.filter(d => d.type === 'basic' || d.type === 'shield').slice(0, 3);
+  a.pos.set(40, 0, 40); b.pos.set(42, 0, 40); far.pos.set(60, 0, 40);
+  const hpA = a.hp, hpB = b.hp, hpFar = far.hp;
+  skillHit('atk', a);
+  const jumped = hpB - b.hp;
+  // the one beside it takes 40% of what the first took, once; the far one nothing
+  return a.hp < hpA && jumped === Math.round((hpA - a.hp) * 0.4) && far.hp === hpFar;
+});
+check('style: Cyclone outside the storm gives nothing', () => {
+  reset(); P.pos.set(storm.pos.x + 9, 0, storm.pos.z); P.vel.set(0, 0, 0); P.cd.e = 0; run(3); pressed.add('KeyE'); run(4);
+  const spinning = P.state === 'cyclone';
+  run(90);
+  return spinning && style.cur === null;
 });
 check('style: ends on respawn and on class change', () => {
   reset(); SB.giveStyle('flame');
