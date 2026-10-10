@@ -2,6 +2,20 @@
 
 Newest first. One entry per merged feature: what changed, where, how to check it, and the git tag to go back to.
 
+## v0.7-styles: sword styles from the world, and a new Master Sen
+
+- **What:** The sword can take on a style for 20 seconds. A style recolours and repaints the slash and adds one effect on top of the normal moves.
+  - **Water:** Meteor Slam into a pool. Blue slashes with white foam. Sword attacks, Cyclone and Meteor Slam reach 20% further, and every hit takes a little off all cooldowns.
+  - **Flame:** strike a brazier with the sword. Orange slashes with tongues of fire. Every hit sets the target burning for 4 seconds.
+  - The bare sword now has a plain painted slash; the foam look belongs to Water.
+- **Unlocking:** a pool or brazier is dark and does nothing until its style is unlocked by a trial with Master Sen. The Flame trial has you take Flame and keep three dummies burning at once. The Water trial (needs Meteor Slam) has you take Water and hit four dummies with one swing, which only Water's reach allows. During its own trial a style can be taken, which is how the trial teaches it.
+- **Rules:** one style at a time; taking another replaces it; taking the same one refills the time. A style ends on death, teleport, class change and at the start and end of any trial, so trials are always fought with a plain sword.
+- **Screen:** the style's name and time left show above the health bar, and standing near a pool or brazier says how to use it or that it is locked.
+- **Master Sen:** he is now half as tall again as the player and heavily built, arms folded, feet planted wide, with a dark hat and glowing red eyes. This also fixes his hat, which had been missing since the dusk look because of a mistake of mine in an earlier edit.
+- **Where:** new `js/styles.js`; three painted looks in `js/fx.js` (`TRAIL_PAINTS`); burning in `js/dummies.js`; reach and sources in `js/player.js`; unlocking in `js/progress.js`; the two trials in `js/classes/blade.js`; Master Sen's build in `js/master.js`; the timer and hints in `js/hud.js` and `index.html`.
+- **Not tuned yet:** burn damage, the reach bonus and both trials are first guesses.
+- **Check:** `bash tests/smoke.sh` (plays both style trials, checks sources are dead while locked, burning ticks and stops, the 20 second limit, and that respawns and trials clear a style). To look at a style: `http://localhost:8000/?debug=pose:slash2&style=flame`.
+
 ## v0.6-breathing: painted slashes and a swordsman's movement
 
 - **What:** Much less glow. Sword attacks now look like the water techniques in Demon Slayer: a flat painted wave in the class colour with a dark ink outline and white foam along its leading edge. For swords and daggers the slash is drawn from the blade's own positions, so it follows the swing exactly and ends when the swing ends (an earlier version placed a ready-made crescent in front of the character, which did not line up with the sword). The Monk's fists keep ready-made arcs. Cyclone is a spinning whirlpool around the player, and Meteor Slam sends a painted wave rolling out from the landing. The weapon halo, impact flashes, rings and afterimages were all turned down.

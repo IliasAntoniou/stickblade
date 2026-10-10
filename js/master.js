@@ -4,27 +4,74 @@ import * as THREE from 'three';
 import { V3, pick, $, save } from './util.js';
 import { scene } from './core.js';
 import { boxGeo, lam, ground, makeShadow, placeShadow } from './world.js';
-import { makeStickman, BASE, applyPose, addRim, castShadows } from './stickman.js';
+import { SG, makeStickman, BASE, applyPose, addRim, castShadows } from './stickman.js';
 import { ringGeo } from './fx.js';
 import { P, CL, dlg, chal, CLASSES } from './state.js';
 import { LOCKED, setState, parry } from './player.js';
 import { CLASS_ORDER, setClass } from './classes/index.js';
 import { CH, startChallenge } from './challenges.js';
-import { trainingList, startTrial, ROMAN } from './progress.js';
+import { trainingList, styleList, startTrial, ROMAN } from './progress.js';
 import { isTuned, resetTuning } from './tuning.js';
 import { dojo, enterDojo, leaveDojo } from './dojo.js';
 
 // ================= master NPC + dialog =================
 export const master = (() => {
-  const mat = addRim(new THREE.MeshLambertMaterial({ color: 0xc09a6b }));
+  // Master Sen is built from the same stick figure as everyone else, then bulked out: a towering, heavily
+  // muscled man with a dark hat pulled low and eyes that glow red underneath it. He is meant to be intimidating.
+  const mat = addRim(new THREE.MeshLambertMaterial({ color: 0x4d362e }));
   const sm = makeStickman(mat, null, false);
+  // Widen the rod-thin parts of a limb. group = a shoulder, elbow, hip or knee; width = how many times thicker.
+  const bulk = (group, width) => {
+    for (const part of group.children) {
+      if (part.isMesh) { part.scale.x = width; part.scale.z = width; }
+    }
+  };
+  bulk(sm.shL, 3.6); bulk(sm.shR, 3.6);        // upper arms
+  bulk(sm.elL, 3.0); bulk(sm.elR, 3.0);        // forearms
+  bulk(sm.hipL, 3.8); bulk(sm.hipR, 3.8);      // thighs
+  bulk(sm.kneeL, 3.0); bulk(sm.kneeR, 3.0);    // calves
+  bulk(sm.spine, 3.0);                         // the core
+  sm.chest.children[0].scale.x = sm.chest.children[0].scale.z = 3.0;    // a thick neck
+  // A stick figure's shoulders and hips sit almost on its centre line. Push them out for a broad frame.
+  sm.shL.position.x = 0.4; sm.shR.position.x = -0.4;
+  sm.hipL.position.x = 0.19; sm.hipR.position.x = -0.19;
+  // Slabs of muscle: chest, belly, and a round shoulder over each arm.
+  const slab = (parent, w, h, d, x, y, z) => {
+    const m = new THREE.Mesh(boxGeo, lam(0x4d362e));
+    m.scale.set(w, h, d); m.position.set(x, y, z);
+    parent.add(m);
+  };
+  slab(sm.chest, 0.9, 0.46, 0.44, 0, -0.16, 0.02);
+  slab(sm.spine, 0.62, 0.36, 0.36, 0, 0.2, 0.01);
+  for (const side of [1, -1]) {
+    const shoulder = new THREE.Mesh(SG.joint, mat);
+    shoulder.scale.setScalar(3.6);
+    shoulder.position.set(0.42 * side, -0.02, 0);
+    sm.chest.add(shoulder);
+  }
+  // The face: a heavy brow sloping inwards (a scowl) and two small glowing eyes.
+  const browMat = new THREE.MeshLambertMaterial({ color: 0x1c1413 });
+  for (const side of [1, -1]) {
+    const brow = new THREE.Mesh(boxGeo, browMat);
+    brow.scale.set(0.13, 0.035, 0.06); brow.position.set(0.065 * side, 0.07, 0.145); brow.rotation.z = -0.38 * side;
+    sm.head.add(brow);
+    const eye = new THREE.Mesh(SG.joint, new THREE.MeshBasicMaterial({ color: 0xff2a1a, toneMapped: false }));
+    eye.scale.setScalar(0.42); eye.position.set(0.065 * side, 0.025, 0.155);
+    sm.head.add(eye);
+  }
+  // A wide dark hat. (Its own material, not lam(): that one is for boxes only.)
+  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.22, 16), new THREE.MeshLambertMaterial({ color: 0x241b1b }));
+  hat.position.y = 0.19;
+  sm.head.add(hat);
   castShadows(sm);
-  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.46, 0.24, 16), new THREE.MeshLambertMaterial({ color: 0xd9b26a }));    // not lam(): that is for boxes only hat.position.y = 0.2; sm.head.add(hat);
-  const staff = new THREE.Mesh(boxGeo, lam(0x8a5a2b)); staff.scale.set(0.06, 2.0, 0.06); staff.position.set(0.5, 1.0, 0.25); sm.root.add(staff);
+  sm.root.scale.setScalar(1.45);    // half as tall again as the player
   const mark = new THREE.Mesh(new THREE.OctahedronGeometry(0.2), new THREE.MeshBasicMaterial({ color: 0xffd23f })); sm.root.add(mark);
   const mat2 = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));
-  mat2.scale.setScalar(1.6); mat2.position.set(-5, 0.03, 18); scene.add(mat2);
-  const p = { ...BASE, shLX: -0.5, shLZ: 0.5, elL: -0.9, shRX: -0.5, shRZ: -0.1, elR: -1.7, spineX: 0.14 };
+  mat2.scale.setScalar(2.2); mat2.position.set(-5, 0.03, 18); scene.add(mat2);
+  // Arms folded across the chest, feet planted wide, leaning slightly forward over whoever he is talking to.
+  const p = { ...BASE, bodyY: 0.93, spineX: 0.12,
+    shLX: -0.85, shLZ: -0.55, elL: -1.85, shRX: -0.7, shRZ: 0.55, elR: -1.95,
+    hipLZ: 0.24, hipRZ: -0.24, hipLX: 0, hipRX: 0, kneeL: 0.05, kneeR: 0.05 };
   applyPose(sm, p);
   sm.root.position.set(-5, 0, 18); scene.add(sm.root);
   const sh = makeShadow(); placeShadow(sh, -5, 0, 18);
@@ -103,6 +150,12 @@ export function renderDlg(text) {
           act: () => { if (!startTrial(next)) renderDlg(); },
         };
       });
+      // Sword styles come after the skills: each is unlocked by its own trial.
+      for (const { st, trial, unlocked, blocked } of styleList()) {
+        if (unlocked) opts.push({ label: `${st.name} style · unlocked`, sub: `${st.how} to take it for a while`, cur: true, act: () => renderDlg() });
+        else if (blocked) opts.push({ label: `${st.name} style · learn ${blocked} first`, sub: st.perk, cur: true, act: () => renderDlg() });
+        else opts.push({ label: `${st.name} style · locked · start the trial`, sub: `${trial.desc} (${trial.time}s) · reward: ${st.perk}`, act: () => { if (!startTrial(trial)) renderDlg(); } });
+      }
     }
     opts.push({ label: 'Return to the arena', act: () => { closeDlg(); leaveDojo(); } });
   } else if (dlg.page === 'tips') {

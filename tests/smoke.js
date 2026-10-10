@@ -378,12 +378,12 @@ check('Master Sen: to the hall, a trial, and back', () => {
   press('KeyG', 2); press('Digit2', 2);                  // "Train my skills"
   if (!dojo.inside || dlg.open) return false;
   run(5); press('KeyG', 2);                              // he is next to where you arrive
-  if (dlg.page !== 'train' || dlg.opts.length !== 5) return false;
+  if (dlg.page !== 'train' || dlg.opts.length !== 7) return false;    // 4 skills, 2 sword styles, return
   press('Digit1', 2);                                    // first skill listed is Blink Strike
   if (chal.cur !== trial('blade-q1') || dlg.open) return false;
   SB.endChallenge(); run(2);
   SB.respawnPlayer(); run(2);
-  press('KeyG', 2); press('Digit5', 2);                  // "Return to the arena"
+  press('KeyG', 2); press('Digit7', 2);                  // "Return to the arena"
   return !dojo.inside && near(0, 14);
 });
 check('Master Sen: offers to reset tuning in the hall', () => {
@@ -391,9 +391,96 @@ check('Master Sen: offers to reset tuning in the hall', () => {
   press('KeyG', 2);
   if (dlg.opts.length !== 2) { SB.resetTuning(); return false; }    // only "reset tuning" and "return"
   press('Digit1', 2);
-  const ok = TUNE.jump === 13 && dlg.opts.length === 5;              // tuning is default again and the trials are listed
+  const ok = TUNE.jump === 13 && dlg.opts.length === 7;              // tuning is default again and the trials are listed
   press('KeyG', 2);
   return ok;
+});
+// sword styles: locked until their trial is passed, taken from objects in the world, gone after 20 seconds
+const style = SB.style;
+const pool = SB.sources.find(s => s.id === 'water'), brazier = SB.sources.find(s => s.id === 'flame');
+// Stand in front of the arena brazier, facing it, and swing at it.
+function strikeBrazier(b) { P.pos.set(b.pos.x, b.pos.y, b.pos.z + 1.7); P.vel.set(0, 0, 0); run(3); pressed.add('M0'); run(8); }
+check('style: sources do nothing while locked', () => {
+  SB.resetProgress(); SB.setClass('blade'); reset();
+  if (SB.styleUnlocked('flame') || SB.styleUnlocked('water') || SB.giveStyle('flame')) return false;
+  strikeBrazier(brazier);
+  return style.cur === null && brazier.fire.visible === false;
+});
+check('style: Water needs Meteor Slam first', () => SB.startTrial(trial('blade-water')) === false && chal.cur === null);
+check('style: Flame trial, played', () => {
+  if (!begin('blade-flame')) return false;
+  if (dojo.sources.length !== 1 || !SB.styleUnlocked('flame')) return false;    // lent for the trial
+  strikeBrazier(dojo.sources[0]);
+  if (!style.cur || style.cur.id !== 'flame') return false;
+  for (const d of spawned('basic')) skillHit('atk', d);
+  if (!spawned('basic').every(d => d.burnT > 0)) return false;
+  run(3);
+  return chal.cur === null && SB.styleUnlocked('flame') && style.cur === null && dojo.sources.length === 0;
+});
+check('style: Flame burns over time, then stops', () => {
+  reset(); strikeBrazier(brazier);
+  if (!style.cur || style.cur.id !== 'flame' || !brazier.fire.visible) return false;
+  const d = dummies[0];
+  skillHit('atk', d);
+  const afterHit = d.hp;
+  run(150);                                              // 2.5 seconds
+  const burned = afterHit - d.hp;
+  run(200);
+  const later = d.hp;
+  run(60);
+  return burned >= 25 && d.burnT <= 0 && d.hp >= later;  // ticked, then went out (dummies heal, so only "not lower")
+});
+check('style: lasts 20 seconds and then the sword is plain again', () => {
+  reset(); strikeBrazier(brazier);
+  if (!style.cur) return false;
+  run(60 * 19);
+  if (!style.cur) return false;
+  run(60 * 2);
+  return style.cur === null && SB.reach() === 1;
+});
+check('style: a trial starts with a plain sword', () => {
+  reset(); strikeBrazier(brazier);                       // Flame is unlocked by now, the skills are not
+  if (!style.cur) return false;
+  if (!begin('blade-q1')) return false;
+  const plain = style.cur === null;
+  SB.endChallenge();
+  return plain;
+});
+check('style: Water from a slam into the pool', () => {
+  SB.unlockAll(); reset();
+  P.pos.set(pool.pos.x, 7, pool.pos.z); P.vel.set(0, 0, 0); P.grounded = false; press('KeyR', 30);
+  if (!style.cur || style.cur.id !== 'water' || SB.reach() !== 1.2) return false;
+  P.cd.q = 3; skillHit('atk', dummies[0]);
+  return P.cd.q < 3;                                     // every hit shortens cooldowns
+});
+check('style: a slam outside the pool gives nothing', () => {
+  reset(); P.pos.set(pool.pos.x + 12, 7, pool.pos.z); P.vel.set(0, 0, 0); P.grounded = false; press('KeyR', 30);
+  return style.cur === null;
+});
+check('style: Water trial, played', () => {
+  SB.resetProgress(); reset();
+  if (!begin('blade-r1')) return false;                  // Water needs Meteor Slam, so learn that first
+  P.castN++; P.castY = P.pos.y + 6;
+  for (const d of spawned('basic')) skillHit('r', d);
+  run(3);
+  if (rankOf('r') !== 1 || !begin('blade-water')) return false;
+  standAt(0, 0, -1.2); run(3); pressed.add('M0'); run(25);
+  if (chal.cur === null || chal.st.n !== 0) return false;    // a plain swing does not count, and cannot reach all four
+  run(300);                                                  // the dummies walk back into line
+  standAt(0, 7, 9); P.grounded = false; press('KeyR', 30);   // slam into the pool the trial placed
+  if (!style.cur || style.cur.id !== 'water') return false;
+  standAt(0, 0, -1.2); run(3); pressed.add('M0'); run(12);
+  return chal.cur === null && SB.styleUnlocked('water') && !SB.styleUnlocked('flame');
+});
+check('style: ends on respawn and on class change', () => {
+  SB.unlockAll(); reset(); SB.giveStyle('flame');
+  if (!style.cur) return false;
+  SB.respawnPlayer();
+  if (style.cur) return false;
+  SB.giveStyle('water'); SB.setClass('ninja');
+  const cleared = style.cur === null;
+  SB.setClass('blade');
+  return cleared;
 });
 reset();
 SB.resetProgress();

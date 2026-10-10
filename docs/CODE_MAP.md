@@ -38,6 +38,12 @@ Where everything is, what the short names mean, and how to add things. If this f
 | Sky colours, fog, overall brightness | `SKY` and `toneMappingExposure` in `js/core.js`; the sky itself is drawn in `js/sky.js` |
 | The lighting (sun colour, direction, strength; the soft light from the sky) | `sun`, `SUN_OFFSET` and `hemi` in `js/core.js` |
 | Box colours, the floor tiles, how dark boxes get at the base | `COL`, `tileTex`, `makeFloor()` and the shading block under `boxGeo` in `js/world.js` |
+| A sword style's colour, how long it lasts, how strong its effect is (burn damage, extra reach) | `STYLES` and `STYLE_TIME` in `js/styles.js` |
+| Where the pool and the brazier stand in the arena | The two `addSource()` lines at the bottom of `js/styles.js` |
+| How a style is taken (how close a swing or a slam has to be) | `strikeSources()` and `slamSources()` in `js/styles.js` |
+| How a style's slash is painted (foam, tongues of fire) | The `edge` part of `paintCrescent()` and `TRAIL_PAINTS` in `js/fx.js` |
+| The trial that unlocks a style | The entries with `style:` in `CLASSES.blade.trials` in `js/classes/blade.js` |
+| How Master Sen looks | The start of the `master` block in `js/master.js` |
 | A sword or dagger slash: how long it hangs in the air | `TRAIL_LIFE` in `js/fx.js`. The slash is built from the blade's real positions by `updateTrail()`, so its path is the sword's path |
 | A slash's width and how far it reaches past the blade | `WEAPON_REACH` in `js/anim.js` |
 | When a slash is drawn (which moves, how fast the blade must be moving) | `TRAIL_STATES` and `SLASH_SPEED` in `js/anim.js` |
@@ -98,6 +104,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/tuning.js` | The tuning panel shown while paused |
 | `js/progress.js` | Skill ranks and the trials that earn them |
 | `js/dojo.js` | The training hall: teleporting there, building and clearing each trial's layout |
+| `js/styles.js` | Sword styles (Water, Flame) and the pools and braziers they are taken from |
 | `js/sky.js` | The dusk sky: gradient dome, sun, stars |
 | `js/quality.js` | The Low / High graphics setting |
 | `vendor/three.module.js` | The three.js library (not ours; do not edit) |
@@ -148,6 +155,10 @@ Where everything is, what the short names mean, and how to add things. If this f
 | pool | A fixed set of objects reused over and over, never created during play |
 | lock-on, `lockTarget` | The dummy nearest the crosshair |
 | `aimHit` | The point on the map under the crosshair |
+| sword style, `style` | A temporary change to the sword taken from an object in the world: new slash colour and look plus one extra effect. `style.cur` is the one in use, `style.left` its seconds remaining |
+| source | A pool or brazier a style is taken from. Dark and useless until its style is unlocked |
+| `reach()` | How much further sword attacks reach under the current style (1 = normal) |
+| `slashColor()` | The colour sword effects should use: the style's, or the class's when there is none |
 | rank | How far a skill has been trained: 0 = locked, 1 to 3 = learned. `rankOf()` in `js/progress.js` |
 | trial | A timed test that earns a rank. Runs on top of the challenge system; `chal.st` is its scratch space, `chal.st.n` its progress |
 | training hall, `dojo` | The separate room where trials happen, at x = 300. `dojo.inside` is true while the player is there |
@@ -188,6 +199,17 @@ The Blademaster is the worked example; copy from `js/classes/blade.js`.
 5. Add checks to the progression part of `tests/smoke.js`.
 
 A class with no `lv` on any skill has no progression: everything is usable from the start.
+
+### Add a sword style
+
+Water and Flame in `js/styles.js` are the worked examples.
+
+1. Add it to `STYLES`: id, name, colour, `paint`, `reach`, the numbers for its effect, and the `how` and `perk` lines.
+2. Give it its effect in `onStyleHit()` (runs for every hit that lands), or read `style.cur` wherever else it should matter.
+3. Give it a look: add an `edge` kind to `paintCrescent()` in `js/fx.js` and a matching entry in `TRAIL_PAINTS`.
+4. Give it a source: a new kind in `addSource()`, a way to take it (like `strikeSources()` or `slamSources()`), a line in `sourceHint()`, and one in the arena.
+5. Add its trial to the class's `trials` with `style: '<id>'` and `arena.sources`. Passing it unlocks the style.
+6. Add checks to the style part of `tests/smoke.js`.
 
 ### Add a class
 
@@ -230,6 +252,8 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.
 - **`dt` or `rdt`.** Gameplay uses `dt` so it slows down during hitstop. Camera and on-screen display use `rdt`.
 - **Only boxes.** Collision assumes every solid is an upright box. A slope or rotated wall will not collide correctly.
+- **A style ends whenever the player respawns.** That covers death, teleports, class changes and the start of a trial (`clearStyle()` is called from `cleanupClassObjects()`), which is what keeps styles from being carried into a trial.
+- **Use `slashColor()` and `reach()` in sword code,** not `CL.color` and a bare radius, or the effect ignores the style.
 - **Trials and tuning.** A trial will not start, and fails if running, while any tuning value differs from default. That is deliberate: it stops tuned numbers being used to pass.
 - **Stale files.** Always serve the game with `serve.py` (or `play.bat`). A plain web server lets the browser keep running old copies of changed files.
 - **Saved tuning.** Slider changes are stored in the browser and come back next time. If the game feels wrong, press "Reset all" in the panel before looking for a bug. The smoke test always runs on defaults.

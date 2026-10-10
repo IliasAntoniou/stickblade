@@ -15,6 +15,7 @@ import { T, P, CL, CLASSES, chal, hitSrc } from './state.js';
 import { startChallenge, endChallenge, chalEl } from './challenges.js';
 import { isTuned } from './tuning.js';
 import { dojo, enterDojo, setupTrial } from './dojo.js';
+import { STYLES } from './styles.js';
 
 const STORE_KEY = 'stickblade.progress.v1';
 // The smoke test starts from nothing and never writes, so running it cannot touch real progress.
@@ -24,6 +25,7 @@ export const MAX_RANK = 3;
 const KEY_NAME = { m2: 'the right mouse button', q: 'Q', e: 'E', r: 'R', f: 'F' };
 
 // prog[classId][slot] = rank. Missing means the skill's starting rank.
+// prog._styles[styleId] = 1 once a sword style (styles.js) is unlocked.
 let prog = {};
 function store() {
   if (SMOKE) return;
@@ -44,6 +46,26 @@ export function rankOf(slot, cls = CL) {
   const t = chal.cur;
   const lent = t && t.trial && t.cls === cls.id && t.slot === slot;
   return lent ? Math.max(1, saved) : saved;
+}
+
+// Has a sword style been unlocked? It also counts as unlocked while its own trial is running, so the trial can teach it.
+export function styleUnlocked(id) {
+  if (prog._styles && prog._styles[id]) return true;
+  const t = chal.cur;
+  return !!(t && t.trial && t.style === id);
+}
+// The sword styles a class can unlock, each with its trial. blocked = the name of a skill that has to be learned first.
+export function styleList(cls = CL) {
+  const out = [];
+  for (const t of cls.trials || []) {
+    if (!t.style) continue;
+    let blocked = null;
+    for (const slot in t.needs || {}) {
+      if (savedRank(cls, slot) < t.needs[slot]) blocked = cls.skills[slot].n;
+    }
+    out.push({ st: STYLES[t.style], trial: t, unlocked: !!(prog._styles && prog._styles[t.style]), blocked });
+  }
+  return out;
 }
 
 let lastLockedMsg = -99;
@@ -83,14 +105,19 @@ export function startTrial(t) {
   const cls = CLASSES[t.cls];
   if (CL !== cls) return false;                              // only for the class being played
   if (isTuned()) return false;                               // no tuned numbers
-  if (savedRank(cls, t.slot) !== t.rank - 1) return false;   // ranks are earned in order
+  if (t.style) {
+    if (prog._styles && prog._styles[t.style]) return false;   // already unlocked
+    for (const slot in t.needs || {}) {
+      if (savedRank(cls, slot) < t.needs[slot]) return false;  // needs a skill that is not learned yet
+    }
+  } else if (savedRank(cls, t.slot) !== t.rank - 1) return false;   // ranks are earned in order
   if (!dojo.inside) enterDojo();    // trials only happen in the training hall
   setupTrial(t);                    // build this trial's layout and enemies; also sets where the player starts
   startChallenge(t);
   chal.st = { n: 0, seen: new Set(), count: 0, target: null };
   for (const k in P.cd) P.cd[k] = 0;
   // Say plainly that a locked skill works during its own trial.
-  if (t.rank === 1) toast(`<b>${cls.skills[t.slot].n}</b> is lent to you for this trial. Use it with <b>${KEY_NAME[t.slot]}</b>.`, 6);
+  if (t.slot && t.rank === 1) toast(`<b>${cls.skills[t.slot].n}</b> is lent to you for this trial. Use it with <b>${KEY_NAME[t.slot]}</b>.`, 6);
   return true;
 }
 
@@ -110,14 +137,24 @@ function failTrial(why) {
   endChallenge();
 }
 function passTrial(t) {
-  const cls = CLASSES[t.cls], skill = cls.skills[t.slot];
-  if (!prog[cls.id]) prog[cls.id] = {};
-  prog[cls.id][t.slot] = t.rank;
-  store();
-  endChallenge();
-  applyRanks(cls);
-  const title = t.rank === 1 ? `${skill.n} learned` : `${skill.n} ${ROMAN[t.rank]}`;
-  centerMsg(`${title}<small>${skill.perks[t.rank - 1]}</small>`, 4);
+  const cls = CLASSES[t.cls];
+  if (t.style) {
+    if (!prog._styles) prog._styles = {};
+    prog._styles[t.style] = 1;
+    store();
+    endChallenge();
+    const st = STYLES[t.style];
+    centerMsg(`${st.name} style unlocked<small>${st.how} to take it</small>`, 4);
+  } else {
+    const skill = cls.skills[t.slot];
+    if (!prog[cls.id]) prog[cls.id] = {};
+    prog[cls.id][t.slot] = t.rank;
+    store();
+    endChallenge();
+    applyRanks(cls);
+    const title = t.rank === 1 ? `${skill.n} learned` : `${skill.n} ${ROMAN[t.rank]}`;
+    centerMsg(`${title}<small>${skill.perks[t.rank - 1]}</small>`, 4);
+  }
   spawnRing(_fx.copy(P.pos).setY(P.pos.y + 0.05), 0.5, 6, 0.6, 0xffd23f);
   burst(_fx.setY(P.pos.y + 1), 30, 12);
 }
@@ -134,8 +171,10 @@ export function updateTrial(t, dt) {
 }
 
 // ---------- testing tools (buttons in the tuning panel) ----------
-// Give every skill of every class its top rank.
+// Give every skill of every class its top rank, and unlock every sword style.
 export function unlockAll() {
+  prog._styles = {};
+  for (const id in STYLES) prog._styles[id] = 1;
   for (const id in CLASSES) {
     for (const slot in CLASSES[id].skills) {
       if (!CLASSES[id].skills[slot].lv) continue;

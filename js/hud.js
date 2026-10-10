@@ -10,6 +10,7 @@ import { lockTarget, aimHit } from './camera.js';
 import { master } from './master.js';
 import { locked } from './input.js';
 import { rankOf } from './progress.js';
+import { style, sourceHint, STYLE_TIME } from './styles.js';
 
 // ================= HUD =================
 export const skEl = $('skills');
@@ -67,7 +68,17 @@ export function updateHud(rdt) {
   if (combo > 1) comboEl.innerHTML = `${combo}<small>HIT COMBO</small>`;
   const hr = clamp(P.hp / P.maxHp, 0, 1);
   hpFill.style.width = (hr * 100) + '%'; hpFill.style.background = hr > 0.5 ? '#5ee08a' : hr > 0.25 ? '#f2c14e' : '#ff4d4d';
-  promptEl.style.display = (master.near && !dlg.open && locked) ? 'block' : 'none';
+  // The line above the skill bar: how to talk to Master Sen, or what a nearby pool or brazier does.
+  const hint = dlg.open ? null : (master.near ? '<b>G</b> &nbsp;Talk to Master Sen' : sourceHint());
+  promptEl.style.display = (hint && locked) ? 'block' : 'none';
+  if (hint && hint !== lastHint) { promptEl.innerHTML = hint; lastHint = hint; }
+  // The sword style in use and how long it has left.
+  if (style.cur) {
+    styleEl.style.display = 'block';
+    styleEl.style.color = '#' + style.cur.color.toString(16).padStart(6, '0');
+    styleName.textContent = `${style.cur.name.toUpperCase()} STYLE  ${Math.ceil(style.left)}s`;
+    styleFill.style.width = (clamp(style.left / STYLE_TIME, 0, 1) * 100) + '%';
+  } else styleEl.style.display = 'none';
   fpsAcc += rdt; fpsN++; if (fpsAcc > 0.5) { fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
   hudT -= rdt;
   if (hudT <= 0) {
@@ -80,4 +91,5 @@ export function updateHud(rdt) {
     if (DEBUG !== null) statsEl.innerHTML += `<br>Draws <span>${renderer.info.render.calls}</span> &nbsp; Tris <span>${renderer.info.render.triangles}</span>`;
   }
 }
-promptEl.innerHTML = '<b>G</b> &nbsp;Talk to Master Sen';
+let lastHint = null;
+export const styleEl = $('style'), styleName = styleEl.querySelector('.nm'), styleFill = styleEl.querySelector('.fill');

@@ -8,6 +8,7 @@ import { setBeam, updateTrail } from './fx.js';
 import { T, P, CL } from './state.js';
 import { playerMat, bladeMat, bladeGlow, player, playerShadow, cloneMat, cloneSm, FLIP_T, pose, tp, ropeMesh, hookMesh } from './player.js';
 import { camPitch } from './camera.js';
+import { slashColor, reach as styleReach } from './styles.js';
 
 // ================= player animation =================
 // How the body moves between poses. Every joint is on a SPRING: it is pulled towards its target, picks up speed,
@@ -248,15 +249,15 @@ export function animatePlayer(dt) {
   const reach = WEAPON_REACH[CL.weapon];
   if (reach) {
     player.wrist.localToWorld(_a.set(0, 0, reach[0]));
-    player.wrist.localToWorld(_b.set(0, 0, reach[1]));
+    player.wrist.localToWorld(_b.set(0, 0, reach[1] * styleReach()));
     if (dt > 0.004) {    // not during hitstop, when dt is almost nothing
       bladeFast = _b.distanceTo(lastTip) / dt > SLASH_SPEED;
       lastTip.copy(_b);
     }
     // Only during an attack or a sword skill, after the coil back, and only while the blade is really moving.
     const attacking = (a.on && a.t >= coilTime(CL.atk[a.combo])) || TRAIL_STATES.has(st);
-    updateTrail(dt, attacking && bladeFast && P.smokeT <= 0, _a, _b, CL.color);
-  } else updateTrail(dt, false, _a, _b, CL.color);
+    updateTrail(dt, attacking && bladeFast && P.smokeT <= 0, _a, _b, slashColor());
+  } else updateTrail(dt, false, _a, _b, slashColor());
 
   if (P.clone) { cloneSm.root.position.copy(P.clone.pos); cloneMat.opacity = 0.45 + Math.sin(T * 8) * 0.2; }
   if (P.state === 'grapple') {

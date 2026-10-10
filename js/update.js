@@ -7,6 +7,7 @@ import { V3, TAU, clamp, lerp, damp, angDamp, _a, _b, _c, _d, _fx } from './util
 import { spawnArc, spawnRing, burst, spawnGhost, centerMsg } from './fx.js';
 import { T, P, CL, dlg, chal, TUNE, addT, tickCombo, resetDamage, setHitSrc } from './state.js';
 import { skillReady } from './progress.js';
+import { reach } from './styles.js';
 import { dummies, hitDummy } from './dummies.js';
 import { updateProjs } from './projectiles.js';
 import { playerMat, player, diveMark, FLIP_T, LOCKED, integrate, setState, startAttack, attackHits, attackVfx, startDash, startSlide, doRewind, groundImpact } from './player.js';
@@ -163,6 +164,7 @@ export function update(dt) {
     }
     case 'cyclone': {
       const E = CL.skills.e;    // dmg, rad and dur depend on the skill's rank
+      const eRad = E.rad * reach();
       P.vel.set(P.skDir.x * 22, 0, P.skDir.z * 22); P.grav = 0; P.spin += dt * 30;
       P.ghostT -= dt; if (P.ghostT <= 0) { P.ghostT = 0.04; spawnGhost(player, CL.color, null, 0.2); }
       P.tick -= dt;
@@ -172,7 +174,7 @@ export function update(dt) {
         for (const d of dummies) {
           if (d.dead) continue;
           const dx = d.pos.x - P.pos.x, dz = d.pos.z - P.pos.z, dy = d.pos.y - P.pos.y;
-          if (dx * dx + dz * dz < E.rad * E.rad && dy > -1.8 && dy < 2.2) hitDummy(d, E.dmg, P.skDir.x * 2.5, P.skDir.z * 2.5, d.grounded ? 0 : 4, false, 0.015);
+          if (dx * dx + dz * dz < eRad * eRad && dy > -1.8 && dy < 2.2) hitDummy(d, E.dmg, P.skDir.x * 2.5, P.skDir.z * 2.5, d.grounded ? 0 : 4, false, 0.015);
         }
       }
       if (P.st > E.dur) { setState('normal'); P.vel.set(P.skDir.x * 12, 0, P.skDir.z * 12); }

@@ -11,6 +11,7 @@ import { addRim, castShadows, makeStickman, POSE_KEYS, DUMMY_POSE, F_IDLE, F_SLA
 import { ringGeo, spawnRing, burst, spawnText, shake, addHitstop } from './fx.js';
 import { T, P, dlg, chal, TUNE, hitSrc, addHit } from './state.js';
 import { hitAllowed, onHit } from './progress.js';
+import { onStyleHit } from './styles.js';
 import { tp, hurtPlayer } from './player.js';
 import { update } from './update.js';
 
@@ -45,6 +46,8 @@ export class Dummy {
     this.sinceHit = 99; this.flash = 0; this.rage = 0; this.tx = 0; this.tz = 0; this.tvx = 0; this.tvz = 0;
     this.yaw = 0; this.dead = false; this.deadT = 0; this.spin = 0; this.grounded = true;
     this.floatT = 0; this.stunT = 0; this.pinned = false; this.engaged = false;
+    // Burning (Flame style): burnT = seconds left, burnDps = damage per second, burnTick = time to the next tick.
+    this.burnT = 0; this.burnDps = 0; this.burnTick = 0;
     if (type === 'shield') {
       const sh = new THREE.Mesh(boxGeo, lam(0x5d6b7a)); sh.scale.set(1.15, 1.5, 0.12); sh.position.set(0, 1.1, 0.45);
       sh.add(new THREE.LineSegments(edgeGeo, edgeMat)); this.sm.root.add(sh);
@@ -122,7 +125,7 @@ export class Dummy {
   respawn(poof = true) {
     this.dead = false; this.hp = this.maxHp; this.vel.set(0, 0, 0);
     if (this.type === 'flying') this.path(this.pos); else this.pos.copy(this.anchor);
-    this.sinceHit = 99; this.tx = this.tz = this.tvx = this.tvz = 0; this.spin = 0; this.floatT = 0; this.stunT = 0; this.cancelAtk();
+    this.sinceHit = 99; this.tx = this.tz = this.tvx = this.tvz = 0; this.spin = 0; this.floatT = 0; this.stunT = 0; this.burnT = 0; this.cancelAtk();
     if (poof) spawnRing(_dv.copy(this.pos).setY(this.pos.y + 0.05), 0.2, 2.2, 0.35, DTYPE[this.type].color);
   }
   // Once per frame: movement, gravity, drifting back to its spot, healing, health bar, shadow.
@@ -136,6 +139,18 @@ export class Dummy {
       if (this.deadT <= 0) this.respawn();
     } else {
       this.sinceHit += dt; this.stunT = Math.max(0, this.stunT - dt);
+      if (this.burnT > 0) {
+        // Burning: a small hit of damage twice a second. Quiet on purpose: no hitstop, shake or combo.
+        this.burnT -= dt;
+        this.burnTick -= dt;
+        if (this.burnTick <= 0) {
+          this.burnTick = 0.5;
+          const dmg = Math.round(this.burnDps * 0.5);
+          this.hp -= dmg;
+          this.chest(_dv); spawnText(_dv, dmg, 'burn'); burst(_dv, 2, 4);
+          if (this.hp <= 0) this.ko(0, 0);
+        }
+      }
       if (this.floatT > 0) {
         this.floatT -= dt; this.vel.y = damp(this.vel.y, 0, 4, dt);
         const f = Math.exp(-3 * dt); this.vel.x *= f; this.vel.z *= f;
@@ -170,7 +185,8 @@ export class Dummy {
     this.tvx += (-90 * this.tx - 9 * this.tvx) * dt; this.tx = clamp(this.tx + this.tvx * dt, -1.3, 1.3);
     this.tvz += (-90 * this.tz - 9 * this.tvz) * dt; this.tz = clamp(this.tz + this.tvz * dt, -1.3, 1.3);
     this.flash = Math.max(0, this.flash - dt * 7);
-    this.mat.emissive.setRGB(this.flash * 0.9 + this.rage * 0.9, this.flash * 0.9, this.flash * 0.9);
+    const fire = this.burnT > 0 && !this.dead ? 0.45 + Math.sin(T * 18) * 0.15 : 0;    // a burning dummy glows and flickers orange
+    this.mat.emissive.setRGB(this.flash * 0.9 + this.rage * 0.9 + fire, this.flash * 0.9 + fire * 0.3, this.flash * 0.9);
     this.sm.root.position.copy(this.pos); this.sm.root.rotation.y = this.yaw;
     if (ty === 'fighter') {
       applyPose(this.sm, this.pose);
@@ -303,7 +319,9 @@ export function hitDummy(d, dmg, kx, kz, up, heavy = false, stop = null, src = P
   dealDamage(d, dmg, heavy, stop, label);
   const interrupted = heavy && d.interrupt();
   if (d.hp <= 0) d.ko(kx, kz);
-  onHit({ d, dmg, src: hitSrc, ko: d.dead, targetAir, interrupted });    // lets a running trial count it
+  const ev = { d, dmg, src: hitSrc, ko: d.dead, targetAir, interrupted };
+  onStyleHit(ev);    // the sword style's extra effect (burning, shorter cooldowns)
+  onHit(ev);         // lets a running trial count it
   return true;
 }
 // hit everything in a circle around a point

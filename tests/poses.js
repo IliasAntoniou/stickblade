@@ -1,6 +1,7 @@
 // Pose viewer: open index.html?debug=pose:<name> to freeze the game in the middle of an action and look at it from
 // the side. For checking animation and effects without having to catch the moment by hand.
-// Names: idle, run, slash0, slash1, slash2, cyclone, slam, rising. Add &view=<angle> to turn the camera (radians).
+// Names: idle, run, slash0, slash1, slash2, cyclone, slam, rising, master, pool, brazier.
+// Add &view=<angle> to turn the camera (radians) and &style=water or &style=flame to see a sword style.
 const SB = window.SB;
 const { P, pressed, keys } = SB;
 const params = new URLSearchParams(location.search);
@@ -16,6 +17,10 @@ function swing(frames) {
 }
 
 run(20);    // settle into the idle stance first
+if (params.get('style')) SB.forceStyle(params.get('style'));
+// stand next to something to look at it
+const beside = { master: SB.master.pos, pool: SB.sources[0].pos, brazier: SB.sources[1].pos }[name];
+if (beside) { P.pos.set(beside.x + 1.2, beside.y, beside.z - 4.2); run(30); }
 const skills = SB.CL.skills;
 if (name === 'run') { keys.add('KeyW'); run(45); }
 if (name === 'slash0') swing(7);

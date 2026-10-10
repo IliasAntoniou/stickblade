@@ -14,11 +14,12 @@ import { P, SPAWN } from './state.js';
 import { spawnDummy, removeDummy } from './dummies.js';
 import { respawnPlayer } from './player.js';
 import { master, moveMaster } from './master.js';
+import { addSource, removeSource, clearStyle } from './styles.js';
 
 // Centre of the hall and half its width.
 export const DOJO = { cx: 300, cz: 0, half: 24 };
 // inside = the player is in the hall. props and spawned = what the running trial added, so it can be removed.
-export const dojo = { inside: false, props: [], spawned: [] };
+export const dojo = { inside: false, props: [], spawned: [], sources: [] };
 
 const HUB = new V3(DOJO.cx, 0, DOJO.cz + 18);                 // where the player arrives
 const MASTER_SPOT = new V3(DOJO.cx - 3, 0, DOJO.cz + 20);     // where Master Sen waits: within talking distance of the arrival point
@@ -69,7 +70,8 @@ export function leaveDojo() {
   teleportTo(ARENA_SPAWN);
 }
 
-// Dress the hall for a trial. t.arena = { props: [[x, y, z, w, h, d, colour name]], spawn: [[type, x, y, z, options]], start: [x, y, z] }.
+// Dress the hall for a trial. t.arena = { props: [[x, y, z, w, h, d, colour name]], spawn: [[type, x, y, z, options]],
+// sources: [[style id, x, z]] (pools and braziers, see styles.js), start: [x, y, z] }.
 // All coordinates are relative to the centre of the hall. y is the bottom of a box, as in addBox.
 export function setupTrial(t) {
   clearTrial();
@@ -82,6 +84,7 @@ export function setupTrial(t) {
     dojo.spawned.push(d);
     spawnRing(_fx.copy(d.pos).setY(d.pos.y + 0.05), 0.2, 2.2, 0.4, 0xffd23f);
   }
+  for (const [id, x, z] of a.sources || []) dojo.sources.push(addSource(id, DOJO.cx + x, 0, DOJO.cz + z));
   // The player starts the trial (and comes back after a defeat) here.
   if (a.start) SPAWN.set(DOJO.cx + a.start[0], a.start[1], DOJO.cz + a.start[2]);
   else SPAWN.copy(HUB);
@@ -90,7 +93,10 @@ export function setupTrial(t) {
 export function clearTrial() {
   for (const m of dojo.props) removeBox(m);
   for (const d of dojo.spawned) removeDummy(d);
+  for (const s of dojo.sources) removeSource(s);
+  clearStyle();    // whatever sword style the trial gave ends with it
   dojo.props.length = 0;
   dojo.spawned.length = 0;
+  dojo.sources.length = 0;
   if (dojo.inside) SPAWN.copy(HUB);
 }
