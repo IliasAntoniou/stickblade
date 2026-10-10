@@ -15,7 +15,7 @@ import { camPitch, camFwdH, camRight, facing, camFacingYaw } from './camera.js';
 import { removeClone, throwKunai } from './classes/ninja.js';
 import { mkPalmRelease } from './classes/monk.js';
 import { diveTarget } from './classes/lancer.js';
-import { master, openDlg, closeDlg, updateMaster, strikeMaster } from './master.js';
+import { master, openDlg, closeDlg, updateMaster, updateGrab, strikeMaster } from './master.js';
 import { endChallenge, updateChallenge } from './challenges.js';
 import { keys, pressed, mouseL, mouseR } from './input.js';
 
@@ -128,6 +128,11 @@ export function update(dt) {
     case 'submerge':
     case 'ignite': {
       updateTake();
+      break;
+    }
+    // held up by the neck by Master Sen, then slammed (master.js)
+    case 'grabbed': {
+      updateGrab();
       break;
     }
     case 'dash': {

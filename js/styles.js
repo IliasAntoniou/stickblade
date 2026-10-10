@@ -1,9 +1,9 @@
 // styles.js: sword styles. A style is a temporary change to the character: a new colour and painted look for the
-// slashes, an outfit, and one extra effect on top of the normal moves. It lasts STYLE_TIME seconds.
+// slashes, a suit of armour, and one extra effect on top of the normal moves. It lasts STYLE_TIME seconds.
 // Styles are taken from places in the world ("sources"): Meteor Slam into a pool for Water, Blink Strike into a
 // fire for Flame. Taking one plays a short scene: the character goes under the water or stands burning in the
 // fire, a close-up of his eyes blazing in the style's colour cuts across the screen (cutin.js), and he comes out
-// dressed for it: Water Tribe blue with wave patterns, or Fire Nation red with flame patterns.
+// in a suit of dark armour that glows with the style's colour.
 // A source does nothing until its style has been unlocked by passing its trial (progress.js); until then the pool
 // is still and grey and the fire is out.
 // Dying, teleporting, changing class and starting a trial all end the current style, so trials start plain.
@@ -12,7 +12,6 @@ import * as THREE from 'three';
 import { V3, clamp, easeOut, _fx } from './util.js';
 import { scene } from './core.js';
 import { glowTex, spawnRing, spawnSwirl, burst, toast, setTrailPaint } from './fx.js';
-import { addRim } from './stickman.js';
 import { P, CL } from './state.js';
 import { player, playerMat, bladeMat, bladeGlow, setState } from './player.js';
 import { styleUnlocked } from './progress.js';
@@ -22,20 +21,23 @@ export const STYLE_TIME = 20;    // seconds a style lasts once taken
 const PLAIN_SKIN = 0xeef1f8;     // the player's normal body colour (matches playerMat in player.js)
 
 // The styles. color = slash and blade colour. paint = which painted look the slash uses (see setTrailPaint in fx.js).
-// cloth = colour of the arms, legs and body while the style lasts (the head stays skin). trim = colour of the
-// headband and bracers. The patterned parts of the outfit are drawn further down (clothTex).
+// The suit worn under a style is the same dark armour for all of them; these colour what glows on it:
+//   glow, core = the cracks in the armour and coat (a wide soft line and its bright centre), as CSS colours.
+//   glowHex = the same glow as a number, for the halo round the eyes and the haze round the body.
+//   eyes = the two points of light under the hood.   fire = tint of the flames on the sword (white = natural fire).
+//   spark = which kind of spark drifts off the body (see burst() in fx.js).
 // reach = multiplies how far sword attacks, Cyclone and Meteor Slam reach.
 // how = how to take it, perk = what it does (both shown to the player).
 export const STYLES = {
   water: {
     id: 'water', name: 'Water', color: 0x2f8fff, paint: 'water', reach: 1.2,
-    cloth: 0x2a5cb8, trim: 0xeaf4ff,
+    glow: '#2f8fff', core: '#dff3ff', glowHex: 0x2f8fff, eyes: 0xbfe6ff, fire: 0x4aa8ff, spark: 2,
     flow: 0.12,        // seconds taken off every cooldown each time a hit lands
     how: 'Meteor Slam into a pool', perk: 'Slashes reach further, and every hit shortens your cooldowns',
   },
   flame: {
     id: 'flame', name: 'Flame', color: 0xff5a1a, paint: 'flame', reach: 1,
-    cloth: 0x7c1616, trim: 0xf2b632,
+    glow: '#ff5a1a', core: '#ffe6a0', glowHex: 0xff5a1a, eyes: 0xffc24a, fire: 0xffffff, spark: 0,
     burnTime: 4,       // seconds a target keeps burning after the last hit
     burnDps: 14,       // burn damage per second
     how: 'Lock on to a fire and Blink Strike into it', perk: 'Every hit sets the target burning',
@@ -50,101 +52,173 @@ export function slashColor() { return style.cur ? style.cur.color : CL.color; }
 // Multiplier for how far sword attacks reach.
 export function reach() { return style.cur ? style.cur.reach : 1; }
 
-// ---------- the outfit ----------
-// The cloth patterns, each drawn once. They wrap around the tunic and the robe.
-// Water: rows of overlapping wave arcs (the traditional Japanese wave pattern), white on blue, with a white hem.
-// Flame: tongues of fire rising from a gold hem, gold and orange on dark red.
-function clothTex(kind) {
-  const c = document.createElement('canvas');
-  c.width = 256; c.height = 128;
-  const x = c.getContext('2d');
-  if (kind === 'water') {
-    const g = x.createLinearGradient(0, 0, 0, 128);
-    g.addColorStop(0, '#1c489c');
-    g.addColorStop(1, '#2d74d8');
-    x.fillStyle = g;
-    x.fillRect(0, 0, 256, 128);
-    x.lineWidth = 2;
-    for (let row = 0; row < 6; row++) {
-      for (let col = -1; col < 9; col++) {
-        const cx = col * 32 + (row % 2 ? 16 : 0), cy = 22 + row * 16;
-        for (const [r, color] of [[15, '#eaf4ff'], [10, '#9cc9ff'], [5, '#eaf4ff']]) {
-          x.strokeStyle = color;
-          x.beginPath();
-          x.arc(cx, cy, r, Math.PI, 0);
-          x.stroke();
-        }
-      }
+// ---------- the suit ----------
+// Taking a style puts the character in a suit of dark armour that glows with the style's colour: a hood with the
+// face in shadow and two burning eyes, a chest plate, spiked shoulder guards, gauntlets and greaves split by
+// glowing cracks, a long ragged coat open at the front, and a torn cape. The sword carries flames of the same colour.
+// Everything here is built once, attached to the player's body the first time a style is worn, and hidden otherwise.
+const ARMOUR = 0x17151c;    // the dark colour of the suit, and of the limbs under it
+
+// Jagged lines climbing a picture, like cracks with light behind them: a wide soft line in the style's colour
+// with a thin bright core. Used for the armour and the coat. fromY, toY = where they start and how high they reach.
+function drawCracks(x, w, color, core, count, fromY, toY) {
+  const paths = [];
+  for (let i = 0; i < count; i++) {
+    let px = Math.random() * w, py = fromY;
+    const path = [[px, py]];
+    while (py > toY) {
+      px += (Math.random() - 0.5) * 34;
+      py -= 8 + Math.random() * 20;
+      path.push([px, py]);
+      // now and then a short branch splits off sideways
+      if (Math.random() < 0.3) paths.push([[px, py], [px + (Math.random() - 0.5) * 50, py - 10 - Math.random() * 22]]);
     }
-    x.fillStyle = '#eaf4ff';
-    x.fillRect(0, 116, 256, 12);
-  } else {
-    const g = x.createLinearGradient(0, 0, 0, 128);
-    g.addColorStop(0, '#5a0d0d');
-    g.addColorStop(1, '#a01c16');
-    x.fillStyle = g;
-    x.fillRect(0, 0, 256, 128);
-    x.lineWidth = 2;
-    x.strokeStyle = '#1a0606';
-    for (let i = 0; i < 8; i++) {
-      // one tongue of fire, with a smaller brighter one inside it
-      const bx = i * 32 + 16, top = 34 + (i % 3) * 14;
-      for (const [w, h, color] of [[13, 118 - top, '#f2a21e'], [7, (118 - top) * 0.62, '#ffe27a']]) {
-        x.fillStyle = color;
-        x.beginPath();
-        x.moveTo(bx - w, 118);
-        x.bezierCurveTo(bx - w * 1.5, 118 - h * 0.5, bx - w * 0.2, 118 - h * 0.6, bx + w * 0.5, 118 - h);
-        x.bezierCurveTo(bx + w * 0.1, 118 - h * 0.55, bx + w * 1.5, 118 - h * 0.45, bx + w, 118);
-        x.closePath();
-        x.fill();
-        x.stroke();
-      }
-    }
-    x.fillStyle = '#f2b632';
-    x.fillRect(0, 116, 256, 12);
-    x.fillStyle = '#1a0606';
-    x.fillRect(0, 113, 256, 3);
+    paths.push(path);
   }
+  x.lineJoin = 'bevel';
+  for (const [stroke, width, blur] of [[color, 7, 12], [core, 2.2, 0]]) {
+    x.strokeStyle = stroke; x.lineWidth = width; x.shadowColor = color; x.shadowBlur = blur;
+    for (const path of paths) {
+      x.beginPath();
+      for (const [qx, qy] of path) x.lineTo(qx, qy);
+      x.stroke();
+    }
+  }
+  x.shadowBlur = 0;
+}
+function canvasTex(w, h, draw) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  draw(c.getContext('2d'));
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = THREE.RepeatWrapping;
   return tex;
 }
-const clothMats = {
-  water: new THREE.MeshLambertMaterial({ map: clothTex('water'), side: THREE.DoubleSide }),
-  flame: new THREE.MeshLambertMaterial({ map: clothTex('flame'), side: THREE.DoubleSide }),
-};
-const trimMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-// The head keeps a skin colour of its own while the rest of the body takes the cloth colour.
-const skinMat = addRim(new THREE.MeshLambertMaterial({ color: PLAIN_SKIN, transparent: true }));
+// The dull surface of the armour: dark plates with seams and rivets. The same for every style.
+const plateTex = canvasTex(128, 128, x => {
+  x.fillStyle = '#211e27'; x.fillRect(0, 0, 128, 128);
+  x.strokeStyle = '#0c0b10'; x.lineWidth = 3;
+  for (const y of [42, 86]) { x.beginPath(); x.moveTo(0, y); x.lineTo(128, y); x.stroke(); }
+  for (const px of [32, 96]) { x.beginPath(); x.moveTo(px, 0); x.lineTo(px, 128); x.stroke(); }
+  x.fillStyle = '#3a3644';
+  for (let i = 0; i < 12; i++) x.fillRect(8 + (i % 4) * 32, 8 + Math.floor(i / 4) * 44, 4, 4);
+});
+// What glows on the armour: cracks from top to bottom. Black everywhere else, so only the cracks give light.
+const armourGlow = s => canvasTex(256, 256, x => {
+  x.fillStyle = '#000'; x.fillRect(0, 0, 256, 256);
+  drawCracks(x, 256, s.glow, s.core, 7, 256, 0);
+});
+// The coat and cape. Two pictures: the cloth itself, with a ragged hem cut out of the bottom edge, and what glows
+// on it: veins climbing from the hem, most of the way up.
+const coatCloth = () => canvasTex(256, 256, x => {
+  x.fillStyle = '#16141b'; x.fillRect(0, 0, 256, 256);
+  x.strokeStyle = 'rgba(0,0,0,0.5)'; x.lineWidth = 3;
+  for (let px = 10; px < 256; px += 22) { x.beginPath(); x.moveTo(px, 0); x.lineTo(px + 6, 256); x.stroke(); }    // folds
+  x.globalCompositeOperation = 'destination-out';    // from here on, drawing cuts holes
+  for (let px = 0; px < 256;) {
+    const w = 10 + Math.random() * 20, h = 18 + Math.random() * 58;
+    x.beginPath(); x.moveTo(px, 256); x.lineTo(px + w * 0.5, 256 - h); x.lineTo(px + w, 256); x.closePath(); x.fill();
+    px += w * 0.8;
+  }
+});
+const coatGlow = s => canvasTex(256, 256, x => {
+  x.fillStyle = '#000'; x.fillRect(0, 0, 256, 256);
+  drawCracks(x, 256, s.glow, s.core, 9, 250, 70);
+});
 
-// The pieces of the outfit, each a simple open tube. They are attached to the player's body the first time a
-// style is worn (attachOutfit) and simply hidden the rest of the time.
-//   tunic: around the chest.   robe: flares out from the waist over the legs.   mantle: a short collar over the shoulders.
-//   band: around the forehead.   bracers: on both forearms.
-const tube = (top, bottom, height, mat) => new THREE.Mesh(new THREE.CylinderGeometry(top, bottom, height, 16, 1, true), mat);
-export const outfit = {
-  tunic: tube(0.15, 0.19, 0.56, clothMats.water),
-  robe: tube(0.2, 0.36, 0.46, clothMats.water),
-  mantle: tube(0.11, 0.24, 0.13, trimMat),
-  band: tube(0.176, 0.176, 0.055, trimMat),
-  bracerL: tube(0.078, 0.066, 0.17, trimMat),
-  bracerR: tube(0.078, 0.066, 0.17, trimMat),
-  attached: false,
-};
-const OUTFIT_PARTS = ['tunic', 'robe', 'mantle', 'band', 'bracerL', 'bracerR'];
+// One set of materials per style. Lambert materials can carry a second picture that gives off light of its own
+// (emissiveMap), which is how the cracks glow while the plates around them stay dark.
+function suitMats(s) {
+  return {
+    armour: new THREE.MeshLambertMaterial({ map: plateTex, emissive: 0xffffff, emissiveMap: armourGlow(s) }),
+    // alphaTest makes the cut-out hem really see-through; DoubleSide because the coat is seen from inside too
+    coat: new THREE.MeshLambertMaterial({ map: coatCloth(), emissive: 0xffffff, emissiveMap: coatGlow(s), alphaTest: 0.5, side: THREE.DoubleSide }),
+  };
+}
+let mats = null;    // { water: {armour, coat}, flame: {...} }, made the first time a style is worn
+const hoodMat = new THREE.MeshLambertMaterial({ color: 0x100e15, side: THREE.DoubleSide });
+const metalMat = new THREE.MeshLambertMaterial({ color: 0x2a2732 });
+// Under the hood the face is in shadow. It has its own material so that it stays dark and still fades with the body.
+const faceMat = new THREE.MeshLambertMaterial({ color: 0x07070a, transparent: true });
+const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+const haloMat = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.9, toneMapped: false });
+const auraMat = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.2, toneMapped: false });
+
+// The pieces. suit.parts is all of them (to show and hide together); the named ones are swapped between styles.
+export const outfit = { parts: [], armoured: [], coats: [], swordFire: [], hood: null, coat: null, chest: null, attached: false };
 function attachOutfit() {
-  outfit.tunic.position.y = 0.3;      player.spine.add(outfit.tunic);
-  outfit.robe.position.y = -0.2;      player.body.add(outfit.robe);
-  outfit.mantle.position.y = -0.02;   player.chest.add(outfit.mantle);
-  outfit.band.position.y = 0.06;      player.head.add(outfit.band);
-  outfit.bracerL.position.y = -0.2;   player.elL.add(outfit.bracerL);
-  outfit.bracerR.position.y = -0.2;   player.elR.add(outfit.bracerR);
-  for (const k of OUTFIT_PARTS) outfit[k].castShadow = true;
+  mats = { water: suitMats(STYLES.water), flame: suitMats(STYLES.flame) };
+  // put a piece on a part of the body and remember it. kind says which material set it follows.
+  const add = (mesh, parent, x, y, z, kind) => {
+    mesh.position.set(x, y, z);
+    mesh.castShadow = true;
+    parent.add(mesh);
+    outfit.parts.push(mesh);
+    if (kind === 'armour') outfit.armoured.push(mesh);
+    if (kind === 'coat') outfit.coats.push(mesh);
+    return mesh;
+  };
+  const armour = mats.water.armour, coat = mats.water.coat;
+  const tube = (top, bottom, height, mat, open = true) => new THREE.Mesh(new THREE.CylinderGeometry(top, bottom, height, 14, 1, open), mat);
+
+  // chest plate: broad at the shoulders, narrow at the waist
+  outfit.chest = add(tube(0.21, 0.15, 0.52, armour, false), player.spine, 0, 0.33, 0, 'armour');
+  // shoulder guards with a spike each. A stick figure's arms start at its centre line; these give it shoulders.
+  for (const side of [1, -1]) {
+    const guard = new THREE.Mesh(new THREE.SphereGeometry(0.135, 10, 8), armour);
+    guard.scale.set(1.3, 0.85, 1.15);
+    add(guard, player.chest, 0.22 * side, 0.0, 0, 'armour');
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.24, 6), metalMat);
+    spike.rotation.z = -0.75 * side;
+    add(spike, player.chest, 0.31 * side, 0.12, 0);
+  }
+  // gauntlets and greaves
+  add(tube(0.088, 0.07, 0.22, armour), player.elL, 0, -0.2, 0, 'armour');
+  add(tube(0.088, 0.07, 0.22, armour), player.elR, 0, -0.2, 0, 'armour');
+  add(tube(0.085, 0.066, 0.32, armour), player.kneeL, 0, -0.24, 0, 'armour');
+  add(tube(0.085, 0.066, 0.32, armour), player.kneeR, 0, -0.24, 0, 'armour');
+  // belt, with a buckle that glows
+  add(tube(0.2, 0.2, 0.075, metalMat), player.body, 0, 0.03, 0);
+  const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.07, 0.03), eyeMat);
+  add(buckle, player.body, 0, 0.03, 0.2);
+  // the coat: a long flared tube from the waist almost to the ground, with a gap left open down the front so the
+  // legs show. The last two numbers are where around the body the cloth starts and how far round it goes.
+  const GAP = 0.6;    // half the width of the opening, in radians
+  outfit.coat = add(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.46, 0.98, 20, 1, true, GAP, Math.PI * 2 - GAP * 2), coat), player.body, 0, -0.44, 0, 'coat');
+  // the cape: a torn sheet hanging from the shoulders down the back, leaning away from the body
+  const cape = new THREE.Mesh(new THREE.PlaneGeometry(0.66, 1.25), coat);
+  cape.rotation.x = 0.2;
+  add(cape, player.chest, 0, -0.62, -0.2, 'coat');
+  // the hood: most of a ball around the head, left open at the face, with a point trailing at the back
+  const OPEN = 0.8;
+  outfit.hood = add(new THREE.Mesh(new THREE.SphereGeometry(0.222, 16, 10, Math.PI / 2 + OPEN, Math.PI * 2 - OPEN * 2, 0, Math.PI * 0.74), hoodMat), player.head, 0, 0.01, -0.012);
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.26, 8), hoodMat);
+  tip.rotation.x = -1.9;
+  add(tip, player.head, 0, 0.1, -0.2);
+  // the eyes: two points of light in the dark of the hood, each with a halo
+  for (const side of [1, -1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), eyeMat);
+    add(eye, player.head, 0.062 * side, 0.02, 0.158);
+    const halo = new THREE.Sprite(haloMat);
+    halo.scale.setScalar(0.17);
+    add(halo, player.head, 0.062 * side, 0.02, 0.19);
+  }
+  // a faint glow hanging around the whole body
+  const aura = new THREE.Sprite(auraMat);
+  aura.scale.set(2.6, 3.4, 1);
+  add(aura, player.root, 0, 1.0, 0);
+  // fire along the sword (it burns in the style's colour)
+  for (const [z, size] of [[0.35, 0.5], [0.65, 0.62], [0.95, 0.5]]) {
+    const f = flameSprite(size);
+    add(f, player.wrist, 0, 0, z);
+    outfit.swordFire.push(f);
+  }
+  for (const m of outfit.parts) { if (m.isSprite) m.castShadow = false; }
   outfit.attached = true;
 }
 
-// Make the character look like the current style (or plain again): blade, slash, cloth colour and outfit.
+// Make the character look like the current style (or plain again): blade, slash, and the suit.
 function applyLook() {
   if (!CL) return;
   if (!outfit.attached) attachOutfit();
@@ -152,12 +226,16 @@ function applyLook() {
   bladeMat.color.setHex(slashColor());
   bladeGlow.material.color.setHex(slashColor());
   setTrailPaint(s ? s.paint : 'plain');
-  playerMat.color.setHex(s ? s.cloth : PLAIN_SKIN);
-  player.head.material = s ? skinMat : playerMat;
-  for (const k of OUTFIT_PARTS) outfit[k].visible = !!s;
+  playerMat.color.setHex(s ? ARMOUR : PLAIN_SKIN);
+  player.head.material = s ? faceMat : playerMat;
+  for (const m of outfit.parts) m.visible = !!s;
   if (s) {
-    outfit.tunic.material = outfit.robe.material = clothMats[s.id];
-    trimMat.color.setHex(s.trim);
+    for (const m of outfit.armoured) m.material = mats[s.id].armour;
+    for (const m of outfit.coats) m.material = mats[s.id].coat;
+    eyeMat.color.setHex(s.eyes);
+    haloMat.color.setHex(s.glowHex);
+    auraMat.color.setHex(s.glowHex);
+    for (const f of outfit.swordFire) f.material.color.setHex(s.fire);
   }
 }
 // Take a style. Returns false if it has not been unlocked. Taking it again refills the time.
@@ -282,6 +360,7 @@ const rimGeo = (radius, thick) => new THREE.TorusGeometry(radius, thick, 5, 14).
 const poolRimGeo = rimGeo(POOL_RADIUS + 0.12, 0.26), fireRimGeo = rimGeo(FIRE_RADIUS, 0.24);
 const stoneMat = new THREE.MeshLambertMaterial({ color: 0x8a8496 });
 export const sources = [];
+let sparkT = 0;    // seconds until the next spark drifts off a player wearing a style
 
 // Put a source in the world. id = the style it gives ('water' makes a pool, 'flame' a fire pit). Returns the source.
 export function addSource(id, x, y, z) {
@@ -442,8 +521,20 @@ export function updateStyles(dt) {
       f.scale.set(f.userData.size * 0.55 / flick, f.userData.size * flick, 1);
     }
   }
-  // the head's own material fades in and out with the rest of the body (dodging, being hit)
-  skinMat.opacity = playerMat.opacity;
+  // the face's own material fades in and out with the rest of the body (dodging, being hit)
+  faceMat.opacity = playerMat.opacity;
+  if (style.cur) {
+    // the fire on the sword flickers, and now and then a spark drifts off the body
+    for (const f of outfit.swordFire) {
+      const flick = 1 + Math.sin(t * (13 + f.position.z * 9)) * 0.22;
+      f.scale.set(f.userData.size * 0.55 / flick, f.userData.size * flick, 1);
+    }
+    sparkT -= dt;
+    if (sparkT <= 0) {
+      sparkT = 0.09 + Math.random() * 0.12;
+      burst(_fx.set(P.pos.x + (Math.random() - 0.5) * 0.7, P.pos.y + 0.3 + Math.random() * 1.4, P.pos.z + (Math.random() - 0.5) * 0.7), 1, 2.2, style.cur.spark);
+    }
+  }
 }
 
 // The sources in the main arena. (Trials add their own to the training hall through dojo.js.)

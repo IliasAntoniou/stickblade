@@ -359,11 +359,11 @@ export function spawnRing(pos, s0, s1, dur, color = 0xffffff) {
   r.m.position.copy(pos); r.life = r.max = dur; r.s0 = s0; r.s1 = s1; r.m.material.color.setHex(color); r.m.visible = true;
 }
 export const partGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
-export const partMats = [new THREE.MeshBasicMaterial({ color: 0xffc23d, toneMapped: false }), new THREE.MeshBasicMaterial({ color: 0xaab2c4 })];
+export const partMats = [new THREE.MeshBasicMaterial({ color: 0xffc23d, toneMapped: false }), new THREE.MeshBasicMaterial({ color: 0xaab2c4 }), new THREE.MeshBasicMaterial({ color: 0x8fd0ff, toneMapped: false })];
 export const parts = [];
 for (let i = 0; i < 110; i++) { const m = new THREE.Mesh(partGeo, partMats[0]); m.visible = false; scene.add(m); parts.push({ m, v: new V3(), life: 0 }); }
 export let partIdx = 0;
-// n small cubes flying out from pos. mat 0 = orange sparks, 1 = grey dust.
+// n small cubes flying out from pos. mat 0 = orange sparks, 1 = grey dust, 2 = pale blue sparks.
 export function burst(pos, n, speed = 8, mat = 0) {
   for (let i = 0; i < n; i++) {
     const p = parts[partIdx = (partIdx + 1) % parts.length];

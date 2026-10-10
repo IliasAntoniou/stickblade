@@ -8,11 +8,11 @@ import { V3, pick, $, save, damp, clamp, angDiff, angDamp, DEBUG, _fx } from './
 import { scene, renderer } from './core.js';
 import { boxGeo, lam, makeShadow, placeShadow } from './world.js';
 import { SG, makeStickman, BASE, POSE_KEYS, applyPose, addRim, castShadows } from './stickman.js';
-import { ringGeo, glowTex, centerMsg, shake, spawnRing, burst, flashHurt, addHitstop } from './fx.js';
+import { ringGeo, glowTex, centerMsg, shake, spawnRing, burst, spawnText, flashHurt, addHitstop } from './fx.js';
 import { T, P, CL, dlg, chal, CLASSES } from './state.js';
-import { LOCKED, setState, respawnPlayer } from './player.js';
+import { LOCKED, setState } from './player.js';
 import { CLASS_ORDER, setClass } from './classes/index.js';
-import { CH, startChallenge, endChallenge } from './challenges.js';
+import { CH, startChallenge } from './challenges.js';
 import { trainingList, styleList, startTrial, ROMAN } from './progress.js';
 import { isTuned, resetTuning } from './tuning.js';
 import { dojo, enterDojo, leaveDojo } from './dojo.js';
@@ -20,11 +20,14 @@ import { dojo, enterDojo, leaveDojo } from './dojo.js';
 // ================= the figure =================
 // His poses. Each lists only the joints that differ from the standing pose.
 //   IDLE: arms folded across the chest, feet planted wide, leaning slightly over whoever he is talking to.
-//   WARN: one arm thrust out, pointing at the player.   KILL: both fists driven downwards.
+//   WARN: one arm thrust out, pointing at the player.
+//   GRAB: right arm up and forward, holding the player off the ground by the neck.
+//   SLAM: bent over with that arm driven down into the ground.
 const POSE_IDLE = { ...BASE, bodyY: 0.93, spineX: 0.12, shLX: -0.85, shLZ: -0.55, elL: -1.85, shRX: -0.7, shRZ: 0.55, elR: -1.95,
   hipLZ: 0.24, hipRZ: -0.24, hipLX: 0, hipRX: 0, kneeL: 0.05, kneeR: 0.05 };
 const POSE_WARN = { ...POSE_IDLE, spineX: 0.2, spineY: -0.35, shRX: -1.55, shRZ: 0.05, elR: -0.05, shLX: 0.25, shLZ: 0.5, elL: -1.2 };
-const POSE_KILL = { ...POSE_IDLE, spineX: 0.55, bodyY: 0.8, shRX: -0.9, shRZ: 0.2, elR: -0.3, shLX: -0.9, shLZ: -0.2, elL: -0.3, kneeL: 0.6, kneeR: 0.6, hipLX: -0.4, hipRX: -0.4 };
+const POSE_GRAB = { ...POSE_IDLE, spineX: -0.08, spineY: 0.2, shRX: -2.3, shRZ: 0.3, elR: -0.1, shLX: 0.2, shLZ: 0.45, elL: -0.9 };
+const POSE_SLAM = { ...POSE_IDLE, spineX: 0.85, bodyY: 0.74, shRX: -0.75, shRZ: 0.25, elR: -0.05, shLX: 0.5, shLZ: 0.6, elL: -0.6, kneeL: 0.8, kneeR: 0.8, hipLX: -0.6, hipRX: -0.6 };
 const SEN_HEIGHT = 1.45;    // how many times the size of the player he is
 
 export const master = (() => {
@@ -105,7 +108,9 @@ export const master = (() => {
   // warnT = seconds left of the warning (hit him again before it runs out and he kills you). hitCd stops one swing counting twice.
   // headYaw, headPitch = where his head is turned, on top of where his body faces.
   return { sm, mark, eyes, pad: mat2, shadow: sh, pos: new V3(-5, 0, 18), home: new V3(-5, 0, 18), yaw: 0, near: false,
-    pose: { ...POSE_IDLE }, poseTo: POSE_IDLE, poseT: 0, warnT: 0, hitCd: 0, headYaw: 0, headPitch: 0 };
+    pose: { ...POSE_IDLE }, poseTo: POSE_IDLE, poseT: 0, warnT: 0, hitCd: 0, headYaw: 0, headPitch: 0,
+    // the grab: where the player was caught, where they are slammed from and to, and whether the slam has begun
+    grabFrom: new V3(), slamFrom: new V3(), slamTo: new V3(), slamming: false };
 })();
 
 // Move Master Sen, his gold ring and his shadow to another spot (the training hall and back).
@@ -126,7 +131,7 @@ export function updateMaster(dt) {
   master.hitCd = Math.max(0, master.hitCd - dt);
   master.warnT = Math.max(0, master.warnT - dt);
   master.poseT -= dt;
-  if (master.poseT <= 0) master.poseTo = POSE_IDLE;
+  if (master.poseT <= 0 && P.state !== 'grabbed') master.poseTo = POSE_IDLE;
   for (const k of POSE_KEYS) master.pose[k] = damp(master.pose[k], master.poseTo[k], 12, dt);
   applyPose(master.sm, master.pose);
   master.sm.body.position.y += Math.sin(T * 2) * 0.012;    // slow breathing
@@ -146,16 +151,16 @@ export function updateMaster(dt) {
 }
 
 // ---------- hitting him ----------
-const WARNING_TIME = 10;    // seconds the warning lasts. A second hit inside it is the last thing you do
+const WARNING_TIME = 10;    // seconds the warning lasts. A second hit inside it gets you grabbed
 // Called by anything that hits an area (sword swings, slams, spins): did it reach Master Sen?
 // cx, cz = centre of the hit, cy = its height, rad = its radius.
 export function strikeMaster(cx, cy, cz, rad) {
-  if (master.hitCd > 0 || dlg.open) return;
+  if (master.hitCd > 0 || dlg.open || P.state === 'grabbed') return;
   if (Math.hypot(master.pos.x - cx, master.pos.z - cz) > rad + 0.75 || Math.abs(cy - master.pos.y) > 3.2) return;
   master.hitCd = 0.6;
   _fx.set(master.pos.x, master.pos.y + 2, master.pos.z);
   burst(_fx, 10, 7);
-  if (master.warnT > 0) killPlayer(); else warnPlayer();
+  if (master.warnT > 0) grabPlayer(); else warnPlayer();
 }
 // First hit: he points at the player, says his piece, and throws them back.
 function warnPlayer() {
@@ -167,20 +172,74 @@ function warnPlayer() {
   if (!LOCKED.has(P.state)) setState('normal');
   spawnRing(_fx.set(master.pos.x, master.pos.y + 0.1, master.pos.z), 0.5, 5, 0.4, 0xff2a1a);
   shake(0.55);
-  centerMsg(`"Touch me again and you die."<small>Master Sen · ${WARNING_TIME} seconds</small>`, 2.6);
+  centerMsg(`"Touch me again and I break you."<small>Master Sen · ${WARNING_TIME} seconds</small>`, 2.6);
 }
-// Second hit inside the warning: he kills the player outright, and they are back at the start at once.
-function killPlayer() {
+// Second hit inside the warning: he catches the player by the neck, holds them off the ground, and slams them
+// down in front of him. It costs most of their health but never the last of it.
+const GRAB_PULL = 0.18;     // seconds to haul the player into his hand
+const GRAB_HOLD = 0.95;     // seconds in, when the hold ends and the slam begins
+const GRAB_SLAM = 1.1;      // seconds in, when the player hits the ground
+const SLAM_DAMAGE = 0.6;    // share of the player's full health the slam takes
+const NECK_HEIGHT = 1.5;    // how far above the player's feet their neck is
+const _hold = new V3();
+function grabPlayer() {
   master.warnT = 0;
-  master.poseTo = POSE_KILL; master.poseT = 1.2;
-  _fx.copy(P.pos).setY(P.pos.y + 0.1);
-  spawnRing(_fx, 0.4, 7, 0.5, 0xff2a1a);
-  spawnRing(_fx, 0.2, 3.5, 0.35, 0xffffff);
-  burst(_fx.setY(P.pos.y + 1), 34, 14);
-  shake(1.3); addHitstop(0.12); flashHurt();
-  centerMsg('MASTER SEN ENDS YOU<small>You were warned</small>', 2.4);
-  if (chal.cur) endChallenge();
-  respawnPlayer();
+  master.slamming = false;
+  master.poseTo = POSE_GRAB;
+  master.grabFrom.copy(P.pos);
+  // he turns on the player at once, not at his usual unhurried pace
+  master.yaw = Math.atan2(P.pos.x - master.pos.x, P.pos.z - master.pos.z);
+  master.sm.root.rotation.y = master.yaw;
+  P.atk.on = false;
+  P.vel.set(0, 0, 0);
+  setState('grabbed');
+  shake(0.45);
+  centerMsg('"I warned you."<small>Master Sen</small>', 1.5);
+}
+// Runs every frame of the player's 'grabbed' state (from the state switch in update.js).
+export function updateGrab() {
+  const t = P.st;
+  P.vel.set(0, 0, 0);
+  P.grav = 0;
+  P.yaw = P.yawT = Math.atan2(master.pos.x - P.pos.x, master.pos.z - P.pos.z);    // face him
+  // Where the player belongs while held: hanging from his raised hand by the neck.
+  master.sm.handR.getWorldPosition(_hold);
+  _hold.y -= NECK_HEIGHT;
+  if (t < GRAB_PULL) {
+    P.pos.lerpVectors(master.grabFrom, _hold, t / GRAB_PULL);
+  } else if (t < GRAB_HOLD) {
+    P.pos.copy(_hold);
+    P.pos.x += Math.sin(T * 38) * 0.012;    // struggling
+  } else if (t < GRAB_SLAM) {
+    if (!master.slamming) {
+      master.slamming = true;
+      master.poseTo = POSE_SLAM;
+      master.slamFrom.copy(P.pos);
+      // the ground a little in front of him
+      master.slamTo.set(master.pos.x + Math.sin(master.yaw) * 2, master.pos.y, master.pos.z + Math.cos(master.yaw) * 2);
+    }
+    const k = (t - GRAB_HOLD) / (GRAB_SLAM - GRAB_HOLD);
+    P.pos.lerpVectors(master.slamFrom, master.slamTo, k * k);    // slow at first, then driven down
+  } else {
+    // impact
+    P.pos.copy(master.slamTo);
+    const dmg = Math.min(P.hp - 1, Math.round(P.maxHp * SLAM_DAMAGE));    // never the last point of health
+    P.hp -= dmg;
+    P.hurtT = 0;
+    _fx.copy(P.pos).setY(P.pos.y + 0.1);
+    spawnRing(_fx, 0.4, 7, 0.5, 0xff2a1a);
+    spawnRing(_fx, 0.2, 3.5, 0.35, 0xffffff);
+    burst(_fx.setY(P.pos.y + 0.5), 34, 14);
+    burst(_fx, 16, 9, 1);
+    spawnText(_fx.setY(P.pos.y + 1.6), '-' + dmg, 'hurt');
+    shake(1.3); addHitstop(0.12); flashHurt();
+    setState('normal');
+    P.vel.set(Math.sin(master.yaw) * 5, 5, Math.cos(master.yaw) * 5);    // a small bounce away from him
+    P.iframes = 1.2;
+    master.slamming = false;
+    master.poseT = 0.8;     // he stays bent over the crater for a moment
+    master.hitCd = 1.5;     // and cannot be provoked again straight away
+  }
 }
 
 // ================= the menu =================
@@ -201,7 +260,7 @@ export const TIPS = [
   'A Ninja can climb. Hold right-click against a wall and look up.',
   'A Lancer\'s javelin is also a door. Throw it, then press Q again.',
   'Throw a dummy hard into a wall and it takes extra damage.',
-  'Do not test my patience. I warn once.',
+  'Do not test my patience. I warn once. After that I use my hands.',
 ];
 // The little pictures on the cards. Each is the inside of a 24 x 24 drawing made of lines.
 const ICONS = {

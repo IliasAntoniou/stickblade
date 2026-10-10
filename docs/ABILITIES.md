@@ -96,7 +96,7 @@ Long spear. Everything unlocked.
 
 # Part 2: Sword styles
 
-A style is taken from a place in the world and lasts 20 seconds. It changes the slash's colour and painted look, dresses the character in that element's outfit, and adds one effect. The normal moves stay the same.
+A style is taken from a place in the world and lasts 20 seconds. It changes the slash's colour and painted look, puts the character in a suit of dark armour glowing in that element's colour, and adds one effect. The normal moves stay the same.
 
 Rules for all styles:
 
@@ -110,12 +110,30 @@ Rules for all styles:
 | **Needs first** | Meteor Slam learned | Blink Strike learned |
 | **The scene** | You go under the water, a close-up shows your eyes snap open blazing blue, you burst back out | You stand burning in the flames, the close-up shows your eyes snap open blazing orange, you step out |
 | **Slash** | Blue, with white foam along the edge | Orange, with tongues of fire along the edge |
-| **Outfit** | Blue clothes; a tunic and robe patterned with white waves; white headband, collar and bracers | Dark red clothes; a tunic and robe patterned with rising gold flames; gold headband, collar and bracers |
+| **Suit** | Dark hooded armour split by glowing blue cracks; pale blue eyes under the hood; blue fire on the sword; blue sparks | The same armour split by glowing lava-orange cracks; gold eyes under the hood; fire on the sword; orange sparks |
 | **Effect on every hit** | Takes 0.12 s off all your cooldowns | Sets the target burning: 14 damage a second for 4 s |
 | **Other change** | Sword attacks, Cyclone and Meteor Slam reach 20% further | None |
 | **Trial to unlock** | Take Water, then hit 4 dummies with one sword swing (60 s) | Take Flame, then have 3 dummies burning at once (60 s) |
 | **Where it is** | Left of the start in the arena | Right of the start in the arena |
 | **Before it is unlocked** | The pool is still and grey | The fire is out |
+
+---
+
+The suit is the same for every style: a hood with the face in shadow and two glowing eyes, a chest plate, spiked shoulder guards, gauntlets, greaves, a long ragged coat open at the front, and a torn cape. Only what glows changes.
+
+---
+
+# Part 3: Master Sen
+
+He cannot be hurt, but he reacts to being hit. Sword swings, blasts, Cyclone and Rising Slash count; thrown weapons do not.
+
+| What you do | What he does |
+|---|---|
+| Hit him once | He points at you, throws you back, and his eyes burn brighter for 10 seconds |
+| Hit him again within those 10 seconds | He catches you by the neck, holds you off the ground for a moment, then slams you into the ground in front of him. It takes 60% of your full health, but never your last point |
+| Hit him again after the 10 seconds | Another warning |
+
+Hits less than 0.6 seconds apart count as one. For about a second and a half after a slam he cannot be provoked again.
 
 ---
 

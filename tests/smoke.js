@@ -406,14 +406,31 @@ check('Sen: the first hit is only a warning', () => {
   // warned, thrown back from him, but alive and not sent anywhere
   return sen.warnT > 9 && P.hp === hp && Math.hypot(P.pos.x - sen.pos.x, P.pos.z - sen.pos.z) > 1.7 && !near(0, 14);
 });
-check('Sen: a second hit inside ten seconds kills, and you are back at the start', () => {
+check('Sen: a second hit inside ten seconds gets you grabbed by the neck and slammed', () => {
   run(60 * 3);
   if (!(sen.warnT > 0)) return false;
   swingAtSen();
-  return sen.warnT === 0 && near(0, 14) && P.hp === P.maxHp && P.state === 'normal';
+  if (P.state !== 'grabbed') return false;
+  run(26);                                               // about half a second in: held up in front of him
+  const held = P.pos.y > sen.pos.y + 0.5 && Math.hypot(P.pos.x - sen.pos.x, P.pos.z - sen.pos.z) < 2.5 && P.hp === P.maxHp;
+  SB.hurtPlayer(20, dummies[0].pos, dummies[0]);         // nothing else can hurt him meanwhile
+  SB.strikeMaster(sen.pos.x, sen.pos.y, sen.pos.z, 3);   // and flailing at Sen does nothing
+  if (P.hp !== P.maxHp || P.state !== 'grabbed') return false;
+  run(50);                                               // slammed
+  return held && P.state === 'normal' && P.hp === P.maxHp - 60 && sen.warnT === 0 && !near(0, 14)
+    && Math.hypot(P.pos.x - sen.pos.x, P.pos.z - sen.pos.z) < 6;
+});
+check('Sen: the slam never takes the last of your health', () => {
+  reset(); run(120);
+  swingAtSen(); run(50);
+  P.hp = 25;
+  swingAtSen();
+  if (P.state !== 'grabbed') return false;
+  run(90);
+  return P.state === 'normal' && P.hp === 1 && !near(0, 14);
 });
 check('Sen: after ten seconds it is only a warning again', () => {
-  reset(); run(40);                                      // a moment after the last blow: hits less than 0.6 s apart count as one
+  reset(); run(120);                                     // after a slam he cannot be provoked again for a moment
   swingAtSen();
   if (!(sen.warnT > 0)) return false;
   run(60 * 11);
@@ -454,10 +471,13 @@ check('Sen: the menu is made of cards that can be clicked', () => {
 
 // sword styles: locked until their trial is passed, taken through a short scene, gone after 20 seconds
 const style = SB.style, PLAIN_SKIN = 0xeef1f8, outfit = SB.outfit;
-// Is the style's outfit on? Cloth-coloured body, patterned tunic and robe showing, and the head still skin.
-const dressedAs = id => SB.playerMat.color.getHex() === SB.STYLES[id].cloth && outfit.tunic.visible && outfit.robe.visible && outfit.band.visible
-  && outfit.tunic.material.map !== null && SB.player.head.material !== SB.playerMat && SB.playerMat.emissive.getHex() === 0;
-const undressed = () => SB.playerMat.color.getHex() === PLAIN_SKIN && !outfit.tunic.visible && !outfit.band.visible && SB.player.head.material === SB.playerMat;
+let flameArmour = null;    // remembered from the Flame check, to make sure Water wears different colours
+// Is the style's suit on? Dark limbs, every piece showing, the armour and coat glowing in that style's cracks
+// (each style has its own pictures for those), and the face in shadow under the hood.
+const dressedAs = id => SB.playerMat.color.getHex() !== PLAIN_SKIN && outfit.parts.length > 15 && outfit.parts.every(m => m.visible)
+  && outfit.chest.material.emissiveMap !== null && outfit.coat.material.emissiveMap !== null
+  && outfit.chest.material !== outfit.coat.material && SB.player.head.material !== SB.playerMat;
+const undressed = () => SB.playerMat.color.getHex() === PLAIN_SKIN && outfit.parts.every(m => !m.visible) && SB.player.head.material === SB.playerMat;
 const pool = SB.sources.find(s => s.id === 'water'), firePit = SB.sources.find(s => s.id === 'flame');
 // Stand six units from a fire, facing it (the camera looks along -z after a respawn), and Blink Strike.
 function faceFire(src) { P.pos.set(src.pos.x, src.pos.y, src.pos.z + 6); P.vel.set(0, 0, 0); P.cd.q = 0; run(3); }
@@ -497,7 +517,8 @@ check('style: Flame trial, played', () => {
   if (P.hp !== hp) return false;
   run(50);
   if (P.state !== 'normal' || !style.cur || style.cur.id !== 'flame') return false;
-  if (!dressedAs('flame')) return false;                 // he is dressed for it
+  if (!dressedAs('flame')) return false;                 // he is wearing the suit
+  flameArmour = outfit.chest.material;
   for (const d of spawned('basic')) skillHit('atk', d);
   if (!spawned('basic').every(d => d.burnT > 0)) return false;
   run(3);
@@ -556,7 +577,7 @@ check('style: Water trial, played', () => {
   if (P.state !== 'submerge' || !(P.sink > 0.5) || style.cur) return false;
   run(50);
   if (P.state !== 'normal' || P.sink !== 0 || !style.cur || style.cur.id !== 'water') return false;
-  if (!dressedAs('water')) return false;
+  if (!dressedAs('water') || outfit.chest.material === flameArmour) return false;    // and not in Flame's colours
   run(80);                                                   // he leaps out of the pool: wait to land
   standAt(0, 0, -1.2); run(3); pressed.add('M0'); run(12);
   return chal.cur === null && SB.styleUnlocked('water');
