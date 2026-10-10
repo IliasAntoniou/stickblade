@@ -9,7 +9,7 @@ import { scene, camera } from './core.js';
 import { solids, boxGeo, edgeGeo, edgeMat, lam, groundAt, makeShadow, placeShadow } from './world.js';
 import { makeStickman, POSE_KEYS, DUMMY_POSE, F_IDLE, F_SLAM, F_LWIND, F_LUNGE, F_STUN, applyPose } from './stickman.js';
 import { ringGeo, spawnRing, burst, spawnText, shake, addHitstop } from './fx.js';
-import { T, P, dlg, chal, addHit } from './state.js';
+import { T, P, dlg, chal, TUNE, addHit } from './state.js';
 import { tp, hurtPlayer } from './player.js';
 import { update } from './update.js';
 
@@ -136,7 +136,7 @@ export class Dummy {
           this.pos.x = damp(this.pos.x, this.anchor.x, k, dt); this.pos.z = damp(this.pos.z, this.anchor.z, k, dt);
         } else if (this.sinceHit > 2.2) this.respawn();
       }
-      if (this.sinceHit > 4 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + this.maxHp * dt * 0.5);
+      if (TUNE.dummyRegen && this.sinceHit > 4 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + this.maxHp * dt * 0.5);
       if (!this.dead) {
         const want = Math.atan2(P.pos.x - this.pos.x, P.pos.z - this.pos.z);
         if (ty === 'shield') this.yaw += clamp(angDiff(this.yaw, want), -2.2 * dt, 2.2 * dt);
@@ -168,7 +168,7 @@ export class Dummy {
   fighterAI(dt, gy) {
     const dx = P.pos.x - this.pos.x, dz = P.pos.z - this.pos.z, dist = Math.hypot(dx, dz) || 0.001, dy = P.pos.y - this.pos.y;
     const leash = Math.hypot(this.pos.x - this.anchor.x, this.pos.z - this.anchor.z);
-    const canSee = P.smokeT <= 0 && !dlg.open && chal.phase !== 'count' && dist < 14 && Math.abs(dy) < 4 && leash < 18;
+    const canSee = TUNE.fightersAttack && P.smokeT <= 0 && !dlg.open && chal.phase !== 'count' && dist < 14 && Math.abs(dy) < 4 && leash < 18;
     this.aiCd -= dt; this.rage = 0;
     let tp = F_IDLE;
     if (this.stunT > 0 || !this.grounded || this.floatT > 0) {
@@ -260,7 +260,10 @@ export function hitDummy(d, dmg, kx, kz, up, heavy = false, stop = null, src = P
       return false;
     }
   }
-  dmg = Math.round(dmg * (0.9 + Math.random() * 0.2));
+  kx *= TUNE.kbMult;
+  kz *= TUNE.kbMult;
+  up *= TUNE.kbMult;
+  dmg = Math.round(dmg * TUNE.dmgMult * (0.9 + Math.random() * 0.2));
   let label = null;
   if (P.dmgMult > 1) { dmg *= P.dmgMult; P.dmgMult = 1; P.smokeT = Math.min(P.smokeT, 0.01); label = 'AMBUSH'; heavy = true; }
   d.vel.x += kx; d.vel.z += kz; if (up > 0) d.vel.y = Math.max(d.vel.y, up);

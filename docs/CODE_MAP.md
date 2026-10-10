@@ -10,7 +10,9 @@ Where everything is, what the short names mean, and how to add things. If this f
 | What a skill does when pressed | Its function in the class file, for example `bmBlink()` in `js/classes/blade.js` |
 | What a skill does while it lasts | The `case` named after its state in `update()` in `js/update.js` |
 | How a skill or move looks (the pose) | `animatePlayer()` in `js/anim.js` |
-| Jump height, gravity, dash distance, dash charges | The constants `JUMP`, `GRAV`, `DASH_SPEED`... near the top of `js/player.js` |
+| Try out a number while playing (speed, jump, damage, health...) | Pause with Tab or Esc and use the tuning panel. Nothing to edit |
+| Jump height, gravity, dash, player health, damage and cooldown multipliers (the permanent defaults) | `TUNE_DEFAULTS` in `js/state.js` |
+| Which sliders the tuning panel shows, and their ranges | `GROUPS` and `classRows()` in `js/tuning.js` |
 | Running, air control, wall jump, slide feel | The `normal` and `slide` cases in `update()` in `js/update.js` |
 | Player health, getting hit, block, parry | `hurtPlayer()` and `parry()` in `js/player.js` |
 | Collision with walls and floors | `moveAxis()` and `integrate()` in `js/player.js` |
@@ -74,6 +76,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/update.js` | One step of the game |
 | `js/anim.js` | Player poses |
 | `js/hud.js` | On-screen display |
+| `js/tuning.js` | The tuning panel shown while paused |
 | `vendor/three.module.js` | The three.js library (not ours; do not edit) |
 | `tests/smoke.js`, `tests/smoke.sh` | Automated test that plays every class and skill |
 | `tests/check_docs.py` | Checks file headers and that this map points at real things |
@@ -86,6 +89,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `P` | The player: `P.pos`, `P.vel` (speed), `P.hp`, `P.state`, `P.cd` (cooldowns)... Full list at `Object.assign(P, {` in `js/player.js` |
 | `P.state`, `P.st` | What the player is doing (`normal`, `dash`, `slide`, or a skill such as `cyclone`) and for how many seconds |
 | `CL` | The class being played, one entry of `CLASSES` |
+| `TUNE`, `TUNE_DEFAULTS` | The numbers the tuning panel can change, and their defaults. In `js/state.js` |
 | `T` | Game time in seconds |
 | `dt` | Game seconds since the last frame. Shrinks during hitstop |
 | `rdt` | Real seconds since the last frame |
@@ -122,6 +126,14 @@ Where everything is, what the short names mean, and how to add things. If this f
 5. If nothing may interrupt it, add the state to `LOCKED` in `js/player.js`. If the player cannot be hit during it, add it to `isInvuln()`.
 6. Run the smoke test. It presses every skill key for every class, so a new skill is covered automatically.
 
+### Make a number tunable in the panel
+
+1. Add it to `TUNE_DEFAULTS` in `js/state.js` with a comment saying what it does.
+2. Use `TUNE.<name>` where the game needs the number. Read it every time; do not copy it into a constant.
+3. Add a row to `GROUPS` in `js/tuning.js`: key, label, min, max, step (or just key and label for an on/off switch).
+4. If the number is copied onto the player or the dummies (like max health), also handle it in `applyTune()`.
+5. Add a check to the tuning part of `tests/smoke.js` proving the number changes the game and that reset undoes it.
+
 ### Add a class
 
 1. Copy `js/classes/blade.js` to a new file and rename the table to `CLASSES.<id> = {`. All five slots (`m2`, `q`, `e`, `r`, `f`) must exist.
@@ -156,6 +168,7 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.
 - **`dt` or `rdt`.** Gameplay uses `dt` so it slows down during hitstop. Camera and on-screen display use `rdt`.
 - **Only boxes.** Collision assumes every solid is an upright box. A slope or rotated wall will not collide correctly.
+- **Saved tuning.** Slider changes are stored in the browser and come back next time. If the game feels wrong, press "Reset all" in the panel before looking for a bug. The smoke test always runs on defaults.
 - **The game only runs while the mouse is captured.** That is the pause system. For testing without it, add `?debug` to the address.
 
 ## If something breaks

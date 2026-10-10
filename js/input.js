@@ -14,6 +14,7 @@ export function setMouse(l, r) { mouseL = l; mouseR = r; }    // for tests
 addEventListener('keydown', e => {
   if (!locked) return;
   if (e.code !== 'F11' && e.code !== 'F5') e.preventDefault();
+  if (e.code === 'Tab') { document.exitPointerLock(); return; }    // Tab pauses like Esc, to reach the tuning panel
   if (!e.repeat) pressed.add(e.code);
   keys.add(e.code);
 });

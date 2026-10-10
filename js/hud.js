@@ -4,8 +4,8 @@
 import { clamp, $ } from './util.js';
 import { camera } from './core.js';
 import { projV } from './fx.js';
-import { T, P, CL, dlg, combo, totalDmg, dmgLog } from './state.js';
-import { DASH_CD, DASH_MAX, REWIND_CD } from './player.js';
+import { T, P, CL, dlg, combo, totalDmg, dmgLog, TUNE } from './state.js';
+import { REWIND_CD } from './player.js';
 import { lockTarget, aimHit } from './camera.js';
 import { master } from './master.js';
 import { locked } from './input.js';
@@ -37,11 +37,14 @@ export function updateHud(rdt) {
     let frac = 0, txt = '';
     if (s.slot) {
       const max = s.slot === 'x' ? REWIND_CD : CL.skills[s.slot].cd, v = P.cd[s.slot];
-      frac = max > 0 ? v / max : 0; txt = v > 0.05 && max > 1 ? v.toFixed(1) : '';
+      frac = max > 0 ? v / max : 0; txt = v > 0.05 && max > 1 ? (v * TUNE.cdMult).toFixed(1) : '';
       const alt = s.slot !== 'x' && CL.skills[s.slot].alt ? CL.skills[s.slot].alt() : null;
       if (!!alt !== s.altOn) { s.altOn = !!alt; s.el.classList.toggle('alt', s.altOn); s.nEl.textContent = alt || s.n; }
     }
-    if (s.dash) { frac = P.dashCharges === 0 ? P.dashRecharge / DASH_CD : 0; s.pEl.textContent = '●'.repeat(P.dashCharges) + '○'.repeat(DASH_MAX - P.dashCharges); }
+    if (s.dash) {
+      frac = P.dashCharges === 0 && TUNE.dashCd > 0 ? P.dashRecharge / TUNE.dashCd : 0;
+      s.pEl.textContent = '●'.repeat(P.dashCharges) + '○'.repeat(Math.max(0, TUNE.dashCharges - P.dashCharges));
+    }
     if (s.jump) { const n = P.grounded ? P.airJumpsMax : P.airJumps; s.pEl.textContent = '●'.repeat(n) + '○'.repeat(P.airJumpsMax - n); }
     s.cdEl.style.height = (clamp(frac, 0, 1) * 100) + '%'; s.tEl.textContent = txt;
     if (s.was > 0 && frac <= 0) { const el = s.el; el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 180); }
