@@ -699,6 +699,39 @@ check('style: Cyclone outside the storm gives nothing', () => {
   run(90);
   return spinning && style.cur === null;
 });
+// the elemental dash: under a sword style the body turns into the element for the dash and comes back smoothly
+const dashForm = SB.dashForm, rootScale = () => SB.player.root.scale.x;
+// Stand in open ground and dash forwards under a style (null = none). Returns after the given number of frames.
+function dashAs(id, frames) {
+  reset(); P.pos.set(0, 0, 40); P.vel.set(0, 0, 0); SB.setCamYaw(0); SB.clearStyle();
+  if (id) SB.giveStyle(id);
+  SB.keys.add('KeyW'); run(3); press('ShiftLeft', frames); SB.keys.delete('KeyW');
+}
+check('dash form: a plain dash stays a body with afterimages', () => {
+  dashAs(null, 6);
+  return P.state === 'dash' && dashForm.amount === 0 && rootScale() === 1 && !SB.dashSoft.points.visible;
+});
+for (const id of ['flame', 'thunder', 'water']) {
+  check('dash form: ' + id + ' turns the body into its element and brings it back', () => {
+    dashAs(id, 7);
+    // mid-dash: all element, the body shrunk to almost nothing, and the effect on screen
+    const effect = id === 'thunder' ? SB.dashBolts.some(b => b.m.visible) : SB.dashSoft.points.visible;
+    if (P.state !== 'dash' || dashForm.amount !== 1 || rootScale() > 0.1 || !effect || !SB.dashBright.points.visible) return false;
+    // just after: partway back, neither gone nor whole (this is the smooth part)
+    run(9);
+    if (P.state === 'dash' || !(rootScale() > 0.15 && rootScale() < 0.98)) return false;
+    // a little later: whole again, and soon nothing of the effect is left to draw
+    run(20); if (dashForm.amount !== 0 || rootScale() !== 1) return false;
+    run(80);
+    return !SB.dashSoft.points.visible && !SB.dashBright.points.visible && SB.dashBolts.every(b => !b.m.visible);
+  });
+}
+check('dash form: the dash itself is unchanged by it', () => {
+  dashAs(null, 30); const plain = 40 - P.pos.z;
+  dashAs('flame', 30); const smoke = 40 - P.pos.z;
+  SB.clearStyle();
+  return plain > 5 && Math.abs(plain - smoke) < 0.6;
+});
 check('style: ends on respawn and on class change', () => {
   reset(); SB.giveStyle('flame');
   if (!style.cur) return false;

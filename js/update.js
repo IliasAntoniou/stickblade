@@ -18,6 +18,7 @@ import { diveTarget } from './classes/lancer.js';
 import { master, openDlg, closeDlg, updateMaster, updateGrab, strikeMaster } from './master.js';
 import { endChallenge, updateChallenge } from './challenges.js';
 import { keys, pressed, mouseL, mouseR } from './input.js';
+import { hasDashForm } from './dashfx.js';
 
 // This frame's input. inDir = the direction the movement keys point, in the world. hasIn = a movement key is held.
 // inX, inZ = raw -1..1. hsp = horizontal speed. inputOn = false during a dialog or countdown.
@@ -138,7 +139,9 @@ export function update(dt) {
     }
     case 'dash': {
       P.vel.copy(P.dashDir).multiplyScalar(TUNE.dashSpeed); P.grav = 0;
-      P.ghostT -= dt; if (P.ghostT <= 0) { P.ghostT = 0.028; spawnGhost(player, CL.color); }
+      // Afterimages, unless a sword style is turning the player into its element for the dash (dashfx.js).
+      P.ghostT -= dt;
+      if (P.ghostT <= 0 && !hasDashForm()) { P.ghostT = 0.028; spawnGhost(player, CL.color); }
       if (P.jumpBuf > 0 && (P.grounded || P.coyote > 0 || P.airJumps > 0)) {
         if (!(P.grounded || P.coyote > 0)) P.airJumps--;
         setState('normal'); P.vel.copy(P.dashDir).multiplyScalar(19);

@@ -1,7 +1,7 @@
 // Pose viewer: open index.html?debug=pose:<name> to freeze the game in the middle of an action and look at it from
 // the side. For checking animation and effects without having to catch the moment by hand.
 // Names: idle, run, slash0, slash1, slash2, cyclone, slam, rising, master, pool, fire, cloud, ignite, submerge, storm,
-// grab, splat, enemies.
+// grab, splat, enemies, dash (with &style=; &frames=<n> picks how far into it to stop: the dash lasts 10).
 // Add &view=<angle> to turn the camera (radians), &style=water, flame or thunder to see a sword style,
 // &lit=1 to show the pool, fire and storm as unlocked, &cutin=water, flame or thunder to hold the eye close-up on screen,
 // &dist=<units> to pull the camera back,
@@ -62,6 +62,7 @@ if (params.get('cutin')) {
   band.classList.add('on', 'lit');
 }
 if (name === 'run') { keys.add('KeyW'); run(45); }
+if (name === 'dash') { keys.add('KeyW'); run(10); pressed.add('ShiftLeft'); run(Number(params.get('frames') || 8)); keys.delete('KeyW'); }
 if (name === 'slash0') swing(7);
 if (name === 'slash1') { swing(17); swing(7); }
 if (name === 'slash2') { swing(17); swing(17); swing(10); }

@@ -9,6 +9,7 @@ import { T, P, CL } from './state.js';
 import { playerMat, bladeMat, bladeGlow, player, playerShadow, cloneMat, cloneSm, FLIP_T, pose, tp, ropeMesh, hookMesh } from './player.js';
 import { camPitch } from './camera.js';
 import { slashColor, reach as styleReach } from './styles.js';
+import { formScale, formLift } from './dashfx.js';
 
 // ================= player animation =================
 // How the body moves between poses. Every joint is on a SPRING: it is pulled towards its target, picks up speed,
@@ -258,6 +259,10 @@ export function animatePlayer(dt) {
   player.root.position.copy(P.pos);
   player.root.position.y -= P.sink;    // going under the water of a pool; 0 the rest of the time
   playerShadow.visible = P.sink < 0.3;
+  // Dashing under a sword style: the body shrinks into the heart of the element and grows back out (dashfx.js).
+  // Both are 1 and 0 the rest of the time.
+  player.root.scale.setScalar(formScale());
+  player.root.position.y += formLift();
   player.root.rotation.y = P.yaw;
   applyPose(player, pose, xp, xs);
   player.root.updateMatrixWorld(true);

@@ -33,6 +33,7 @@ import { styleUnlocked } from './progress.js';
 import { cutinActive, playCutin } from './cutin.js';
 import { playerMat, player } from './player.js';
 import { quality, applyQuality, updateQuality } from './quality.js';
+import { form, soft, bright, bolts, updateDashForm, formScale } from './dashfx.js';
 
 // ================= loop =================
 const clock = new THREE.Clock();
@@ -40,6 +41,7 @@ let frozen = false;    // debug only: stops the game advancing so a moment can b
 function step(dt) {
   update(dt);
   updateStyles(dt);
+  updateDashForm(dt);    // before animatePlayer, which draws the body at the size this sets
   animatePlayer(dt);
   updateFx(dt);
   pressed.clear();
@@ -76,6 +78,7 @@ if (DEBUG !== null) {
   window.SB = { styleSpeed, solids, strikeMaster, openDlg, renderDlg, lockFire: () => lockFire, lockTarget: () => lockTarget, player, outfit, startTake, playCutin, playerMat, STYLES, style, sources, giveStyle, forceStyle, clearStyle, reach, styleUnlocked, freeze: v => { frozen = v; }, setCamYaw, setCamPitch, setCamDist, trail, arcs, swirls, renderer, camera, quality, applyQuality, P, dummies, DTYPE, CLASSES, CLASS_ORDER, CH, chal, dlg, keys, pressed, scene, master, setClass, startChallenge, endChallenge,
     hurtPlayer, respawnPlayer, hitDummy, setMouse, step, updateCamera, updateHud, TUNE, applyTune, resetTuning, rankOf, startTrial, unlockAll, resetProgress, setHitSrc, DOJO, dojo, enterDojo, leaveDojo, setupTrial, clearTrial, totalDmg: () => totalDmg,
     get T() { return T; }, get CL() { return CL; } };
+  Object.assign(window.SB, { dashForm: form, dashSoft: soft, dashBright: bright, dashBolts: bolts, formScale });
   // &quality=high (with ?debug) switches the graphics setting for this visit, for screenshots.
   const wantQuality = new URLSearchParams(location.search).get('quality');
   if (wantQuality) applyQuality(wantQuality);
