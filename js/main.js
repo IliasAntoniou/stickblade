@@ -33,6 +33,7 @@ import { styleUnlocked } from './progress.js';
 import { cutinActive, playCutin } from './cutin.js';
 import { playerMat, player } from './player.js';
 import { quality, applyQuality, updateQuality } from './quality.js';
+import { QUESTS, story, initStory, questState, acceptQuest, turnInQuest, questEvent, questLine, resetStory } from './quests.js';
 
 // ================= loop =================
 const clock = new THREE.Clock();
@@ -64,6 +65,7 @@ function frame() {
   renderer.render(scene, camera);
 }
 initProgress();  // loads saved skill ranks and puts each skill's numbers in place; must come before initTuning
+initStory();     // loads which story tasks are done
 initTuning();    // loads saved tuning; must come before the first setClass
 setClass(save.cls, false);
 applyTune();
@@ -73,7 +75,7 @@ animatePlayer(0.016);
 // ?debug: run without pointer lock and expose internals for testing
 if (DEBUG !== null) {
   overlay.style.display = 'none';
-  window.SB = { styleSpeed, solids, strikeMaster, openDlg, renderDlg, lockFire: () => lockFire, lockTarget: () => lockTarget, player, outfit, startTake, playCutin, playerMat, STYLES, style, sources, giveStyle, forceStyle, clearStyle, reach, styleUnlocked, freeze: v => { frozen = v; }, setCamYaw, setCamPitch, setCamDist, trail, arcs, swirls, renderer, camera, quality, applyQuality, P, dummies, DTYPE, CLASSES, CLASS_ORDER, CH, chal, dlg, keys, pressed, scene, master, setClass, startChallenge, endChallenge,
+  window.SB = { QUESTS, story, questState, acceptQuest, turnInQuest, questEvent, questLine, resetStory, styleSpeed, solids, strikeMaster, openDlg, renderDlg, lockFire: () => lockFire, lockTarget: () => lockTarget, player, outfit, startTake, playCutin, playerMat, STYLES, style, sources, giveStyle, forceStyle, clearStyle, reach, styleUnlocked, freeze: v => { frozen = v; }, setCamYaw, setCamPitch, setCamDist, trail, arcs, swirls, renderer, camera, quality, applyQuality, P, dummies, DTYPE, CLASSES, CLASS_ORDER, CH, chal, dlg, keys, pressed, scene, master, setClass, startChallenge, endChallenge,
     hurtPlayer, respawnPlayer, hitDummy, setMouse, step, updateCamera, updateHud, TUNE, applyTune, resetTuning, rankOf, startTrial, unlockAll, resetProgress, setHitSrc, DOJO, dojo, enterDojo, leaveDojo, setupTrial, clearTrial, totalDmg: () => totalDmg,
     get T() { return T; }, get CL() { return CL; } };
   // &quality=high (with ?debug) switches the graphics setting for this visit, for screenshots.

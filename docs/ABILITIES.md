@@ -150,6 +150,8 @@ All of them are the same stick figure underneath. Colour and shape say what each
 | Guard | Grey | A steel helm with a crest, heavy shoulder plates, thick limbs, a big shield held in front | Turns to face you and blocks every hit from the front. Strike from behind or from above | 700 |
 | Winged | Blue | Two flapping wings, a halo, a slight body | Circles in the air | 400 |
 | Brute | Purple | Horns, spiked shoulders, thick arms, glowing red eyes; bigger than the rest | Comes after you. Slams the ground around it when you are close, lunges when you are further away. Red marks on the ground warn of both | 900 |
+| Ash Hand scout (story only) | Ash grey | A red headband with flying tails, a red mask, glowing red eyes | Fights like a brute, but hunts you across the whole arena at a fast walk, never heals, and stays down when beaten | 240 |
+| Rook (story only) | Dark ash | The same headband and mask on a much bigger body with spiked shoulders | The first boss. The same slam and lunge, with far more health | 800 |
 
 ---
 

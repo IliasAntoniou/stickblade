@@ -16,6 +16,7 @@ import { removeClone } from './classes/ninja.js';
 import { endChallenge } from './challenges.js';
 import { reach, slashColor, clearStyle, slamSources } from './styles.js';
 import { strikeMaster } from './master.js';
+import { questEvent } from './quests.js';
 import { inDir, hasIn, inX, inZ, hsp } from './update.js';
 
 // ================= player =================
@@ -183,6 +184,7 @@ export function playerDefeated() {
   if (chal.cur) endChallenge();
   respawnPlayer();
   for (const d of dummies) { d.cancelAtk(); if (d.type === 'fighter') d.aiCd = 3; }
+  questEvent('defeated');    // a story task with enemies starts over (quests.js)
 }
 export function respawnPlayer() {
   cleanupClassObjects();

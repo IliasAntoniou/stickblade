@@ -1,6 +1,6 @@
 # Stickblade code map
 
-For what every ability and sword style does, see `docs/ABILITIES.md`.
+For what every ability and sword style does, see `docs/ABILITIES.md`. For the story and its tasks, see `docs/STORY.md`.
 
 Where everything is, what the short names mean, and how to add things. If this file and the code disagree, the code is right and this file needs fixing.
 
@@ -29,6 +29,12 @@ Where everything is, what the short names mean, and how to add things. If this f
 | How hits work (damage, knockback, shield block) | `hitDummy()` and `dealDamage()` in `js/dummies.js` |
 | The map (boxes, platforms, walls) | The `addBox()` lines in `js/world.js` |
 | Kunai and javelin | `js/projectiles.js` |
+| The story: what Sen says, what each task asks for, how many it takes, which enemies it brings and where | `QUESTS` in `js/quests.js` |
+| How strong the gang's fighters are (health, colour) | `SCOUT` and `ROOK` in `js/quests.js` |
+| How far a gang member sees and how fast it walks | `GANG_SIGHT` and `GANG_SPEED` in `js/dummies.js` |
+| What the gang looks like (headband, mask) | The `d.gang` part of `dressDummy()` in `js/skins.js` |
+| The task shown at the top right of the screen | `questLine()` in `js/quests.js`; its look is the `#quest` CSS in `index.html` |
+| The story card and the story page in Sen's menu | `storyCard()` and the `story` page of `renderDlg()` in `js/master.js` |
 | A challenge's goal, or a new challenge | `CH` and `updateChallenge()` in `js/challenges.js` |
 | Master Sen's lines, and what is on each page of his menu | `GREET`, `TIPS` and `renderDlg()` in `js/master.js` |
 | How his menu looks (the window, the cards, his portrait) | The `#dlg` CSS and HTML in `index.html` |
@@ -97,7 +103,7 @@ Where everything is, what the short names mean, and how to add things. If this f
    5. run the block for the player's current state (`P.state`)
    6. advance the basic attack
    7. `integrate()`: move the player and resolve collisions
-   8. update every dummy, every projectile, and the challenge
+   8. update every dummy, every projectile, the challenge, and the story (`updateQuests()`)
 2. `animatePlayer()` (`js/anim.js`): work out the pose.
 3. `updateFx()` (`js/fx.js`): fade the effects.
 4. `updateCamera()` (`js/camera.js`): place the camera, find what the crosshair is on.
@@ -125,6 +131,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/classes/blade.js`, `ninja.js`, `monk.js`, `lancer.js` | One class each: skill functions and the class table |
 | `js/master.js` | Master Sen and the dialog menu |
 | `js/challenges.js` | Timed challenges |
+| `js/quests.js` | The story: Sen's chain of tasks, their progress, and the gang enemies they bring |
 | `js/input.js` | Keyboard, mouse, pause |
 | `js/update.js` | One step of the game |
 | `js/anim.js` | Player poses |
@@ -200,6 +207,12 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `lv` | A skill's numbers at each rank. The current rank's row is copied onto the skill by `applyRanks()` |
 | `hitSrc` | Which attack the current hits belong to: `atk`, `q`, `e`, `r`, `f` or `other`. Set with `setHitSrc()` just before dealing damage |
 | `P.castN` | Counts skill uses, so a trial can tell one use from the next |
+| quest, task | One step of the story, given by Master Sen. Data in `QUESTS` in `js/quests.js` |
+| `story` | Where the story stands: `story.done` (finished task ids), `story.cur` (the running one), `story.n` (its count) |
+| phase (of the story) | `none` (wrong class), `offer` (Sen has a task), `active` (doing it), `ready` (done, go and tell him), `end` (nothing left). From `questState()` |
+| gang, `d.gang` | A story enemy, one of the Ash Hand: a dummy that hunts the player, never heals and stays dead. `d.boss` marks their leader |
+| `d.gone` | Set on a beaten gang member once it has finished falling; `updateQuests()` then removes it |
+| `d.baseHp` | A dummy's health before the tuning panel's multiplier |
 | `SB` | `window.SB`, the test handle that exists only with `?debug` |
 
 ## Recipes
@@ -245,6 +258,17 @@ Water, Flame and Thunder in `js/styles.js` are the worked examples.
 5. Add its trial to the class's `trials` with `style: '<id>'` and `arena.sources`. Passing it unlocks the style.
 6. Add checks to the style part of `tests/smoke.js`, and a column to Part 2 of `docs/ABILITIES.md`.
 
+### Add a task to the story
+
+`QUESTS` in `js/quests.js` is the whole story in order; the five tasks of chapter 1 are the worked examples.
+
+1. Add an entry: `id` (never change it afterwards, it is in the save), `chapter`, `name`, `intro` and `outro` (Sen's words), `goal` (a few words, shown on screen) and `need`.
+2. Say how it is counted. Either `event: 'ko'` with a `match(ev)` that picks which knockouts count, or a `check` function that returns true once the task is done.
+   For a new kind of event, call `questEvent('<name>', { ... })` from wherever it happens.
+3. If it brings enemies, list them in `spawn` as `[type, x, y, z, options]`. Use `SCOUT` or `ROOK` as the options, or a new set with `gang: true`. Pick spots on open ground.
+4. A new chapter needs a line in `CHAPTERS`.
+5. Add a row to `docs/STORY.md` and a check to the story part of `tests/smoke.js`.
+
 ### Add a class
 
 1. Copy `js/classes/blade.js` to a new file and rename the table to `CLASSES.<id> = {`. All five slots (`m2`, `q`, `e`, `r`, `f`) must exist.
@@ -278,6 +302,9 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Scratch vectors.** `_a` to `_e` are shared by everything. Fill one, use it, and assume it is gone after calling any other function.
 - **Top-level code.** Code outside functions may only use things from `util`, `core`, `world`, `stickman`, `state` and `fx`. Anything else may not be loaded yet.
 - **Dummies and boxes can now come and go.** Trial dummies are added with `spawnDummy()` and removed with `removeDummy()`; trial boxes with `addBox()` and `removeBox()`. Never keep a dummy in a variable across frames without checking `d.dead`.
+- **Gang members are dummies, but not all dummy rules hold for them.** `respawn()` does nothing to one, they have no home spot, and they are removed from `dummies` after a knockout. Removal happens in `updateQuests()`, never inside the loop that updates dummies.
+- **Sen's main menu starts with the story card.** The number keys follow the cards, so adding or moving a card changes which number does what (the smoke test presses them).
+- **Task ids are in the save.** Renaming one in `QUESTS` makes saved games forget it.
 - **`SPAWN` moves.** It is where the player respawns: the arena start, the hall's arrival point, or a trial's start. `js/dojo.js` changes it.
 - **Glow needs `toneMapped: false`.** Any material meant to look like light (effects, the weapon, warning marks) must set it, or tone mapping dulls it. Lit objects must not set it.
 - **`lam()` needs baked shading.** It expects a `color` attribute on the shape, as `boxGeo` and every rock from `rockGeo()` have; on any other shape the result is black.

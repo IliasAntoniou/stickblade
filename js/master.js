@@ -1,5 +1,5 @@
-// master.js: Master Sen. The towering figure next to the start, his menu (change class, go and train, take a
-// challenge, get a tip), and what happens to anyone who hits him.
+// master.js: Master Sen. The towering figure next to the start, his menu (the story, change class, go and train,
+// take a challenge, get a tip), and what happens to anyone who hits him.
 // The menu is a window of cards that can be clicked: opening it frees the mouse, closing it captures it again.
 // It can also be driven with the number keys. The window's HTML is in index.html (#dlg) and so is its look.
 
@@ -16,6 +16,7 @@ import { CH, startChallenge } from './challenges.js';
 import { trainingList, styleList, startTrial, ROMAN } from './progress.js';
 import { isTuned, resetTuning } from './tuning.js';
 import { dojo, enterDojo, leaveDojo } from './dojo.js';
+import { CHAPTERS, questState, acceptQuest, turnInQuest } from './quests.js';
 
 // ================= the figure =================
 // His poses. Each lists only the joints that differ from the standing pose.
@@ -388,17 +389,37 @@ const ICONS = {
   smash: '<path d="M5 5 L19 19 M19 5 L5 19"/><circle cx="12" cy="12" r="9"/>',
   combo: '<path d="M4 8 L10 12 L4 16 M10 8 L16 12 L10 16 M16 8 L22 12 L16 16"/>',
   wrench: '<path d="M15 4 a4 4 0 0 0 -4 6 L4 17 L7 20 L14 13 a4 4 0 0 0 6 -4 L17 12 L15 10 L18 7 Z"/>',
+  story: '<path d="M6 4 H17 a2 2 0 0 1 2 2 V20 H8 a2 2 0 0 1 -2 -2 Z"/><path d="M10 9 H15 M10 13 H15"/><path d="M6 18 a2 2 0 0 1 2 -2 H19"/>',
   lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11 V8 a4 4 0 0 1 8 0 v3"/>',
   again: '<path d="M4 12 a8 8 0 1 0 3 -6.2"/><path d="M4 4 V9 H9"/>',
 };
 const SLOT_ICON = { m2: 'hook', q: 'blink', e: 'cyclone', r: 'slam', f: 'rising' };
 const WEAPON_ICON = { sword: 'sword', daggers: 'daggers', spear: 'spear', none: 'fist' };
 const CHALLENGE_ICON = { rings: 'rings', summit: 'flag', demo: 'smash', combo: 'combo' };
-const PAGE_TITLE = { main: 'What do you want?', classes: 'Choose how you fight', chal: 'Challenges', train: 'Training hall', tips: 'Advice' };
+const PAGE_TITLE = { main: 'What do you want?', classes: 'Choose how you fight', chal: 'Challenges', train: 'Training hall', tips: 'Advice', story: 'The story' };
 const icon = name => `<svg viewBox="0 0 24 24">${ICONS[name] || ICONS.back}</svg>`;
 
 export function fmtBest(c) { const b = save.best[c.id]; return b ? `best ${b.toFixed(2)}s` : 'not done yet'; }
 const backOption = () => ({ label: 'Back', icon: 'back', plain: true, act: () => { dlg.page = 'main'; renderDlg('Something else?'); } });
+
+// Tell him the running task is done, and let him answer (the task's outro) on the story page.
+function reportQuest() {
+  const finished = turnInQuest();
+  dlg.page = 'story';
+  renderDlg(finished ? finished.outro : undefined);
+}
+// The story's card on the main page. What it says depends on where the story stands (questState() in quests.js).
+function storyCard() {
+  const { phase, quest, n } = questState();
+  const open = () => { dlg.page = 'story'; renderDlg(); };
+  if (phase === 'none') return { label: 'The story', sub: 'It is told with the Blademaster. Change fighting style to go on with it', icon: 'story', tag: 'BLADEMASTER', cur: true, act: () => renderDlg() };
+  if (phase === 'end') return { label: 'The story', sub: 'You have done everything he has asked of you so far', icon: 'story', tag: 'TO BE CONTINUED', tone: 'gold', act: open };
+  const chapter = `Chapter ${quest.chapter} · ${CHAPTERS[quest.chapter]}`;
+  const card = { label: 'Story: ' + quest.name, icon: 'story', act: open };
+  if (phase === 'offer') return { ...card, sub: `${chapter}<br>He has a task for you`, tag: 'NEW', tone: 'blue' };
+  if (phase === 'ready') return { ...card, sub: `${chapter}<br><b>Done:</b> ${quest.goal}. Tell him`, tag: 'REPORT', tone: 'gold', act: reportQuest };
+  return { ...card, sub: `${chapter}<br><b>Task:</b> ${quest.goal} (${n} / ${quest.need})`, tag: 'IN PROGRESS', tone: 'blue' };
+}
 
 // Draw the current page of the menu. Each option becomes one card:
 //   label = its title, sub = the small text under it, icon = its picture (a name from ICONS),
@@ -410,6 +431,7 @@ export function renderDlg(text) {
   if (dlg.page === 'main') {
     text = text || pick(GREET);
     opts = [
+      storyCard(),
       { label: 'Change fighting style', sub: 'Blademaster, Ninja, Monk or Lancer', icon: 'swap', act: () => { dlg.page = 'classes'; renderDlg(); } },
       { label: 'Train my skills', sub: 'He takes you to the training hall, where skills and sword styles are earned', icon: 'hall', act: () => { closeDlg(); enterDojo(); } },
       { label: 'Take a challenge', sub: 'Timed tests in the arena. Your best times are kept', icon: 'trophy', act: () => { dlg.page = 'chal'; renderDlg(); } },
@@ -457,6 +479,25 @@ export function renderDlg(text) {
       }
     }
     opts.push({ label: 'Return to the arena', icon: 'leave', plain: true, act: () => { closeDlg(); leaveDojo(); } });
+  } else if (dlg.page === 'story') {
+    // One task at a time: he gives it, reminds you of it while it runs, and answers when you report it.
+    const { phase, quest, n } = questState();
+    if (phase === 'offer' && text) {
+      // he has just answered a finished task (text is its outro); the next one waits behind a card, so his answer can be read
+      opts = [{ label: 'What now?', sub: 'Story: ' + quest.name, icon: 'story', act: () => renderDlg() }];
+    } else if (phase === 'offer') {
+      text = quest.intro;
+      opts = [{ label: 'Take the task', sub: `<b>Task:</b> ${quest.goal}`, icon: 'flag', act: () => { acceptQuest(); closeDlg(); } }];
+    } else if (phase === 'active') {
+      text = quest.intro;
+      opts = [{ label: quest.name, sub: `<b>Task:</b> ${quest.goal} (${n} / ${quest.need})`, icon: 'flag', tag: 'IN PROGRESS', tone: 'blue', cur: true, act: () => renderDlg() }];
+    } else if (phase === 'ready') {
+      text = 'Well?';
+      opts = [{ label: 'It is done', sub: `<b>Done:</b> ${quest.goal}`, icon: 'flag', tag: 'REPORT', tone: 'gold', act: reportQuest }];
+    } else {
+      text = text || 'That is all I ask of you for now. Train. The docks are next, and the Hand will not be gentle there.';
+    }
+    opts.push(backOption());
   } else if (dlg.page === 'tips') {
     text = pick(TIPS);
     opts = [
