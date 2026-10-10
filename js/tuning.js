@@ -5,8 +5,9 @@
 
 import { $ } from './util.js';
 import { P, CL, CLASSES, TUNE, TUNE_DEFAULTS } from './state.js';
-import { dummies, DTYPE } from './dummies.js';
+import { dummies } from './dummies.js';
 import { unlockAll, resetProgress } from './progress.js';
+import { resetStory } from './quests.js';
 
 const STORE_KEY = 'stickblade.tune.v1';
 // The smoke test must always run on default numbers, so it ignores and never writes saved tuning.
@@ -101,7 +102,7 @@ export function applyTune() {
     if (P.airJumps > P.airJumpsMax) P.airJumps = P.airJumpsMax;
   }
   for (const d of dummies) {
-    const max = DTYPE[d.type].hp * TUNE.dummyHpMult;
+    const max = d.baseHp * TUNE.dummyHpMult;
     d.hp = d.hp / d.maxHp * max;    // keep the same fraction of health
     d.maxHp = max;
   }
@@ -206,7 +207,11 @@ panel.querySelector('.th').addEventListener('click', () => {
 panel.querySelector('.ra').addEventListener('click', resetTuning);
 // Testing shortcuts for skill progress. They skip the trials, so they are for trying things out, not for playing.
 panel.querySelector('.ua').addEventListener('click', unlockAll);
-panel.querySelector('.rp').addEventListener('click', resetProgress);
+// "Reset progress" also starts the story again from its first task.
+panel.querySelector('.rp').addEventListener('click', () => {
+  resetProgress();
+  resetStory();
+});
 // Copy every changed number as text, to paste into a chat or a note ("make these the new defaults").
 panel.querySelector('.cp').addEventListener('click', e => {
   const changed = rows.filter(r => r.get() !== r.def).map(r => `${r.label}: ${fmt(r, r.get())} (default ${fmt(r, r.def)})`);

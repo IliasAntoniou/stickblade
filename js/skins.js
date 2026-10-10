@@ -4,6 +4,8 @@
 //   shield  = a guard: a steel helm with a crest and heavy shoulder plates, thicker limbs.
 //   flying  = a winged thing: two wings that flap, and a slighter body.
 //   fighter = a brute: horns, spiked shoulders, thick arms, glowing eyes, and bigger than the rest.
+//   gang    = one of the Ash Hand, the story's enemies (any dummy made with the option `gang`): ash-grey, a red
+//             headband with its tails flying and a red mask over the mouth. Their boss also has spiked shoulders.
 // dressDummy() is called once when a dummy is made (dummies.js). The shapes and materials here are made once and
 // shared by every dummy, so a new dummy costs nothing extra to build.
 // To keep the number of draw calls down, shapes that always go together (both horns, both shoulder plates, both
@@ -96,6 +98,15 @@ const glareGeo = joined([
   [new THREE.SphereGeometry(0.034, 8, 6), -0.062, 0.02, 0.156],
 ]);
 
+// ---------- the Ash Hand (story enemies) ----------
+const bandMat = new THREE.MeshLambertMaterial({ color: 0xc22a2a });
+const bandGeo = joined([
+  [new THREE.CylinderGeometry(0.19, 0.19, 0.06, 12), 0, 0.07, 0],                  // the headband
+  [new THREE.BoxGeometry(0.05, 0.035, 0.3), 0.05, 0.05, -0.31, 0.35, 0.25, 0],      // its two tails, behind the head
+  [new THREE.BoxGeometry(0.05, 0.035, 0.24), -0.05, 0.03, -0.28, 0.6, -0.3, 0],
+  [new THREE.BoxGeometry(0.25, 0.11, 0.09), 0, -0.07, 0.125],                       // the mask over the mouth
+]);
+
 // Make the rod-thin limbs of a stick figure thicker. arms and legs = how many times thicker.
 function bulk(sm, arms, legs) {
   const widen = (group, width) => {
@@ -119,7 +130,14 @@ function attach(parent, geo, mat, x = 0, y = 0, z = 0) {
 // Give a dummy the look of its type. d = the Dummy (its stick figure is d.sm, its own body material d.mat).
 export function dressDummy(d) {
   const sm = d.sm;
-  if (d.type === 'basic') {
+  if (d.gang) {
+    // Story enemies look the same whatever type they are built on: what matters is whose side they are on.
+    bulk(sm, d.boss ? 2.6 : 1.7, d.boss ? 2.3 : 1.6);
+    attach(sm.head, bandGeo, bandMat);
+    attach(sm.head, glareGeo, glareMat);
+    if (d.boss) attach(sm.chest, spikedGeo, darkMat);
+    sm.root.scale.setScalar(d.boss ? 1.38 : 1.04);
+  } else if (d.type === 'basic') {
     attach(sm.chest, targetGeo, targetMat, 0, -0.17, 0.062);
     attach(sm.head, bucketGeo, woodMat, 0, 0.1, 0);
   } else if (d.type === 'shield') {

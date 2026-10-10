@@ -76,6 +76,10 @@
   #dlg .tag.blue{background:#0f3a4a;color:#5fe6ff}
   #dlg .tag.red{background:#4a1616;color:#ff8a7a}
   #dlg .ft{margin-top:12px;font-size:11px;color:#7d8c99}
+  #quest{position:fixed;right:14px;top:58px;width:240px;background:rgba(20,23,28,.82);border-left:3px solid #ffd23f;border-radius:8px;padding:8px 12px;color:#e8eef3;font-size:13px;line-height:1.4;pointer-events:none;display:none}
+  #quest small{display:block;font-size:10px;letter-spacing:2px;color:#ffd23f;font-weight:800}
+  #quest b{display:block;font-size:14px}
+  #quest .ok{color:#5ee08a;font-weight:700}
   #chal{position:fixed;left:50%;top:12px;transform:translateX(-50%);background:rgba(20,23,28,.88);color:#fff;padding:8px 18px;border-radius:10px;text-align:center;display:none;font-weight:700;pointer-events:none}
   #chal .tm{font-size:26px;font-variant-numeric:tabular-nums;color:#00e5ff}
   #chal small{display:block;font-weight:500;color:#9fb0bd;font-size:12px}
@@ -166,7 +170,7 @@
       <b>TAB / ESC</b><span>Pause · tuning panel</span>
     </div>
     <div class="tips">
-      <b>Master Sen</b> stands next to where you start. Talk to him (G) to change class or start a challenge.<br>
+      <b>Master Sen</b> stands next to where you start. Talk to him (G) for the story, to change class or to start a challenge.<br>
       Red dummies are for practice · grey ones block from the front · blue ones fly · <b>purple ones fight back</b>.<br>
       Tech: dash then jump keeps the dash speed · slide then jump = slide-hop.
     </div>
@@ -184,6 +188,7 @@
 <div id="skills"></div>
 <div id="prompt"></div>
 <div id="dlg"><div class="win"><div class="side"><div class="face"><svg viewBox="0 0 150 150"><path fill="#0f0c0d" d="M30 78 L18 44 L40 56 L34 20 L58 44 L64 8 L80 40 L96 12 L98 46 L122 24 L112 58 L134 48 L120 80 Z"/><path fill="#4d362e" d="M40 150 V128 Q40 112 58 108 H92 Q110 112 110 128 V150 Z"/><ellipse fill="#4d362e" cx="75" cy="84" rx="37" ry="41"/><path fill="#0f0c0d" d="M38 74 Q44 46 75 44 Q106 46 112 74 Q94 58 75 60 Q56 58 38 74 Z"/><path fill="#1c1413" d="M44 76 L70 86 L70 80 L46 68 Z M106 76 L80 86 L80 80 L104 68 Z"/><circle fill="#ff2a1a" cx="59" cy="89" r="6"/><circle fill="#ff2a1a" cx="91" cy="89" r="6"/><circle fill="#ffd0c8" cx="59" cy="89" r="2"/><circle fill="#ffd0c8" cx="91" cy="89" r="2"/><path fill="none" stroke="#1c1413" stroke-width="4" stroke-linecap="round" d="M62 110 Q75 104 88 110"/></svg></div><div class="nm">MASTER SEN</div><div class="tx"></div></div><div class="main"><div class="ttl"></div><div class="op"></div><div class="ft">Click a card or press its number · G, Esc or a click outside to leave</div></div></div></div>
+<div id="quest"></div>
 <div id="chal"></div>
 <div id="center"></div>
 <div id="toast"></div>

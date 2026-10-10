@@ -1,12 +1,14 @@
 // dummies.js: the things you hit. One Dummy class for every type; `type` switches the behaviour:
 //   basic = stands still, shield = blocks hits from the front, flying = circles in the air, fighter = attacks the player.
+// A dummy made with the option `gang` is a real enemy from the story (quests.js): it hunts the player across the
+// whole arena, never heals, and once knocked out it stays down and is taken out of the world.
 // Also the damage functions every attack goes through: hitDummy (one target) and hitArea (everything in a circle).
 // NOTE: per-type behaviour is still if-checks inside Dummy. It moves into DTYPE in the dummy-types phase.
 
 import * as THREE from 'three';
 import { V3, TAU, clamp, damp, angDiff, angDamp, _hv, _dv } from './util.js';
 import { scene, camera } from './core.js';
-import { solids, boxGeo, edgeGeo, edgeMat, lam, groundAt, makeShadow, placeShadow } from './world.js';
+import { solids, boxGeo, edgeGeo, edgeMat, lam, groundAt, makeShadow, placeShadow, ARENA } from './world.js';
 import { addRim, castShadows, makeStickman, POSE_KEYS, DUMMY_POSE, F_IDLE, F_SLAM, F_LWIND, F_LUNGE, F_STUN, applyPose } from './stickman.js';
 import { ringGeo, spawnRing, burst, spawnText, shake, addHitstop } from './fx.js';
 import { T, P, dlg, chal, TUNE, hitSrc, addHit } from './state.js';
@@ -14,6 +16,7 @@ import { hitAllowed, onHit } from './progress.js';
 import { onStyleHit } from './styles.js';
 import { strikeMaster } from './master.js';
 import { dressDummy } from './skins.js';
+import { questEvent } from './quests.js';
 import { tp, hurtPlayer } from './player.js';
 import { update } from './update.js';
 
@@ -28,6 +31,8 @@ export const DTYPE = {
   flying: { color: 0x2fa4d9, hp: 400 },
   fighter: { color: 0xa070ff, hp: 900 },
 };
+const GANG_SIGHT = 80;     // how far away a gang member notices the player (the arena is 120 across)
+const GANG_SPEED = 5.2;    // how fast it walks, units per second. A training fighter does 3.4; the player runs at about 9.5
 // True if a dummy standing at p would be inside a wall.
 export function dummyBlocked(p) {
   for (const s of solids) if (p.x + 0.3 > s.min.x && p.x - 0.3 < s.max.x && p.z + 0.3 > s.min.z && p.z - 0.3 < s.max.z && p.y + 1.8 > s.min.y && p.y + 0.4 < s.max.y) return true;
@@ -37,14 +42,20 @@ export function dummyBlocked(p) {
 export class Dummy {
   constructor(type, x, y, z, o = {}) {
     this.type = type; const D = DTYPE[type];
-    this.mat = addRim(new THREE.MeshLambertMaterial({ color: D.color, emissive: 0x000000 }));
+    // Story enemies (quests.js). gang = one of the Ash Hand, boss = their leader in a fight (bigger, dressed heavier).
+    this.gang = !!o.gang;
+    this.boss = !!o.boss;
+    this.gone = false;               // a gang member that has been knocked out and is waiting to be removed
+    this.baseHp = o.hp || D.hp;      // health before the tuning panel's multiplier
+    this.color = o.color ?? D.color;
+    this.mat = addRim(new THREE.MeshLambertMaterial({ color: this.color, emissive: 0x000000 }));
     this.sm = makeStickman(this.mat, null, false); scene.add(this.sm.root);
     castShadows(this.sm);
     this.pose = { ...(type === 'fighter' ? F_IDLE : DUMMY_POSE) }; applyPose(this.sm, this.pose);
     this.base = new V3(x, y, z); this.anchor = this.base.clone();
     this.patrol = o.patrol || 0; this.radius = o.radius || 0; this.phase = Math.random() * TAU;
     this.pos = this.anchor.clone(); this.vel = new V3();
-    this.maxHp = D.hp; this.hp = this.maxHp;
+    this.maxHp = this.baseHp; this.hp = this.maxHp;
     this.sinceHit = 99; this.flash = 0; this.rage = 0; this.tx = 0; this.tz = 0; this.tvx = 0; this.tvz = 0;
     this.yaw = 0; this.dead = false; this.deadT = 0; this.spin = 0; this.grounded = true;
     this.floatT = 0; this.stunT = 0; this.pinned = false; this.engaged = false;
@@ -123,13 +134,15 @@ export class Dummy {
     this.vel.set(kx / l * 9, 13, kz / l * 9); this.spin = 0;
     this.chest(_dv); _dv.y += 0.6; spawnText(_dv, 'K.O.', 'ko'); burst(_dv, 20, 12); shake(0.4);
     if (chal.phase === 'run') chal.kos++;
+    questEvent('ko', { d: this });    // the story counts knockouts (quests.js)
   }
   // Back to full health at its home spot. poof = show the ring effect.
   respawn(poof = true) {
+    if (this.gang) return;    // a gang member never comes back or heals; the story spawns a fresh group if it needs one
     this.dead = false; this.hp = this.maxHp; this.vel.set(0, 0, 0);
     if (this.type === 'flying') this.path(this.pos); else this.pos.copy(this.anchor);
     this.sinceHit = 99; this.tx = this.tz = this.tvx = this.tvz = 0; this.spin = 0; this.floatT = 0; this.stunT = 0; this.burnT = 0; this.cancelAtk();
-    if (poof) spawnRing(_dv.copy(this.pos).setY(this.pos.y + 0.05), 0.2, 2.2, 0.35, DTYPE[this.type].color);
+    if (poof) spawnRing(_dv.copy(this.pos).setY(this.pos.y + 0.05), 0.2, 2.2, 0.35, this.color);
   }
   // Once per frame: movement, gravity, drifting back to its spot, healing, health bar, shadow.
   update(dt) {
@@ -139,7 +152,10 @@ export class Dummy {
     if (this.dead) {
       this.deadT -= dt; this.vel.y -= 30 * dt; this.pos.addScaledVector(this.vel, dt); this.spin += dt * 9;
       if (this.pos.y < gy) { this.pos.y = gy; this.vel.y = Math.abs(this.vel.y) * 0.3; this.vel.x *= 0.6; this.vel.z *= 0.6; }
-      if (this.deadT <= 0) this.respawn();
+      if (this.deadT <= 0) {
+        if (this.gang) this.gone = true;    // quests.js takes it out of the world after this frame
+        else this.respawn();
+      }
     } else {
       this.sinceHit += dt; this.stunT = Math.max(0, this.stunT - dt);
       if (this.burnT > 0) {
@@ -171,13 +187,18 @@ export class Dummy {
         this.pos.y = gy; if (this.vel.y < 0) this.vel.y = 0;
         const f = Math.exp(-9 * dt); this.vel.x *= f; this.vel.z *= f; this.grounded = true;
       } else { const f = Math.exp(-1.2 * dt); this.vel.x *= f; this.vel.z *= f; this.grounded = false; }
-      if (!this.dead && !flying && this.grounded && this.sinceHit > 1 && !(ty === 'fighter' && this.engaged)) {
+      if (!this.dead && !flying && !this.gang && this.grounded && this.sinceHit > 1 && !(ty === 'fighter' && this.engaged)) {
         if (Math.abs(gy - this.anchor.y) < 0.05) {
           const k = this.patrol ? 6 : 3;
           this.pos.x = damp(this.pos.x, this.anchor.x, k, dt); this.pos.z = damp(this.pos.z, this.anchor.z, k, dt);
         } else if (this.sinceHit > 2.2) this.respawn();
       }
-      if (TUNE.dummyRegen && this.sinceHit > 4 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + this.maxHp * dt * 0.5);
+      if (this.gang) {
+        // Nothing pulls a gang member back to a home spot, so keep it inside the arena walls where it can be reached.
+        this.pos.x = clamp(this.pos.x, -ARENA + 1, ARENA - 1);
+        this.pos.z = clamp(this.pos.z, -ARENA + 1, ARENA - 1);
+      }
+      if (TUNE.dummyRegen && !this.gang && this.sinceHit > 4 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + this.maxHp * dt * 0.5);
       if (!this.dead) {
         const want = Math.atan2(P.pos.x - this.pos.x, P.pos.z - this.pos.z);
         if (ty === 'shield') this.yaw += clamp(angDiff(this.yaw, want), -2.2 * dt, 2.2 * dt);
@@ -216,7 +237,10 @@ export class Dummy {
   fighterAI(dt, gy) {
     const dx = P.pos.x - this.pos.x, dz = P.pos.z - this.pos.z, dist = Math.hypot(dx, dz) || 0.001, dy = P.pos.y - this.pos.y;
     const leash = Math.hypot(this.pos.x - this.anchor.x, this.pos.z - this.anchor.z);
-    const canSee = TUNE.fightersAttack && P.smokeT <= 0 && !dlg.open && chal.phase !== 'count' && dist < 14 && Math.abs(dy) < 4 && leash < 18;
+    // A training fighter guards its own patch. A gang member has come for the player: it sees right across the
+    // arena, at any height, and has no home to stay near.
+    const inSight = this.gang ? dist < GANG_SIGHT : dist < 14 && Math.abs(dy) < 4 && leash < 18;
+    const canSee = TUNE.fightersAttack && P.smokeT <= 0 && !dlg.open && chal.phase !== 'count' && inSight;
     this.aiCd -= dt; this.rage = 0;
     let tp = F_IDLE;
     if (this.stunT > 0 || !this.grounded || this.floatT > 0) {
@@ -233,8 +257,20 @@ export class Dummy {
         }
         if (this.ai === 'idle' && dist > 2.6 && this.sinceHit > 0.4) {
           const ox = this.pos.x, oz = this.pos.z;
-          this.pos.x += dx / dist * 3.4 * dt; this.pos.z += dz / dist * 3.4 * dt;
-          if (dummyBlocked(this.pos)) { this.pos.x = ox; this.pos.z = oz; }
+          const stride = (this.gang ? GANG_SPEED : 3.4) * dt;
+          this.pos.x += dx / dist * stride; this.pos.z += dz / dist * stride;
+          if (dummyBlocked(this.pos)) {
+            this.pos.x = ox; this.pos.z = oz;
+            if (this.gang) {
+              // A rock is in the way. Slide along it (sideways first, then forwards) so it does not stand stuck behind it.
+              this.pos.x = ox + Math.sign(dx) * stride;
+              if (dummyBlocked(this.pos)) {
+                this.pos.x = ox;
+                this.pos.z = oz + Math.sign(dz) * stride;
+                if (dummyBlocked(this.pos)) this.pos.z = oz;
+              }
+            }
+          }
         }
         break;
       }
@@ -350,7 +386,7 @@ export function hitArea(cx, cy, cz, rad, dmg, kb, up, heavy, stop, top, falloff 
 // Add a dummy while the game is running (the training hall does this for each trial). Same arguments as new Dummy.
 export function spawnDummy(type, x, y, z, options) {
   const d = new Dummy(type, x, y, z, options);
-  d.maxHp = DTYPE[type].hp * TUNE.dummyHpMult;
+  d.maxHp = d.baseHp * TUNE.dummyHpMult;
   d.hp = d.maxHp;
   dummies.push(d);
   d.update(0);    // place its model, health bar and shadow straight away

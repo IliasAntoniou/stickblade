@@ -2,6 +2,18 @@
 
 Newest first. One entry per merged feature: what changed, where, how to check it, and the git tag to go back to.
 
+## v0.9-story: the story begins (chapter 1)
+
+- **The story:** Master Sen is an ex-convict who left his gang, the Ash Hand, and is recruiting and training people to bring it down. He hands out tasks one at a time. Talk to him and pick the story card, now the first card in his menu: he says his piece, you take the task, do it, and go back to tell him.
+- **Chapter 1, The Recruit:** five tasks in the arena and the training hall. Knock out 3 practice dummies; stand on something at least 12 high; learn a skill in the hall; defeat 4 Ash Hand scouts; defeat Rook, the first boss, and his two men.
+- **On screen:** the current task and its count show at the top right. When it is done it says to go back to Sen.
+- **Real enemies:** the Ash Hand's fighters hunt you across the whole arena, walk round rocks, never heal, and stay down when beaten. Ash grey with a red headband and mask; Rook is much bigger. If you are defeated they all come back and the task starts over.
+- **Rules:** Blademaster only for now (with another class the story is paused). Progress is saved. "Reset progress" in the tuning panel also restarts the story.
+- **Menu numbers moved:** the story card is number 1 in Sen's menu, so the other cards are one number higher than before.
+- **Where:** new `js/quests.js` (the tasks are data in `QUESTS`) and `docs/STORY.md`; gang behaviour in `js/dummies.js` (the `gang` option, `GANG_SIGHT`, `GANG_SPEED`); their look in `dressDummy()` in `js/skins.js`; `storyCard()` and the story page in `js/master.js`; the task display in `js/hud.js` and `index.html`; small hooks in `js/update.js`, `js/player.js`, `js/tuning.js`, `js/main.js`.
+- **Not tuned yet:** the gang's health, speed and numbers, and every line Sen says, are first guesses.
+- **Check:** `bash tests/smoke.sh` (walks the whole chapter: the menu, counting, reporting, scouts that hunt and do not heal, a defeat, a class change, the ending and a reset). By hand: talk to Sen, press 1.
+
 ## v0.8-world: grass, rocks, element hair, enemy looks, Sen's throw, and the Thunder style
 
 - **Grass:** the arena floor is painted grass, flat on the ground. (A first version also had tufts standing up out of it; those were removed.) The training hall keeps its tiled floor.

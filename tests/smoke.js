@@ -99,7 +99,7 @@ check('master dialog', () => {
   SB.setClass('blade'); reset();
   P.pos.copy(SB.master.pos); P.pos.z -= 2; P.vel.set(0, 0, 0); run(2);
   press('KeyG', 2); if (!dlg.open) return false;
-  press('Digit1', 2); if (dlg.page !== 'classes') return false;
+  press('Digit2', 2); if (dlg.page !== 'classes') return false;
   press('Digit2', 2);
   return !dlg.open && SB.CL.id === 'ninja';
 });
@@ -376,7 +376,7 @@ check('progress: reset goes back to the start', () => {
 check('Master Sen: to the hall, a trial, and back', () => {
   SB.setClass('blade'); reset();
   P.pos.copy(SB.master.pos); P.pos.z -= 2; P.vel.set(0, 0, 0); run(2);
-  press('KeyG', 2); press('Digit2', 2);                  // "Train my skills"
+  press('KeyG', 2); press('Digit3', 2);                  // "Train my skills"
   if (!dojo.inside || dlg.open) return false;
   run(5); press('KeyG', 2);                              // he is next to where you arrive
   if (dlg.page !== 'train' || dlg.opts.length !== 8) return false;    // 4 skills, 3 sword styles, return
@@ -511,9 +511,9 @@ check('Sen: the menu is made of cards that can be clicked', () => {
   reset(); P.pos.copy(sen.pos); P.pos.z -= 2; P.vel.set(0, 0, 0); run(2);
   press('KeyG', 2);
   const win = document.getElementById('dlg'), cards = win.querySelectorAll('.card');
-  if (!dlg.open || cards.length !== dlg.opts.length || cards.length !== 5 || !cards[0].querySelector('svg')) return false;
+  if (!dlg.open || cards.length !== dlg.opts.length || cards.length !== 6 || !cards[0].querySelector('svg')) return false;
   if (!document.body.classList.contains('sen')) return false;
-  cards[0].click();                                      // "Change fighting style"
+  cards[1].click();                                      // "Change fighting style"
   if (dlg.page !== 'classes' || win.querySelectorAll('.card').length !== 5) return false;
   win.querySelectorAll('.card')[2].click();              // the Monk
   const picked = !dlg.open && SB.CL.id === 'monk' && !document.body.classList.contains('sen') && getComputedStyle(win).display === 'none';
@@ -715,7 +715,103 @@ check('style: being defeated mid-scene leaves nothing stuck', () => {
   SB.respawnPlayer(); run(5);
   return P.state === 'normal' && P.sink === 0 && style.cur === null;
 });
+// the story (Blademaster): Sen's tasks are offered, taken, counted and reported in order; gang enemies stay dead
+const story = SB.story, phase = () => SB.questState().phase, gang = () => dummies.filter(d => d.gang);
+// Take the task on offer and check it is the one expected.
+function take(id) { return SB.acceptQuest() && story.cur === id && phase() === 'active'; }
+// Knock out every gang member in the world, then wait for them to be cleared away.
+function beatGang() { for (const d of gang()) d.ko(1, 0); run(130); }
+check('story: starts with the first task on offer, and only for the Blademaster', () => {
+  SB.resetProgress(); SB.resetStory(); SB.setClass('ninja');
+  if (phase() !== 'none' || SB.questLine() !== null) return false;
+  SB.setClass('blade');
+  return phase() === 'offer' && SB.questState().quest === SB.QUESTS[0] && SB.questLine().includes('Master Sen');
+});
+check('story: Sen offers the task in his menu, and taking it closes the menu', () => {
+  reset(); P.pos.copy(SB.master.pos); P.pos.z -= 2; P.vel.set(0, 0, 0); run(2);
+  press('KeyG', 2);
+  if (!dlg.open || !dlg.opts[0].label.startsWith('Story')) return false;
+  press('Digit1', 2);                                    // the story card
+  if (dlg.page !== 'story') return false;
+  press('Digit1', 2);                                    // "Take the task"
+  return !dlg.open && story.cur === 'c1-hits' && phase() === 'active';
+});
+check('story: knockouts are counted, and only the right kind', () => {
+  reset();
+  const basics = dummies.filter(d => d.type === 'basic');
+  dummies.find(d => d.type === 'shield').ko(1, 0);       // a guard is not a practice dummy
+  if (story.n !== 0) return false;
+  basics[0].ko(1, 0); basics[1].ko(1, 0);
+  if (story.n !== 2 || phase() !== 'active') return false;
+  basics[2].ko(1, 0);
+  return phase() === 'ready' && SB.questLine().includes('tell Master Sen');
+});
+check('story: reporting to Sen finishes the task and offers the next', () => {
+  reset(); P.pos.copy(SB.master.pos); P.pos.z -= 2; P.vel.set(0, 0, 0); run(2);
+  press('KeyG', 2); press('Digit1', 2);                  // the card now reports
+  const answered = dlg.page === 'story' && story.done.includes('c1-hits') && story.cur === null;
+  press('KeyG', 2);
+  return answered && phase() === 'offer' && SB.questState().quest.id === 'c1-climb';
+});
+check('story: a task that is checked every frame (stand somewhere high)', () => {
+  reset(); if (!take('c1-climb')) return false;
+  run(20); if (phase() !== 'active') return false;       // standing on the ground is not enough
+  P.pos.set(0, 12.8, -30); P.vel.set(0, 0, 0); run(20);  // the platform at height 12.8
+  return phase() === 'ready' && SB.turnInQuest().id === 'c1-climb';
+});
+check('story: learning a skill counts, a lent one does not', () => {
+  reset(); if (!take('c1-learn')) return false;
+  if (!begin('blade-q1')) return false;                  // the trial lends Blink Strike while it runs
+  run(10); if (phase() !== 'active') return false;
+  SB.endChallenge(); SB.leaveDojo(); run(5);
+  SB.unlockAll(); run(5);
+  const ok = phase() === 'ready' && !!SB.turnInQuest();
+  SB.resetProgress();
+  return ok;
+});
+check('story: scouts appear, hunt the player, do not heal and stay dead', () => {
+  reset(); if (!take('c1-scouts')) return false;
+  const scouts = gang();
+  if (scouts.length !== 4 || dummies.length !== arenaDummies + 4) return false;
+  // they come for the player from right across the arena
+  P.pos.set(0, 0, 0); P.vel.set(0, 0, 0); P.iframes = 99;
+  const far = Math.hypot(scouts[0].pos.x, scouts[0].pos.z);
+  run(180);
+  if (Math.hypot(scouts[0].pos.x, scouts[0].pos.z) > far - 5) return false;
+  // hurt one and leave it alone: no healing, and "reset dummies" does nothing to it
+  skillHit('atk', scouts[0]);
+  const hurt = scouts[0].hp;
+  run(60 * 6); scouts[0].respawn(false);
+  if (scouts[0].hp > hurt || hurt >= scouts[0].maxHp) return false;
+  scouts[0].ko(1, 0); run(130);
+  if (story.n !== 1 || dummies.length !== arenaDummies + 3) return false;
+  beatGang();
+  return phase() === 'ready' && dummies.length === arenaDummies;
+});
+check('story: being defeated brings the whole group back and restarts the count', () => {
+  SB.turnInQuest();
+  reset(); if (!take('c1-rook')) return false;
+  if (gang().length !== 3 || gang().filter(d => d.boss).length !== 1) return false;
+  gang().find(d => !d.boss).ko(1, 0); run(130);
+  if (story.n !== 1 || gang().length !== 2) return false;
+  P.iframes = 0; SB.hurtPlayer(9999, dummies[0].pos, dummies[0]); run(5);
+  return story.n === 0 && gang().length === 3 && gang().every(d => d.hp === d.maxHp);
+});
+check('story: changing class pauses the task and takes its enemies away', () => {
+  SB.setClass('monk'); run(3);
+  if (gang().length !== 0 || phase() !== 'none') return false;
+  SB.setClass('blade'); run(3);
+  return gang().length === 3 && phase() === 'active';
+});
+check('story: the chapter ends, and a reset starts it again', () => {
+  reset(); P.iframes = 99; beatGang();
+  if (phase() !== 'ready' || !SB.turnInQuest()) return false;
+  if (phase() !== 'end' || story.done.length !== SB.QUESTS.length || SB.questLine() !== null) return false;
+  SB.resetStory();
+  return phase() === 'offer' && story.done.length === 0 && dummies.length === arenaDummies;
+});
 reset();
+SB.resetStory();
 SB.resetProgress();
 check('hall: nothing is left behind', () => !dojo.inside && dummies.length === arenaDummies && dojo.props.length === 0);
 

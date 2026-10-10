@@ -1,4 +1,5 @@
-// hud.js: the on-screen display. Skill bar with cooldowns, health bar, combo counter, crosshair, lock-on ring, stats line.
+// hud.js: the on-screen display. Skill bar with cooldowns, health bar, combo counter, crosshair, lock-on ring, stats line,
+// and the story's current task (top right).
 // The HTML and CSS for it are in index.html.
 
 import { clamp, $, DEBUG } from './util.js';
@@ -11,6 +12,7 @@ import { master } from './master.js';
 import { locked } from './input.js';
 import { rankOf } from './progress.js';
 import { style, sourceHint, STYLE_TIME } from './styles.js';
+import { questLine } from './quests.js';
 
 // ================= HUD =================
 export const skEl = $('skills');
@@ -88,6 +90,13 @@ export function updateHud(rdt) {
   hudT -= rdt;
   if (hudT <= 0) {
     hudT = 0.1;
+    // The story's task, top right. Only touched when its text changes.
+    const task = questLine();
+    if (task !== lastTask) {
+      lastTask = task;
+      questEl.style.display = task ? 'block' : 'none';
+      if (task) questEl.innerHTML = task;
+    }
     while (dmgLog.length && T - dmgLog[0].t > 5) dmgLog.shift();
     let sum = 0; for (const e of dmgLog) sum += e.d;
     const win = dmgLog.length ? clamp(T - dmgLog[0].t, 1, 5) : 1;
@@ -97,4 +106,6 @@ export function updateHud(rdt) {
   }
 }
 let lastHint = null;
+let lastTask = null;
+const questEl = $('quest');
 export const styleEl = $('style'), styleName = styleEl.querySelector('.nm'), styleFill = styleEl.querySelector('.fill');
