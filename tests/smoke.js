@@ -416,8 +416,10 @@ check('Sen: a second hit inside ten seconds gets you grabbed by the neck and sla
   SB.hurtPlayer(20, dummies[0].pos, dummies[0]);         // nothing else can hurt him meanwhile
   SB.strikeMaster(sen.pos.x, sen.pos.y, sen.pos.z, 3);   // and flailing at Sen does nothing
   if (P.hp !== P.maxHp || P.state !== 'grabbed') return false;
-  run(50);                                               // slammed
-  return held && P.state === 'normal' && P.hp === P.maxHp - 60 && sen.warnT === 0 && !near(0, 14)
+  run(22);                                               // he has jumped: both are well off the ground now
+  const airborne = sen.sm.root.position.y > sen.pos.y + 2 && P.pos.y > sen.pos.y + 2.5 && P.state === 'grabbed';
+  run(40);                                               // slammed, and he is back on his feet
+  return held && airborne && sen.sm.root.position.y === sen.pos.y && P.state === 'normal' && P.hp === P.maxHp - 60 && sen.warnT === 0 && !near(0, 14)
     && Math.hypot(P.pos.x - sen.pos.x, P.pos.z - sen.pos.z) < 6;
 });
 check('Sen: the slam never takes the last of your health', () => {

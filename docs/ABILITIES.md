@@ -108,9 +108,9 @@ Rules for all styles:
 |---|---|---|
 | **Taken by** | Meteor Slam into a pool | Aim at a fire until the lock-on ring is on it (within 15), then Blink Strike |
 | **Needs first** | Meteor Slam learned | Blink Strike learned |
-| **The scene** | You go under the water, a close-up shows your eyes snap open blazing blue, you burst back out | You stand burning in the flames, the close-up shows your eyes snap open blazing orange, you step out |
+| **The scene** | You go under the water; a close-up shows your eyes closed, a blue slash sweeps across, and they snap open blazing blue; you burst back out | You stand burning in the flames; the same close-up with an orange slash and orange eyes; you step out |
 | **Slash** | Blue, with white foam along the edge | Orange, with tongues of fire along the edge |
-| **Suit** | Dark hooded armour split by glowing blue cracks; pale blue eyes under the hood; blue fire on the sword; blue sparks | The same armour split by glowing lava-orange cracks; gold eyes under the hood; fire on the sword; orange sparks |
+| **Suit** | Dark hooded armour split by glowing blue cracks; pale blue eyes under the hood; thin blue wisps flowing along the sword; blue sparks | The same armour split by glowing lava-orange cracks; gold eyes under the hood; thin wisps of fire flowing along the sword; orange sparks |
 | **Effect on every hit** | Takes 0.12 s off all your cooldowns | Sets the target burning: 14 damage a second for 4 s |
 | **Other change** | Sword attacks, Cyclone and Meteor Slam reach 20% further | None |
 | **Trial to unlock** | Take Water, then hit 4 dummies with one sword swing (60 s) | Take Flame, then have 3 dummies burning at once (60 s) |
@@ -119,7 +119,7 @@ Rules for all styles:
 
 ---
 
-The suit is the same for every style: a hood with the face in shadow and two glowing eyes, a chest plate, spiked shoulder guards, gauntlets, greaves, a long ragged coat open at the front, and a torn cape. Only what glows changes.
+The suit is the same for every style: a long hood that hangs onto the shoulders, with the face in shadow and two glowing eyes, a chest plate, spiked shoulder guards, gauntlets, greaves, a long ragged coat open at the front, and a torn cape. Only what glows changes.
 
 ---
 
@@ -130,7 +130,7 @@ He cannot be hurt, but he reacts to being hit. Sword swings, blasts, Cyclone and
 | What you do | What he does |
 |---|---|
 | Hit him once | He points at you, throws you back, and his eyes burn brighter for 10 seconds |
-| Hit him again within those 10 seconds | He catches you by the neck, holds you off the ground for a moment, then slams you into the ground in front of him. It takes 60% of your full health, but never your last point |
+| Hit him again within those 10 seconds | He catches you by the neck, holds you off the ground for a moment, leaps into the air with you, and slams you into the ground from the top of the jump. It takes 60% of your full health, but never your last point |
 | Hit him again after the 10 seconds | Another warning |
 
 Hits less than 0.6 seconds apart count as one. For about a second and a half after a slam he cannot be provoked again.

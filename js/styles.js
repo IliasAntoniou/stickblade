@@ -23,21 +23,21 @@ const PLAIN_SKIN = 0xeef1f8;     // the player's normal body colour (matches pla
 // The styles. color = slash and blade colour. paint = which painted look the slash uses (see setTrailPaint in fx.js).
 // The suit worn under a style is the same dark armour for all of them; these colour what glows on it:
 //   glow, core = the cracks in the armour and coat (a wide soft line and its bright centre), as CSS colours.
-//   glowHex = the same glow as a number, for the halo round the eyes and the haze round the body.
-//   eyes = the two points of light under the hood.   fire = tint of the flames on the sword (white = natural fire).
+//   glowHex = the same glow as a number, for the halo round the eyes, the haze round the body and the wisps on the sword.
+//   eyes = the two points of light under the hood.
 //   spark = which kind of spark drifts off the body (see burst() in fx.js).
 // reach = multiplies how far sword attacks, Cyclone and Meteor Slam reach.
 // how = how to take it, perk = what it does (both shown to the player).
 export const STYLES = {
   water: {
     id: 'water', name: 'Water', color: 0x2f8fff, paint: 'water', reach: 1.2,
-    glow: '#2f8fff', core: '#dff3ff', glowHex: 0x2f8fff, eyes: 0xbfe6ff, fire: 0x4aa8ff, spark: 2,
+    glow: '#2f8fff', core: '#dff3ff', glowHex: 0x2f8fff, eyes: 0xbfe6ff, spark: 2,
     flow: 0.12,        // seconds taken off every cooldown each time a hit lands
     how: 'Meteor Slam into a pool', perk: 'Slashes reach further, and every hit shortens your cooldowns',
   },
   flame: {
     id: 'flame', name: 'Flame', color: 0xff5a1a, paint: 'flame', reach: 1,
-    glow: '#ff5a1a', core: '#ffe6a0', glowHex: 0xff5a1a, eyes: 0xffc24a, fire: 0xffffff, spark: 0,
+    glow: '#ff5a1a', core: '#ffe6a0', glowHex: 0xff5a1a, eyes: 0xffc24a, spark: 0,
     burnTime: 4,       // seconds a target keeps burning after the last hit
     burnDps: 14,       // burn damage per second
     how: 'Lock on to a fire and Blink Strike into it', perk: 'Every hit sets the target burning',
@@ -55,7 +55,7 @@ export function reach() { return style.cur ? style.cur.reach : 1; }
 // ---------- the suit ----------
 // Taking a style puts the character in a suit of dark armour that glows with the style's colour: a hood with the
 // face in shadow and two burning eyes, a chest plate, spiked shoulder guards, gauntlets and greaves split by
-// glowing cracks, a long ragged coat open at the front, and a torn cape. The sword carries flames of the same colour.
+// glowing cracks, a long ragged coat open at the front, and a torn cape. Thin wisps of the same colour run along the sword.
 // Everything here is built once, attached to the player's body the first time a style is worn, and hidden otherwise.
 const ARMOUR = 0x17151c;    // the dark colour of the suit, and of the limbs under it
 
@@ -138,6 +138,23 @@ function suitMats(s) {
 }
 let mats = null;    // { water: {armour, coat}, flame: {...} }, made the first time a style is worn
 const hoodMat = new THREE.MeshLambertMaterial({ color: 0x100e15, side: THREE.DoubleSide });
+// The hood's mantle uses the coat's ragged-hem cloth, without anything glowing on it.
+const mantleMat = new THREE.MeshLambertMaterial({ map: coatCloth(), alphaTest: 0.5, side: THREE.DoubleSide });
+// Wisps for the sword: a strip of fine wavy lines, mostly along its two long edges, that repeats end to end.
+const wispTex = canvasTex(256, 64, x => {
+  x.lineCap = 'round';
+  // each wisp: how far across the strip it sits (0..64), how many waves it makes, how high they are, how bright it is
+  for (const [y, waves, height, alpha] of [[9, 3, 5, 1], [15, 5, 4, 0.75], [21, 2, 6, 0.5], [55, 4, 5, 1], [49, 6, 4, 0.75], [43, 3, 6, 0.5], [32, 2, 3, 0.25]]) {
+    for (const [width, a] of [[3.4, alpha * 0.35], [1.1, alpha]]) {    // a soft line, then its bright core
+      x.strokeStyle = `rgba(255,255,255,${a})`;
+      x.lineWidth = width;
+      x.beginPath();
+      for (let px = 0; px <= 256; px += 4) x.lineTo(px, y + Math.sin(px / 256 * Math.PI * 2 * waves + y) * height);
+      x.stroke();
+    }
+  }
+});
+const wispMat = new THREE.MeshBasicMaterial({ map: wispTex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
 const metalMat = new THREE.MeshLambertMaterial({ color: 0x2a2732 });
 // Under the hood the face is in shadow. It has its own material so that it stays dark and still fades with the body.
 const faceMat = new THREE.MeshLambertMaterial({ color: 0x07070a, transparent: true });
@@ -146,7 +163,7 @@ const haloMat = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.Additiv
 const auraMat = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.2, toneMapped: false });
 
 // The pieces. suit.parts is all of them (to show and hide together); the named ones are swapped between styles.
-export const outfit = { parts: [], armoured: [], coats: [], swordFire: [], hood: null, coat: null, chest: null, attached: false };
+export const outfit = { parts: [], armoured: [], coats: [], hood: null, coat: null, chest: null, attached: false };
 function attachOutfit() {
   mats = { water: suitMats(STYLES.water), flame: suitMats(STYLES.flame) };
   // put a piece on a part of the body and remember it. kind says which material set it follows.
@@ -190,12 +207,18 @@ function attachOutfit() {
   const cape = new THREE.Mesh(new THREE.PlaneGeometry(0.66, 1.25), coat);
   cape.rotation.x = 0.2;
   add(cape, player.chest, 0, -0.62, -0.2, 'coat');
-  // the hood: most of a ball around the head, left open at the face, with a point trailing at the back
-  const OPEN = 0.8;
-  outfit.hood = add(new THREE.Mesh(new THREE.SphereGeometry(0.222, 16, 10, Math.PI / 2 + OPEN, Math.PI * 2 - OPEN * 2, 0, Math.PI * 0.74), hoodMat), player.head, 0, 0.01, -0.012);
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.26, 8), hoodMat);
-  tip.rotation.x = -1.9;
-  add(tip, player.head, 0, 0.1, -0.2);
+  // The hood: a deep cowl. It is a ball around the head stretched tall and forward, left open down the front for
+  // the face, and long enough at the sides and back to hang onto the shoulders. A point trails behind it.
+  const OPEN = 0.72;    // half the width of the face opening, in radians
+  outfit.hood = new THREE.Mesh(new THREE.SphereGeometry(0.235, 18, 12, Math.PI / 2 + OPEN, Math.PI * 2 - OPEN * 2, 0, Math.PI * 0.93), hoodMat);
+  outfit.hood.scale.set(1.1, 1.32, 1.24);
+  add(outfit.hood, player.head, 0, -0.03, -0.03);
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.3, 8), hoodMat);
+  tip.rotation.x = -2.2;
+  add(tip, player.head, 0, 0.14, -0.27);
+  // The mantle: the same cloth carrying on down from the hood, draped over the shoulders and the top of the chest
+  // plate, with a ragged edge. The shoulder guards stand out through it.
+  add(tube(0.14, 0.38, 0.38, mantleMat), player.chest, 0, -0.07, 0);
   // the eyes: two points of light in the dark of the hood, each with a halo
   for (const side of [1, -1]) {
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), eyeMat);
@@ -208,11 +231,13 @@ function attachOutfit() {
   const aura = new THREE.Sprite(auraMat);
   aura.scale.set(2.6, 3.4, 1);
   add(aura, player.root, 0, 1.0, 0);
-  // fire along the sword (it burns in the style's colour)
-  for (const [z, size] of [[0.35, 0.5], [0.65, 0.62], [0.95, 0.5]]) {
-    const f = flameSprite(size);
-    add(f, player.wrist, 0, 0, z);
-    outfit.swordFire.push(f);
+  // The sword: thin wisps of the style's colour running along both edges of the blade and flowing towards the
+  // tip (a picture of fine wavy lines that slides along, see wispTex). Two flat strips at right angles, so the
+  // wisps show from any side. Much finer than a flame shape: the blade looks hot, not on fire.
+  for (const turn of [0, Math.PI / 2]) {
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.3).rotateY(Math.PI / 2).rotateZ(turn), wispMat);
+    add(strip, player.wrist, 0, 0, 0.66);
+    strip.castShadow = false;
   }
   for (const m of outfit.parts) { if (m.isSprite) m.castShadow = false; }
   outfit.attached = true;
@@ -235,7 +260,7 @@ function applyLook() {
     eyeMat.color.setHex(s.eyes);
     haloMat.color.setHex(s.glowHex);
     auraMat.color.setHex(s.glowHex);
-    for (const f of outfit.swordFire) f.material.color.setHex(s.fire);
+    wispMat.color.setHex(s.glowHex);
   }
 }
 // Take a style. Returns false if it has not been unlocked. Taking it again refills the time.
@@ -524,11 +549,8 @@ export function updateStyles(dt) {
   // the face's own material fades in and out with the rest of the body (dodging, being hit)
   faceMat.opacity = playerMat.opacity;
   if (style.cur) {
-    // the fire on the sword flickers, and now and then a spark drifts off the body
-    for (const f of outfit.swordFire) {
-      const flick = 1 + Math.sin(t * (13 + f.position.z * 9)) * 0.22;
-      f.scale.set(f.userData.size * 0.55 / flick, f.userData.size * flick, 1);
-    }
+    // the wisps on the sword flow along the blade, and now and then a spark drifts off the body
+    wispTex.offset.x = -t * 1.5;
     sparkT -= dt;
     if (sparkT <= 0) {
       sparkT = 0.09 + Math.random() * 0.12;

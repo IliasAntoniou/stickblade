@@ -26,7 +26,7 @@ import { dojo, enterDojo, leaveDojo } from './dojo.js';
 const POSE_IDLE = { ...BASE, bodyY: 0.93, spineX: 0.12, shLX: -0.85, shLZ: -0.55, elL: -1.85, shRX: -0.7, shRZ: 0.55, elR: -1.95,
   hipLZ: 0.24, hipRZ: -0.24, hipLX: 0, hipRX: 0, kneeL: 0.05, kneeR: 0.05 };
 const POSE_WARN = { ...POSE_IDLE, spineX: 0.2, spineY: -0.35, shRX: -1.55, shRZ: 0.05, elR: -0.05, shLX: 0.25, shLZ: 0.5, elL: -1.2 };
-const POSE_GRAB = { ...POSE_IDLE, spineX: -0.08, spineY: 0.2, shRX: -2.3, shRZ: 0.3, elR: -0.1, shLX: 0.2, shLZ: 0.45, elL: -0.9 };
+const POSE_GRAB = { ...POSE_IDLE, spineX: -0.08, spineY: 0.2, shRX: -2.05, shRZ: 0.3, elR: -0.1, shLX: 0.2, shLZ: 0.45, elL: -0.9 };
 const POSE_SLAM = { ...POSE_IDLE, spineX: 0.85, bodyY: 0.74, shRX: -0.75, shRZ: 0.25, elR: -0.05, shLX: 0.5, shLZ: 0.6, elL: -0.6, kneeL: 0.8, kneeR: 0.8, hipLX: -0.6, hipRX: -0.6 };
 const SEN_HEIGHT = 1.45;    // how many times the size of the player he is
 
@@ -132,6 +132,7 @@ export function updateMaster(dt) {
   master.warnT = Math.max(0, master.warnT - dt);
   master.poseT -= dt;
   if (master.poseT <= 0 && P.state !== 'grabbed') master.poseTo = POSE_IDLE;
+  if (P.state !== 'grabbed') master.sm.root.position.y = master.pos.y;    // feet on the ground unless he is mid-jump with the player
   for (const k of POSE_KEYS) master.pose[k] = damp(master.pose[k], master.poseTo[k], 12, dt);
   applyPose(master.sm, master.pose);
   master.sm.body.position.y += Math.sin(T * 2) * 0.012;    // slow breathing
@@ -174,11 +175,14 @@ function warnPlayer() {
   shake(0.55);
   centerMsg(`"Touch me again and I break you."<small>Master Sen · ${WARNING_TIME} seconds</small>`, 2.6);
 }
-// Second hit inside the warning: he catches the player by the neck, holds them off the ground, and slams them
-// down in front of him. It costs most of their health but never the last of it.
-const GRAB_PULL = 0.18;     // seconds to haul the player into his hand
-const GRAB_HOLD = 0.95;     // seconds in, when the hold ends and the slam begins
-const GRAB_SLAM = 1.1;      // seconds in, when the player hits the ground
+// Second hit inside the warning: he catches the player by the neck, holds them off the ground, leaps into the
+// air with them, and slams them down from the top of the jump. It costs most of their health but never the last of it.
+// The times are seconds since the grab began.
+const GRAB_PULL = 0.18;     // the player has been hauled into his hand
+const GRAB_HOLD = 0.6;      // he stops holding them up and jumps
+const GRAB_APEX = 1.0;      // he is at the top of the jump
+const GRAB_SLAM = 1.2;      // he lands, and the player hits the ground
+const JUMP_HEIGHT = 4.4;    // how high he leaps
 const SLAM_DAMAGE = 0.6;    // share of the player's full health the slam takes
 const NECK_HEIGHT = 1.5;    // how far above the player's feet their neck is
 const _hold = new V3();
@@ -207,7 +211,11 @@ export function updateGrab() {
   _hold.y -= NECK_HEIGHT;
   if (t < GRAB_PULL) {
     P.pos.lerpVectors(master.grabFrom, _hold, t / GRAB_PULL);
-  } else if (t < GRAB_HOLD) {
+  } else if (t < GRAB_APEX) {
+    // held up by the neck; then, from GRAB_HOLD, carried up as he leaps (the player hangs from his hand, so
+    // moving him moves them)
+    const up = clamp((t - GRAB_HOLD) / (GRAB_APEX - GRAB_HOLD), 0, 1);
+    master.sm.root.position.y = master.pos.y + JUMP_HEIGHT * (1 - (1 - up) * (1 - up));    // fast off the ground, slowing at the top
     P.pos.copy(_hold);
     P.pos.x += Math.sin(T * 38) * 0.012;    // struggling
   } else if (t < GRAB_SLAM) {
@@ -215,13 +223,17 @@ export function updateGrab() {
       master.slamming = true;
       master.poseTo = POSE_SLAM;
       master.slamFrom.copy(P.pos);
-      // the ground a little in front of him
+      // the ground a little in front of where he took off
       master.slamTo.set(master.pos.x + Math.sin(master.yaw) * 2, master.pos.y, master.pos.z + Math.cos(master.yaw) * 2);
     }
-    const k = (t - GRAB_HOLD) / (GRAB_SLAM - GRAB_HOLD);
-    P.pos.lerpVectors(master.slamFrom, master.slamTo, k * k);    // slow at first, then driven down
+    // both come down together: slowly at first, then driven into the ground
+    const k = (t - GRAB_APEX) / (GRAB_SLAM - GRAB_APEX);
+    master.sm.root.position.y = master.pos.y + JUMP_HEIGHT * (1 - k * k);
+    P.pos.lerpVectors(master.slamFrom, master.slamTo, k * k);
   } else {
-    // impact
+    // impact: he lands, and the player goes into the ground
+    master.sm.root.position.y = master.pos.y;
+    spawnRing(_fx.set(master.pos.x, master.pos.y + 0.1, master.pos.z), 0.6, 9, 0.55, 0xffffff);
     P.pos.copy(master.slamTo);
     const dmg = Math.min(P.hp - 1, Math.round(P.maxHp * SLAM_DAMAGE));    // never the last point of health
     P.hp -= dmg;

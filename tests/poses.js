@@ -30,7 +30,7 @@ if (name === 'ignite' || name === 'submerge') { SB.startTake(SB.sources[name ===
 if (name === 'grab') {
   const m = SB.master.pos;
   SB.strikeMaster(m.x, m.y, m.z, 3); run(45);
-  SB.strikeMaster(m.x, m.y, m.z, 3); run(34);
+  SB.strikeMaster(m.x, m.y, m.z, 3); run(params.get('jump') ? 58 : 34);    // &jump=1 stops at the top of his leap
 }
 if (params.get('cutin')) {
   const band = document.getElementById('cutin');

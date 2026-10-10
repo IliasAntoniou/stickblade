@@ -1,11 +1,12 @@
-// cutin.js: the close-up that cuts across the screen when a sword style is taken: a dark band showing the
-// character's eyes, which snap open blazing in the style's colour. It is meant to look like power arriving:
-// narrowed, slanted eyes under heavy brows, slit pupils, a glow behind them, a streak of light across both and
-// cracks of energy spreading outwards. It is drawn with HTML and SVG on top of the game, and the game itself
+// cutin.js: the close-up that cuts across the screen when a sword style is taken. A dark band shows the
+// character's eyes, closed. A slash of light in the style's colour sweeps across the band like a blade passing,
+// and as it crosses them the eyes snap open, blazing in the new colour. It is meant to look like power arriving:
+// narrowed, slanted eyes under heavy brows, slit pupils, a glow behind them and cracks of energy spreading outwards. It is drawn with HTML and SVG on top of the game, and the game itself
 // stands still while it plays (main.js checks cutinActive()). How it looks and moves is the #cutin CSS in index.html.
 
-const CUTIN_TIME = 1.5;       // seconds the band stays on screen
-const EYES_OPEN_AT = 0.38;    // seconds in, when the eyes snap open (until then they are closed slits in the dark)
+const CUTIN_TIME = 1.7;       // seconds the band stays on screen
+const SLASH_AT = 0.34;        // seconds in, when the slash starts across the band (it takes about a third of a second)
+const EYES_OPEN_AT = 0.5;     // seconds in, when the eyes snap open: just as the slash is crossing them
 
 // The outline of one eye, drawn around the point (0, 0): the outer corner (left) is raised and the inner corner
 // (right, towards the nose) is pulled down to a point. That slant is what makes it a glare.
@@ -37,8 +38,9 @@ const EYE = `
     <path class="lid" d="M -204 -42 Q -40 -100 126 -32 L 180 24 L 122 -12 Q -40 -68 -186 -22 Z"/>
     <path class="lower" d="M -122 24 Q 20 62 176 26"/>
     <path class="brow" d="M -226 -122 L 150 -64 L 198 -20 L 138 -40 L -214 -86 Z"/>
-    <ellipse class="streak" cx="-8" cy="-8" rx="340" ry="5"/>
   </g>`;
+// The path the slash follows: a shallow arc from the left edge to the right, passing through both eyes.
+const SLASH_PATH = 'M -90 216 Q 500 104 1090 150';
 
 const el = document.createElement('div');
 el.id = 'cutin';
@@ -59,6 +61,8 @@ el.innerHTML = `
     </defs>
     <g transform="translate(280 168)">${EYE}</g>
     <g transform="translate(720 168) scale(-1 1)">${EYE}</g>
+    <path class="slash glow" d="${SLASH_PATH}"/>
+    <path class="slash core" d="${SLASH_PATH}"/>
   </svg>
   <div class="flare"></div>`;
 document.body.appendChild(el);
@@ -70,13 +74,17 @@ export function cutinActive() { return performance.now() < until; }
 export function playCutin(color) {
   const css = '#' + color.toString(16).padStart(6, '0');
   el.style.setProperty('--style', css);
-  el.classList.remove('lit');
+  el.classList.remove('lit', 'cut');
   el.classList.add('on');
   until = performance.now() + CUTIN_TIME * 1000;
   clearTimeout(timer);
-  // the band opens on closed eyes in the dark; then they snap open ('lit'); then the band closes
+  // the band opens on closed eyes in the dark; the slash sweeps across ('cut'); the eyes snap open as it
+  // passes ('lit'); then the band closes
   timer = setTimeout(() => {
-    el.classList.add('lit');
-    timer = setTimeout(() => el.classList.remove('on', 'lit'), (CUTIN_TIME - EYES_OPEN_AT) * 1000);
-  }, EYES_OPEN_AT * 1000);
+    el.classList.add('cut');
+    timer = setTimeout(() => {
+      el.classList.add('lit');
+      timer = setTimeout(() => el.classList.remove('on', 'lit', 'cut'), (CUTIN_TIME - EYES_OPEN_AT) * 1000);
+    }, (EYES_OPEN_AT - SLASH_AT) * 1000);
+  }, SLASH_AT * 1000);
 }

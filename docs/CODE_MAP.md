@@ -34,7 +34,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | How his menu looks (the window, the cards, his portrait) | The `#dlg` CSS and HTML in `index.html` |
 | The pictures on the menu cards | `ICONS` in `js/master.js` |
 | What happens when he is hit: the warning and how long it lasts | `strikeMaster()`, `warnPlayer()` and `WARNING_TIME` in `js/master.js` |
-| The grab and slam: its timing, and how much health it takes | `grabPlayer()`, `updateGrab()` and the `GRAB_...` and `SLAM_DAMAGE` numbers in `js/master.js` |
+| The grab, the jump and the slam: timing, how high he leaps, how much health it takes | `grabPlayer()`, `updateGrab()` and the `GRAB_...`, `JUMP_HEIGHT` and `SLAM_DAMAGE` numbers in `js/master.js` |
 | How his head and eyes follow the player | `updateMaster()` in `js/master.js` |
 | Camera distance, shake, zoom with speed, lock-on | `updateCamera()` in `js/camera.js` |
 | Which key does what | The "actions" block in `update()` in `js/update.js`; raw key handling is in `js/input.js` |
@@ -49,10 +49,12 @@ Where everything is, what the short names mean, and how to add things. If this f
 | Where the pool and the fire stand in the arena | The two `addSource()` lines at the bottom of `js/styles.js` |
 | How a style is taken (how close a slam has to land; how far away a fire can be locked on to) | `slamSources()`, `aimedFire()` and `FIRE_LOCK_RANGE` in `js/styles.js` |
 | The scene when a style is taken (going under the water, standing in the fire, how long it lasts) | `startTake()`, `updateTake()` and the `TAKE_...` numbers in `js/styles.js` |
-| The close-up of the eyes: their shape and how long it lasts | `SHAPE`, `EYE` and the two timings at the top of `js/cutin.js` |
+| The close-up of the eyes: their shape, the path of the slash, and the timing | `SHAPE`, `EYE`, `SLASH_PATH` and the three timings at the top of `js/cutin.js` |
 | The close-up of the eyes: colours, glow, shake and the other motion | The `#cutin` CSS in `index.html` |
 | The lock-on ring | The lock part of `updateHud()` in `js/hud.js`; what gets locked is decided at the end of `updateCamera()` in `js/camera.js` |
-| The suit worn under a style: what colour it glows | `glow`, `core`, `eyes` and `fire` in `STYLES` in `js/styles.js` |
+| The suit worn under a style: what colour it glows | `glow`, `core`, `glowHex` and `eyes` in `STYLES` in `js/styles.js` |
+| The thin wisps running along the sword under a style | `wispTex` and `wispMat` in `js/styles.js`; how fast they flow is the `wispTex.offset` line in `updateStyles()` |
+| The hood and the mantle that hangs from it | The hood part of `attachOutfit()` in `js/styles.js` |
 | The suit's glowing cracks, and the coat's ragged hem | `drawCracks()`, `armourGlow()`, `coatCloth()` and `coatGlow()` in `js/styles.js` |
 | The suit's pieces (hood, armour, coat, cape) and where they sit on the body | `attachOutfit()` in `js/styles.js` |
 | How the water and the fire look | The textures and `addSource()` in `js/styles.js` |
@@ -227,7 +229,7 @@ Water and Flame in `js/styles.js` are the worked examples.
 2. Give it its effect in `onStyleHit()` (runs for every hit that lands), or read `style.cur` wherever else it should matter.
 3. Give it a look: add an `edge` kind to `paintCrescent()` in `js/fx.js` and a matching entry in `TRAIL_PAINTS`.
 4. Give it a source: a new kind in `addSource()`, a way to take it (like `slamSources()`, or the lock-on used for fire) that calls `startTake()`, a line in `sourceHint()`, and one in the arena.
-   Give its suit a colour: `glow`, `core`, `glowHex`, `eyes`, `fire` and `spark`, and an entry in `mats` in `attachOutfit()`.
+   Give its suit a colour: `glow`, `core`, `glowHex`, `eyes` and `spark`, and an entry in `mats` in `attachOutfit()`.
 5. Add its trial to the class's `trials` with `style: '<id>'` and `arena.sources`. Passing it unlocks the style.
 6. Add checks to the style part of `tests/smoke.js`, and a column to Part 2 of `docs/ABILITIES.md`.
 
