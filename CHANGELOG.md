@@ -2,6 +2,16 @@
 
 Newest first. One entry per merged feature: what changed, where, how to check it, and the git tag to go back to.
 
+## v0.8-world: grass, rocks, a slimmer suit and an assassin's hood
+
+- **Grass:** the arena floor is grass, with about 2,600 small tufts standing out of it. The tufts are a single object for the graphics card, so they cost one draw call. Nothing collides with them. The training hall keeps its tiled floor.
+- **Rocks:** every block in the world is now drawn as a faceted rock with chipped, uneven sides and rock colours (grey stone, sandstone platforms, mossy stairs), and the outline edges are gone. Collision is unchanged: each rock still behaves as the plain box it was, its top is exactly flat, and its sides only go inwards.
+- **Suit:** the same design, slimmed down: narrower chest plate, smaller shoulder guards and spikes, tighter gauntlets, greaves and belt, a narrower coat and cape.
+- **Hood:** rebuilt as an assassin's hood: close to the head and narrow, rising to a peak that tips forward over the brow, falling to the shoulders, with an arched face opening that comes to a point at the top. A slightly lighter cloth so its shape reads.
+- **Where:** `rockGeo()`, `grassTex`, the grass block and `clearGrass()` in `js/world.js`; `hoodGeo()` and the sizes in `attachOutfit()` in `js/styles.js`.
+- **Load on Low:** draw calls in the arena went down, from 328 to about 310, because the outline edges are gone. Triangles went up from about 14,400 to about 23,000 (rock facets and grass).
+- **Check:** `bash tests/smoke.sh`; `bash tests/drawcost.sh`.
+
 ## v0.7-styles: sword styles from the world, and a new Master Sen
 
 - **What:** The sword can take on a style for 20 seconds. A style recolours and repaints the slash and adds one effect on top of the normal moves.

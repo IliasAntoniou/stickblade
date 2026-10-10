@@ -119,7 +119,7 @@ Rules for all styles:
 
 ---
 
-The suit is the same for every style: a long hood that hangs onto the shoulders, with the face in shadow and two glowing eyes, a chest plate, spiked shoulder guards, gauntlets, greaves, a long ragged coat open at the front, and a torn cape. Only what glows changes.
+The suit is the same for every style: a tall, narrow assassin's hood with a peak that tips forward, the face in shadow and two glowing eyes, a chest plate, spiked shoulder guards, gauntlets, greaves, a long ragged coat open at the front, and a torn cape. Only what glows changes.
 
 ---
 

@@ -44,7 +44,11 @@ Where everything is, what the short names mean, and how to add things. If this f
 | Slash arcs, rings, sparks, damage numbers, hitstop | `js/fx.js` |
 | Sky colours, fog, overall brightness | `SKY` and `toneMappingExposure` in `js/core.js`; the sky itself is drawn in `js/sky.js` |
 | The lighting (sun colour, direction, strength; the soft light from the sky) | `sun`, `SUN_OFFSET` and `hemi` in `js/core.js` |
-| Box colours, the floor tiles, how dark boxes get at the base | `COL`, `tileTex`, `makeFloor()` and the shading block under `boxGeo` in `js/world.js` |
+| Rock colours | `COL` in `js/world.js` |
+| How chipped and uneven the rocks are, and how finely they are faceted | `CHIP` and `rockGeo()` in `js/world.js` |
+| The grass on the ground: its colours | `grassTex` and the tint on the `ground` line in `js/world.js` |
+| The grass tufts: how many, how big, their colour | `TUFTS`, `tuftGeo` and the `grass` block in `js/world.js` |
+| The training hall's tiled floor | `tileTex` and `makeFloor()` in `js/world.js`, used from `js/dojo.js` |
 | A sword style's colour, how long it lasts, how strong its effect is (burn damage, extra reach) | `STYLES` and `STYLE_TIME` in `js/styles.js` |
 | Where the pool and the fire stand in the arena | The two `addSource()` lines at the bottom of `js/styles.js` |
 | How a style is taken (how close a slam has to land; how far away a fire can be locked on to) | `slamSources()`, `aimedFire()` and `FIRE_LOCK_RANGE` in `js/styles.js` |
@@ -54,7 +58,8 @@ Where everything is, what the short names mean, and how to add things. If this f
 | The lock-on ring | The lock part of `updateHud()` in `js/hud.js`; what gets locked is decided at the end of `updateCamera()` in `js/camera.js` |
 | The suit worn under a style: what colour it glows | `glow`, `core`, `glowHex` and `eyes` in `STYLES` in `js/styles.js` |
 | The thin wisps running along the sword under a style | `wispTex` and `wispMat` in `js/styles.js`; how fast they flow is the `wispTex.offset` line in `updateStyles()` |
-| The hood and the mantle that hangs from it | The hood part of `attachOutfit()` in `js/styles.js` |
+| The shape of the hood (height, width, how far the peak leans, the face opening) | `hoodGeo()` in `js/styles.js` |
+| The size of each piece of armour | The numbers in `attachOutfit()` in `js/styles.js` |
 | The suit's glowing cracks, and the coat's ragged hem | `drawCracks()`, `armourGlow()`, `coatCloth()` and `coatGlow()` in `js/styles.js` |
 | The suit's pieces (hood, armour, coat, cape) and where they sit on the body | `attachOutfit()` in `js/styles.js` |
 | How the water and the fire look | The textures and `addSource()` in `js/styles.js` |
@@ -267,13 +272,15 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Dummies and boxes can now come and go.** Trial dummies are added with `spawnDummy()` and removed with `removeDummy()`; trial boxes with `addBox()` and `removeBox()`. Never keep a dummy in a variable across frames without checking `d.dead`.
 - **`SPAWN` moves.** It is where the player respawns: the arena start, the hall's arrival point, or a trial's start. `js/dojo.js` changes it.
 - **Glow needs `toneMapped: false`.** Any material meant to look like light (effects, the weapon, warning marks) must set it, or tone mapping dulls it. Lit objects must not set it.
-- **`lam()` is for boxes only.** It expects the shading baked into `boxGeo`; on any other shape the result is black.
+- **`lam()` needs baked shading.** It expects a `color` attribute on the shape, as `boxGeo` and every rock from `rockGeo()` have; on any other shape the result is black.
+- **Rocks are drawn chipped but collide as plain boxes.** A rock's top is exactly flat and at full height, and its sides only ever go inwards. Keep it that way, or the player will stand on air or sink into stone.
+- **Grass is decoration.** It is one instanced object with no collision. When something flat is placed on the arena floor, call `clearGrass()` so tufts do not poke through it.
 - **Low quality has a draw budget.** The smoke test fails if one frame on Low needs more than 335 draw calls. Put expensive extras behind High in `js/quality.js`.
 - **A blade's slash must come from the blade.** Do not add a ready-made slash shape for a weapon attack: it will not line up with the swing. Change the pose in `js/anim.js` and the slash follows by itself.
 - **Poses are targets, not positions.** `animatePlayer()` sets where each joint should go (`tp`); springs move the real pose there. To make something happen instantly, set `pose` as well as `tp`.
 - **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.
 - **`dt` or `rdt`.** Gameplay uses `dt` so it slows down during hitstop. Camera and on-screen display use `rdt`.
-- **Only boxes.** Collision assumes every solid is an upright box. A slope or rotated wall will not collide correctly.
+- **Only boxes.** Collision assumes every solid is an upright box (however rocky it is drawn). A slope or rotated wall will not collide correctly.
 - **A style ends whenever the player respawns.** That covers death, teleports, class changes and the start of a trial (`clearStyle()` is called from `cleanupClassObjects()`), which is what keeps styles from being carried into a trial.
 - **Use `slashColor()` and `reach()` in sword code,** not `CL.color` and a bare radius, or the effect ignores the style.
 - **The menu frees the mouse.** Opening Master Sen's menu releases the mouse so cards can be clicked, which also pauses the game; closing it captures the mouse again. If the browser refuses, the pause screen shows and one click resumes.
