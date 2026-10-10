@@ -30,12 +30,14 @@ export const _hv = new V3(), _dv = new V3(), _pv = new V3(), _fx = new V3(), _bv
 export const UP = new V3(0, 1, 0);
 // $('id'): shorthand for document.getElementById.
 export const $ = id => document.getElementById(id);
+// The value of ?debug in the address, or null when it is absent (normal play). See main.js for what the values do.
+export const DEBUG = new URLSearchParams(location.search).get('debug');
 
 // saved progress
 // Kept in the browser's localStorage: the chosen class and best challenge times.
 // Only change SAVE_KEY if the shape of the data changes (old saves are then ignored).
 export const SAVE_KEY = 'stickblade.v2';
-export const save = { cls: 'blade', best: {} };
-try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && typeof s === 'object') { if (s.cls) save.cls = s.cls; if (s.best) save.best = s.best; } } catch (e) {}
+export const save = { cls: 'blade', best: {}, quality: 'low' };
+try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && typeof s === 'object') { if (s.cls) save.cls = s.cls; if (s.best) save.best = s.best; if (s.quality === 'high') save.quality = 'high'; } } catch (e) {}
 // Write the save. The try/catch is there because storage can be blocked (private windows).
 export function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }

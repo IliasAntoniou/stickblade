@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { V3, _fx } from './util.js';
 import { scene } from './core.js';
-import { addBox, removeBox, setArea, ARENA, COL } from './world.js';
+import { addBox, removeBox, setArea, makeFloor, ARENA, COL } from './world.js';
 import { spawnRing, burst, toast, flash } from './fx.js';
 import { P, SPAWN } from './state.js';
 import { spawnDummy, removeDummy } from './dummies.js';
@@ -27,14 +27,11 @@ const ARENA_SPAWN = SPAWN.clone();                            // the main arena'
 // ---------- the room itself (built once, never removed) ----------
 {
   const size = DOJO.half * 2;
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(size + 2, size + 2), new THREE.MeshLambertMaterial({ color: 0xc8bda6 }));
-  floor.rotation.x = -Math.PI / 2;
+  // Warm wood tones, so the hall feels like a different place from the cool stone arena.
+  const floor = makeFloor(size + 2, 0xc9976a);
   floor.position.set(DOJO.cx, 0, DOJO.cz);
   scene.add(floor);
-  const grid = new THREE.GridHelper(size, size / 2, 0x9a8f78, 0xb0a58e);
-  grid.position.set(DOJO.cx, 0.01, DOJO.cz);
-  scene.add(grid);
-  const wall = 0x8c7b64, h = 9, edge = DOJO.half + 0.5;
+  const wall = 0x8a5f48, h = 9, edge = DOJO.half + 0.5;
   addBox(DOJO.cx, 0, DOJO.cz - edge, size + 2, h, 1, wall);
   addBox(DOJO.cx, 0, DOJO.cz + edge, size + 2, h, 1, wall);
   addBox(DOJO.cx - edge, 0, DOJO.cz, 1, h, size, wall);

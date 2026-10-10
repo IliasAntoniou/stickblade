@@ -35,7 +35,12 @@ Where everything is, what the short names mean, and how to add things. If this f
 | Skill bar, health bar, stats line | `js/hud.js`; their look is the CSS at the top of `index.html` |
 | The start / pause menu text | The `#overlay` block in `index.html` |
 | Slash arcs, rings, sparks, damage numbers, hitstop | `js/fx.js` |
-| Colours, fog, light | `js/core.js`; box colours are `COL` in `js/world.js` |
+| Sky colours, fog, overall brightness | `SKY` and `toneMappingExposure` in `js/core.js`; the sky itself is drawn in `js/sky.js` |
+| The lighting (sun colour, direction, strength; the soft light from the sky) | `sun`, `SUN_OFFSET` and `hemi` in `js/core.js` |
+| Box colours, the floor tiles, how dark boxes get at the base | `COL`, `tileTex`, `makeFloor()` and the shading block under `boxGeo` in `js/world.js` |
+| How much things glow (slash arcs, impact flashes, the halo on the weapon) | `spawnGlow()` and the effect pools in `js/fx.js`; `bladeGlow` in `js/player.js` |
+| The outline light on characters | `addRim()` in `js/stickman.js` |
+| What Low and High graphics do | `applyQuality()` in `js/quality.js` |
 | What gets saved between sessions | `save` in `js/util.js` |
 
 ## What happens every frame
@@ -84,8 +89,11 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/tuning.js` | The tuning panel shown while paused |
 | `js/progress.js` | Skill ranks and the trials that earn them |
 | `js/dojo.js` | The training hall: teleporting there, building and clearing each trial's layout |
+| `js/sky.js` | The dusk sky: gradient dome, sun, stars |
+| `js/quality.js` | The Low / High graphics setting |
 | `vendor/three.module.js` | The three.js library (not ours; do not edit) |
 | `tests/smoke.js`, `tests/smoke.sh` | Automated test that plays every class and skill |
+| `tests/drawcost.sh` | Prints draw calls and triangles per frame, to compare before and after a graphics change |
 | `tests/check_docs.py` | Checks file headers and that this map points at real things |
 | `serve.py` | The local web server (tells the browser not to keep old copies of files) |
 | `play.bat` | Starts the server and opens the game |
@@ -117,6 +125,11 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `M0`, `M2` | Left and right mouse button, as they appear in `pressed` |
 | `tp`, `pose` | Target pose and current pose |
 | hitstop | The brief slow motion when a hit lands |
+| draw call | One instruction to the graphics card to draw one object. The main measure of how heavy a frame is; shown as Draws with `?debug` |
+| tone mapping | Squeezing very bright colours into what a screen can show, so they glow instead of turning flat white |
+| additive | A way of drawing where colour is added on top of what is behind, so the object looks like light |
+| rim light | Extra brightness on the edges of a character, so its outline shows against a dark background |
+| `SKY` | The dusk palette that both the sky and the fog are made from |
 | iframes | Seconds during which the player cannot be hit |
 | pool | A fixed set of objects reused over and over, never created during play |
 | lock-on, `lockTarget` | The dummy nearest the crosshair |
@@ -195,6 +208,9 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Top-level code.** Code outside functions may only use things from `util`, `core`, `world`, `stickman`, `state` and `fx`. Anything else may not be loaded yet.
 - **Dummies and boxes can now come and go.** Trial dummies are added with `spawnDummy()` and removed with `removeDummy()`; trial boxes with `addBox()` and `removeBox()`. Never keep a dummy in a variable across frames without checking `d.dead`.
 - **`SPAWN` moves.** It is where the player respawns: the arena start, the hall's arrival point, or a trial's start. `js/dojo.js` changes it.
+- **Glow needs `toneMapped: false`.** Any material meant to look like light (effects, the weapon, warning marks) must set it, or tone mapping dulls it. Lit objects must not set it.
+- **`lam()` is for boxes only.** It expects the shading baked into `boxGeo`; on any other shape the result is black.
+- **Low quality has a draw budget.** The smoke test fails if one frame on Low needs more than 335 draw calls. Put expensive extras behind High in `js/quality.js`.
 - **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.
 - **`dt` or `rdt`.** Gameplay uses `dt` so it slows down during hitstop. Camera and on-screen display use `rdt`.
 - **Only boxes.** Collision assumes every solid is an upright box. A slope or rotated wall will not collide correctly.

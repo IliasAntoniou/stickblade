@@ -1,8 +1,8 @@
 // hud.js: the on-screen display. Skill bar with cooldowns, health bar, combo counter, crosshair, lock-on ring, stats line.
 // The HTML and CSS for it are in index.html.
 
-import { clamp, $ } from './util.js';
-import { camera } from './core.js';
+import { clamp, $, DEBUG } from './util.js';
+import { camera, renderer } from './core.js';
 import { projV } from './fx.js';
 import { T, P, CL, dlg, combo, totalDmg, dmgLog, TUNE } from './state.js';
 import { REWIND_CD } from './player.js';
@@ -76,6 +76,8 @@ export function updateHud(rdt) {
     let sum = 0; for (const e of dmgLog) sum += e.d;
     const win = dmgLog.length ? clamp(T - dmgLog[0].t, 1, 5) : 1;
     statsEl.innerHTML = `Speed <span>${Math.hypot(P.vel.x, P.vel.z).toFixed(1)}</span> &nbsp; DPS <span>${Math.round(sum / win)}</span><br>Total dmg <span>${totalDmg}</span> &nbsp; FPS <span>${fps}</span>`;
+    // With ?debug: how much the last frame cost to draw. Draws = separate draw calls, Tris = triangles.
+    if (DEBUG !== null) statsEl.innerHTML += `<br>Draws <span>${renderer.info.render.calls}</span> &nbsp; Tris <span>${renderer.info.render.triangles}</span>`;
   }
 }
 promptEl.innerHTML = '<b>G</b> &nbsp;Talk to Master Sen';

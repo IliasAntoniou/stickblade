@@ -11,7 +11,7 @@ import { spawnRing, burst, toast } from '../fx.js';
 import { P, CL, CLASSES, TUNE, setCL } from '../state.js';
 import { refreshTuning } from '../tuning.js';
 import { projAccent } from '../projectiles.js';
-import { bladeMat, player, cloneSm, setState, cleanupClassObjects } from '../player.js';
+import { bladeMat, bladeGlow, player, cloneSm, setState, cleanupClassObjects } from '../player.js';
 import { buildSkillBar } from '../hud.js';
 
 // ================= classes =================
@@ -22,6 +22,7 @@ export function setClass(id, announce = true) {
   if (CL) { cleanupClassObjects(); setState('normal'); }
   setCL(CLASSES[id] || CLASSES.blade);
   bladeMat.color.setHex(CL.color); projAccent.color.setHex(CL.color);
+  bladeGlow.material.color.setHex(CL.color);
   setWeapon(player, CL.weapon); setWeapon(cloneSm, CL.weapon);
   for (const k in P.cd) P.cd[k] = 0;
   P.run = CL.run; P.airJumpsMax = CL.airJumps + TUNE.extraAirJumps; P.airJumps = P.airJumpsMax; P.atk.on = false; P.atk.lastCombo = 0;

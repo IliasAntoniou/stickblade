@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stickblade</title>
 <style>
-  html,body{margin:0;height:100%;overflow:hidden;background:#cfd9e2;font-family:system-ui,"Segoe UI",sans-serif;user-select:none}
+  html,body{margin:0;height:100%;overflow:hidden;background:#241f38;font-family:system-ui,"Segoe UI",sans-serif;user-select:none}
   canvas{display:block}
   #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(15,18,24,.6);z-index:20;cursor:pointer}
   .panel{background:#14171c;color:#e8eef3;padding:26px 32px;border-radius:14px;max-width:620px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
@@ -20,12 +20,12 @@
   #cross{position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px rgba(0,0,0,.55);pointer-events:none;transition:all .08s}
   #cross.can{width:12px;height:12px;margin:-6px 0 0 -6px;background:transparent;box-shadow:0 0 0 2px #00b8d4}
   #lock{position:fixed;left:0;top:0;width:44px;height:44px;border:2px solid #ff3d6a;border-radius:50%;display:none;pointer-events:none;box-sizing:border-box}
-  #stats{position:fixed;left:14px;top:12px;color:#1b1f25;font-size:13px;font-weight:600;line-height:1.55;pointer-events:none}
+  #stats{position:fixed;left:14px;top:12px;color:#e8eef3;text-shadow:0 1px 2px #000;font-size:13px;font-weight:600;line-height:1.55;pointer-events:none}
   #stats span{display:inline-block;min-width:48px;font-variant-numeric:tabular-nums}
-  #combo{position:fixed;right:24px;top:30%;color:#14171c;font-weight:900;font-size:40px;text-align:right;pointer-events:none;opacity:0}
-  #combo small{display:block;font-size:13px;letter-spacing:3px;color:#d8573c}
+  #combo{position:fixed;right:24px;top:30%;color:#fff;text-shadow:0 3px 0 #14171c;font-weight:900;font-size:40px;text-align:right;pointer-events:none;opacity:0}
+  #combo small{display:block;font-size:13px;letter-spacing:3px;color:#ffb24a;text-shadow:0 1px 2px #000}
   #hp{position:fixed;left:14px;bottom:18px;width:210px;pointer-events:none}
-  #hp .cls{font-weight:800;color:#14171c;margin-bottom:4px;font-size:14px;letter-spacing:1px}
+  #hp .cls{font-weight:800;color:#e8eef3;text-shadow:0 1px 2px #000;margin-bottom:4px;font-size:14px;letter-spacing:1px}
   #hp .bar{height:12px;background:rgba(20,23,28,.8);border-radius:6px;overflow:hidden}
   #hp .fill{height:100%;background:#5ee08a;width:100%}
   #skills{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:5px;pointer-events:none}
@@ -54,7 +54,7 @@
   #chal{position:fixed;left:50%;top:12px;transform:translateX(-50%);background:rgba(20,23,28,.88);color:#fff;padding:8px 18px;border-radius:10px;text-align:center;display:none;font-weight:700;pointer-events:none}
   #chal .tm{font-size:26px;font-variant-numeric:tabular-nums;color:#00e5ff}
   #chal small{display:block;font-weight:500;color:#9fb0bd;font-size:12px}
-  #center{position:fixed;left:50%;top:36%;transform:translate(-50%,-50%);font-size:60px;font-weight:900;color:#14171c;text-shadow:0 3px 0 #fff;pointer-events:none;opacity:0;text-align:center;transition:opacity .25s}
+  #center{position:fixed;left:50%;top:36%;transform:translate(-50%,-50%);font-size:60px;font-weight:900;color:#fff;text-shadow:0 3px 0 #14171c,0 0 18px rgba(0,0,0,.6);pointer-events:none;opacity:0;text-align:center;transition:opacity .25s}
   #center small{font-size:22px;display:block}
   #toast{position:fixed;left:50%;top:20%;transform:translateX(-50%);background:rgba(20,23,28,.88);color:#fff;padding:10px 18px;border-radius:10px;font-size:15px;opacity:0;transition:opacity .3s;pointer-events:none;max-width:80vw;text-align:center}
   #toast b{color:#ffd23f}
@@ -90,7 +90,7 @@
   #tune .tt{padding-top:0;align-items:center}
   #tune .tt span{color:#7d8c99;font-size:11px}
   #tune .tt button{font-weight:500;font-size:11px;padding:5px}
-  #hint{position:fixed;right:14px;top:12px;color:#1b1f25;font-size:12px;opacity:.7;pointer-events:none;text-align:right;line-height:1.5}
+  #hint{position:fixed;right:14px;top:12px;color:#e8eef3;text-shadow:0 1px 2px #000;font-size:12px;opacity:.75;pointer-events:none;text-align:right;line-height:1.5}
 </style>
 </head>
 <body>
@@ -113,6 +113,7 @@
       Tech: dash then jump keeps the dash speed · slide then jump = slide-hop.
     </div>
     <div class="sens">Mouse sensitivity <input id="sens" type="range" min="0.5" max="3" step="0.1" value="1.2"></div>
+    <div class="sens">Graphics <select id="quality"><option value="low">Low (fastest)</option><option value="high">High (real shadows, sharper)</option></select></div>
     <div class="go">CLICK TO START</div>
   </div>
 </div>

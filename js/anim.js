@@ -6,7 +6,7 @@ import { placeShadow } from './world.js';
 import { POSE_KEYS, BASE, GUARD, applyPose } from './stickman.js';
 import { setBeam } from './fx.js';
 import { T, P, CL } from './state.js';
-import { playerMat, bladeMat, player, playerShadow, cloneMat, cloneSm, FLIP_T, pose, tp, ropeMesh, hookMesh } from './player.js';
+import { playerMat, bladeMat, bladeGlow, player, playerShadow, cloneMat, cloneSm, FLIP_T, pose, tp, ropeMesh, hookMesh } from './player.js';
 import { camPitch } from './camera.js';
 
 // ================= player animation =================
@@ -130,6 +130,7 @@ export function animatePlayer(dt) {
 
   const op = P.smokeT > 0 ? 0.22 : (P.iframes > 0 && Math.sin(T * 60) > 0 ? 0.5 : 1);
   playerMat.opacity = op; bladeMat.opacity = op;
+  bladeGlow.material.opacity = op * 0.55;
 
   if (P.clone) { cloneSm.root.position.copy(P.clone.pos); cloneMat.opacity = 0.45 + Math.sin(T * 8) * 0.2; }
   if (P.state === 'grapple') {
