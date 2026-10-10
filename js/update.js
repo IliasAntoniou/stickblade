@@ -4,17 +4,15 @@
 // The switch has one case per state, grouped by class. (These move into the class files in the skill-states phase.)
 
 import { V3, TAU, clamp, lerp, damp, angDamp, _a, _b, _c, _d, _fx } from './util.js';
-import { spawnArc, spawnRing, burst, spawnGhost, centerMsg } from './fx.js';
+import { spawnRing, spawnGhost, centerMsg } from './fx.js';
 import { T, P, CL, dlg, chal, TUNE, addT, tickCombo, resetDamage, setHitSrc } from './state.js';
 import { skillReady } from './progress.js';
-import { reach, styleSpeed, updateTake } from './styles.js';
+import { reach, styleSpeed, updateTake, takeWith } from './styles.js';
 import { dummies, hitDummy } from './dummies.js';
 import { updateProjs } from './projectiles.js';
-import { playerMat, player, diveMark, FLIP_T, LOCKED, integrate, setState, startAttack, attackHits, attackVfx, startDash, startSlide, groundImpact } from './player.js';
-import { camPitch, camFwdH, camRight, facing, camFacingYaw } from './camera.js';
-import { removeClone, throwKunai } from './classes/ninja.js';
-import { mkPalmRelease } from './classes/monk.js';
-import { diveTarget } from './classes/lancer.js';
+import { player, FLIP_T, LOCKED, integrate, setState, startAttack, attackHits, attackVfx, startDash, startSlide, groundImpact } from './player.js';
+import { camFwdH, camRight, camFacingYaw, setScope } from './camera.js';
+import { mageShot, mageSnipe, updateMage, BARRAGE_GAP } from './classes/mage.js';
 import { master, openDlg, closeDlg, updateMaster, updateGrab, strikeMaster } from './master.js';
 import { endChallenge, updateChallenge } from './challenges.js';
 import { keys, pressed, mouseL, mouseR } from './input.js';
@@ -22,7 +20,7 @@ import { updateQuests } from './quests.js';
 import { mission, updateMissions, abandonMission, MISSION_REGEN } from './missions.js';
 import { toggleMount, updateMounted } from './mounts.js';
 import { hasDashForm } from './dashfx.js';
-import { power, spinSpeed, spinSteer, spinTick, spinHit, spinPull, slamPower, slamLanded, updateElements } from './elements.js';
+import { power, spinSpeed, spinSteer, spinTick, spinHit, spinPull, slamPower, slamLanded, updateElements, skillStrike } from './elements.js';
 
 // This frame's input. inDir = the direction the movement keys point, in the world. hasIn = a movement key is held.
 // inX, inZ = raw -1..1. hsp = horizontal speed. inputOn = false during a dialog or countdown.
@@ -37,12 +35,10 @@ export function update(dt) {
   const cdStep = TUNE.cdMult > 0 ? dt / TUNE.cdMult : Infinity;
   for (const k in P.cd) P.cd[k] = Math.max(0, P.cd[k] - cdStep);
   if (P.dashCharges < TUNE.dashCharges) { P.dashRecharge -= dt; if (P.dashRecharge <= 0) { P.dashCharges++; P.dashRecharge = P.dashCharges < TUNE.dashCharges ? TUNE.dashCd : 0; } }
-  P.iframes = Math.max(0, P.iframes - dt); P.wallrunCd = Math.max(0, P.wallrunCd - dt);
+  P.iframes = Math.max(0, P.iframes - dt);
   // Health comes back by itself 3 s after the last hit; much more slowly during a mission, so damage adds up there.
   P.hurtT += dt;
   if (P.hurtT > 3 && P.hp < P.maxHp) P.hp = Math.min(P.maxHp, P.hp + TUNE.hpRegen * (mission.cur ? MISSION_REGEN : 1) * dt);
-  if (P.smokeT > 0) { P.smokeT -= dt; if (P.smokeT <= 0) P.dmgMult = 1; }
-  if (P.clone) { P.clone.life -= dt; if (P.clone.life <= 0) { burst(_fx.copy(P.clone.pos).setY(P.clone.pos.y + 1), 8, 4, 1); removeClone(); P.cd.q = CL.skills.q.cd; } }
 
   // master / dialog
   const mdx = P.pos.x - master.pos.x, mdz = P.pos.z - master.pos.z;
@@ -71,31 +67,26 @@ export function update(dt) {
   if (inputOn && !LOCKED.has(P.state)) {
     const S = CL.skills;
     if ((pressed.has('ShiftLeft') || pressed.has('ShiftRight')) && P.dashCharges > 0) startDash();
-    if (pressed.has('KeyQ') && P.cd.q <= 0 && skillReady('q')) S.q.fn();
-    if (pressed.has('KeyE') && P.cd.e <= 0 && skillReady('e')) S.e.fn();
-    if (pressed.has('KeyR') && P.cd.r <= 0 && P.state !== 'charge' && skillReady('r')) S.r.fn();
+    // Q, E and R first ask whether they are being used to take a sword style (at a fire, in a storm, in a pool):
+    // if so that happens and the skill itself does not (takeWith in styles.js; the Blademaster's skills do it themselves)
+    if (pressed.has('KeyQ') && P.cd.q <= 0 && skillReady('q') && !takeWith('q')) S.q.fn();
+    if (pressed.has('KeyE') && P.cd.e <= 0 && skillReady('e') && !takeWith('e')) S.e.fn();
+    if (pressed.has('KeyR') && P.cd.r <= 0 && skillReady('r') && !takeWith('r')) S.r.fn();
     if (pressed.has('KeyF') && P.cd.f <= 0 && skillReady('f')) S.f.fn();
     if (pressed.has('M2') && P.cd.m2 <= 0 && S.m2.fn && skillReady('m2')) S.m2.fn();
     if (pressed.has('KeyX') && P.cd.x <= 0) toggleMount();    // get on or off the mount (mounts.js)
-    if (pressed.has('M0') && P.state !== 'cyclone' && P.state !== 'kicks' && P.state !== 'sweep' && P.state !== 'pcharge' && P.state !== 'dragonKick') {
-      if (P.state === 'charge') setState('normal');
+    if (pressed.has('M0') && P.state !== 'cyclone' && P.state !== 'channel' && P.state !== 'aim') {
       if (P.atk.on) { if (P.atk.t > 0.06) P.atk.queued = true; } else startAttack();
     }
     if ((pressed.has('KeyC') || (keys.has('KeyC') && P.justLanded)) && P.state === 'normal' && P.grounded) startSlide();
   }
   P.justLanded = false;
-  // ninja: hold LMB to throw kunai
-  if (CL.id === 'ninja' && lmb && (P.state === 'normal' || P.state === 'wallrun')) {
-    P.lmbHeld += dt;
-    if (P.lmbHeld > 0.32) { P.kunaiT -= dt; if (P.kunaiT <= 0) { P.kunaiT = 0.13; P.atk.on = false; P.atk.queued = false; throwKunai(); } }
-  } else { P.lmbHeld = 0; P.kunaiT = 0; }
-  P.blocking = CL.id === 'monk' && rmb && P.state === 'normal';
 
   // ----- states -----
   switch (P.state) {
     case 'normal': {
       let hx = P.vel.x, hz = P.vel.z; const spd = hsp;
-      const run = P.run * TUNE.runMult * styleSpeed() * (P.smokeT > 0 ? 1.35 : 1) * (P.blocking ? 0.35 : 1);
+      const run = P.run * TUNE.runMult * styleSpeed();
       if (P.grounded) {
         if (spd > run + 0.3 && !P.atk.on) {
           const m = damp(spd, run, hasIn ? 2.2 : 6, dt);
@@ -122,6 +113,12 @@ export function update(dt) {
           P.vel.x = P.wallN.x * 11 + (hasIn ? inDir.x * 3 : 0); P.vel.z = P.wallN.z * 11 + (hasIn ? inDir.z * 3 : 0); P.vel.y = 13.5;
           P.yaw = P.yawT = Math.atan2(P.vel.x, P.vel.z); P.flip = FLIP_T; P.wallT = 0;
           spawnRing(_fx.copy(P.pos).setY(P.pos.y + 0.9).addScaledVector(P.wallN, -0.3), 0.2, 1, 0.2);
+        } else if (P.airJumps > 0 && CL.hover) {
+          // the Mage has no second jump: it hangs in the air for a while (the P.floatT lines above hold it up)
+          P.airJumps--;
+          P.vel.y = Math.max(P.vel.y, 3);
+          P.floatT = CL.hover;
+          spawnRing(_fx.copy(P.pos), 0.2, 1.8, 0.3, CL.color);
         } else if (P.airJumps > 0) {
           P.airJumps--; P.vel.y = TUNE.airJump; P.floatT = 0;
           if (hasIn) { const s = Math.max(run, hsp); P.vel.x = inDir.x * s; P.vel.z = inDir.z * s; }
@@ -129,7 +126,6 @@ export function update(dt) {
         } else jumped = false;
         if (jumped) { P.jumpBuf = 0; P.coyote = 0; P.grounded = false; }
       }
-      if (CL.id === 'ninja' && rmb && !P.grounded && P.wallT > 0 && P.wallrunCd <= 0 && P.state === 'normal') { setState('wallrun'); P.airJumps = P.airJumpsMax; P.atk.on = false; }
       break;
     }
     // taking a sword style: under the water of a pool, standing in a fire, or spinning in a storm (the scene is in styles.js)
@@ -248,104 +244,37 @@ export function update(dt) {
       if (P.st > 0.2) setState('normal');
       break;
     }
-    // ----- ninja -----
-    case 'wallrun': {
-      const n = P.wallN, climb = camPitch > 0.5;
-      _c.set(-n.z, 0, n.x); camFwdH(_d); if (_c.dot(_d) < 0) _c.negate();
-      if (climb) { P.vel.set(-n.x * 3, 10.5, -n.z * 3); P.yawT = Math.atan2(-n.x, -n.z); }
-      else { P.vel.set(_c.x * 14 - n.x * 3, lerp(3.5, -2, clamp(P.st / 1.6, 0, 1)), _c.z * 14 - n.z * 3); P.yawT = Math.atan2(_c.x, _c.z); }
-      P.grav = 0; P.runPhase += dt * 18;
-      if (P.jumpBuf > 0) {
-        const t = climb ? 0 : 9;
-        setState('normal'); P.vel.set(n.x * 10 + _c.x * t, 13.5, n.z * 10 + _c.z * t);
-        P.yaw = P.yawT = Math.atan2(P.vel.x, P.vel.z); P.flip = FLIP_T; P.jumpBuf = 0; P.wallT = 0;
-      } else if (!rmb || P.wallT <= 0 || (P.grounded && P.st > 0.1) || P.st > (climb ? 0.95 : 1.7)) setState('normal');
+    // ----- mage -----
+    // casting: a moment standing still with the staff out while the spell leaves ('invoke' is the longer one,
+    // staff raised, for calling a comet)
+    case 'cast':
+    case 'invoke': {
+      P.grav = TUNE.gravity; P.vel.x *= Math.exp(-10 * dt); P.vel.z *= Math.exp(-10 * dt);
+      if (P.st > (P.state === 'invoke' ? 0.35 : 0.22)) setState('normal');
       break;
     }
-    // ----- monk -----
-    case 'dragonKick': {
-      P.vel.copy(P.skDir).multiplyScalar(32); P.grav = 0;
-      P.ghostT -= dt; if (P.ghostT <= 0) { P.ghostT = 0.03; spawnGhost(player, CL.color, null, 0.22); }
-      for (const d of dummies) {
-        if (d.dead || P.skHit.has(d)) continue;
-        if (d.chest(_a).distanceTo(_b.copy(P.pos).setY(P.pos.y + 1)) < 2.1) { P.skHit.add(d); hitDummy(d, 22, P.skDir.x * 12, P.skDir.z * 12, 5, true, 0.05); }
-      }
-      if (P.st > 0.35) { setState('normal'); P.vel.copy(P.skDir).multiplyScalar(12); }
+    // Arcane Snipe: the right mouse button is held. The shot charges and the scope closes in (camera.js); the
+    // Mage can only creep. Letting go fires it (mageSnipe); a dash or being hit breaks it off.
+    case 'aim': {
+      P.grav = TUNE.gravity;
+      const ease = 1 - Math.exp(-12 * dt);
+      P.vel.x = lerp(P.vel.x, inDir.x * 2.5, ease);
+      P.vel.z = lerp(P.vel.z, inDir.z * 2.5, ease);
+      P.yaw = P.yawT = camFacingYaw();
+      P.aimK = clamp(P.st / CL.skills.m2.charge, 0, 1);
+      setScope(P.aimK);
+      if (!rmb) mageSnipe();
       break;
     }
-    case 'charge': {
-      P.chargeK = clamp(P.st / 1.2, 0, 1); P.grav = TUNE.gravity;
-      const k = 1 - Math.exp(-12 * dt);
-      P.vel.x = lerp(P.vel.x, inDir.x * 3, k); P.vel.z = lerp(P.vel.z, inDir.z * 3, k);
-      P.yawT = camFacingYaw();
-      playerMat.emissive.setRGB(P.chargeK * 1.0, P.chargeK * 0.5, 0);
-      if (Math.random() < P.chargeK * 0.5) burst(_fx.copy(P.pos).setY(P.pos.y + 1), 1, 3);
-      if (!keys.has('KeyR') || P.st > 1.6) mkPalmRelease();
-      break;
-    }
-    case 'palm': {
-      P.grav = TUNE.gravity; P.vel.x *= Math.exp(-8 * dt); P.vel.z *= Math.exp(-8 * dt);
-      if (P.st > 0.25) setState('normal');
-      break;
-    }
-    case 'kicks': {
-      P.vel.x *= Math.exp(-10 * dt); P.vel.z *= Math.exp(-10 * dt); P.vel.y = 0; P.grav = 0;
+    // Arcane Barrage: rooted to the spot, one missile after another until they have all gone (a dash breaks it off)
+    case 'channel': {
+      P.grav = TUNE.gravity; P.vel.x *= Math.exp(-10 * dt); P.vel.z *= Math.exp(-10 * dt);
       P.yaw = P.yawT = camFacingYaw();
       P.tick -= dt;
       if (P.tick <= 0) {
-        P.tick = 0.06; facing(_a);
-        const fx = _a.x, fz = _a.z, cx = P.pos.x + fx * 1.2, cz = P.pos.z + fz * 1.2;
-        spawnArc(Math.random() < 0.5 ? 0 : 1, _b.set(cx, P.pos.y + 0.9 + Math.random() * 0.6, cz), P.yaw, CL.color, 0.4);
-        for (const d of dummies) {
-          if (d.dead) continue;
-          const dx = d.pos.x - cx, dz = d.pos.z - cz, dy = d.pos.y - P.pos.y;
-          if (dx * dx + dz * dz < 2.0 * 2.0 && dy > -1.8 && dy < 2.2) hitDummy(d, 4, fx * 0.4, fz * 0.4, d.grounded ? 0 : 2.5, false, 0.01);
-        }
+        P.tick = BARRAGE_GAP;
+        if (mageShot()) setState('normal');
       }
-      if (P.st > 1.0) setState('normal');
-      break;
-    }
-    // ----- lancer -----
-    case 'vault': {
-      P.grav = TUNE.gravity;
-      if (P.st > 0.3) { setState('normal'); P.flip = FLIP_T; }
-      break;
-    }
-    case 'pcharge': {
-      P.vel.x = P.skDir.x * 26; P.vel.z = P.skDir.z * 26; P.grav = TUNE.gravity;
-      P.ghostT -= dt; if (P.ghostT <= 0) { P.ghostT = 0.04; spawnGhost(player, CL.color, null, 0.2); }
-      const cx = P.pos.x + P.skDir.x * 1.3, cz = P.pos.z + P.skDir.z * 1.3;
-      for (const d of dummies) {
-        if (d.dead || d.pinned) continue;
-        const dx = d.pos.x - cx, dz = d.pos.z - cz, dy = d.pos.y - P.pos.y;
-        if (dx * dx + dz * dz < 1.9 * 1.9 && dy > -1.8 && dy < 2.2 && hitDummy(d, 12, 0, 0, 0, false, 0.03, P.pos, true) && !d.dead) { d.pinned = true; P.dragged.push(d); }
-      }
-      P.dragged.forEach((d, i) => {
-        if (d.dead) { d.pinned = false; return; }
-        const side = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.5;
-        d.pos.set(P.pos.x + P.skDir.x * 1.5 - P.skDir.z * side, P.pos.y + 0.1, P.pos.z + P.skDir.z * 1.5 + P.skDir.x * side);
-        d.vel.set(0, 0, 0); d.sinceHit = 0;
-      });
-      if (P.st >= 0.5) { setState('normal'); P.vel.x = P.skDir.x * 8; P.vel.z = P.skDir.z * 8; }
-      break;
-    }
-    case 'dragoonUp': {
-      P.grav = TUNE.gravity; diveTarget(P.dTarget);
-      diveMark.visible = true; diveMark.position.set(P.dTarget.x, P.dTarget.y + 0.06, P.dTarget.z); diveMark.scale.setScalar(2 + Math.sin(T * 12) * 0.2);
-      if (P.st > 0.45 && P.vel.y < 8) setState('dragoonDown');
-      break;
-    }
-    case 'dragoonDown': {
-      _c.copy(P.dTarget).sub(P.pos); const dist = _c.length();
-      if ((P.grounded && P.st > 0.03) || dist < 1.0 || P.st > 1.3) { diveMark.visible = false; groundImpact(5.5, 48, CL.color); break; }
-      _c.divideScalar(dist); P.vel.copy(_c).multiplyScalar(50); P.grav = 0; P.yawT = Math.atan2(_c.x, _c.z);
-      P.ghostT -= dt; if (P.ghostT <= 0) { P.ghostT = 0.03; spawnGhost(player, CL.color, null, 0.22); }
-      break;
-    }
-    case 'sweep': {
-      P.grav = TUNE.gravity * 0.6; P.vel.x *= Math.exp(-5 * dt); P.vel.z *= Math.exp(-5 * dt);
-      P.spin = (P.st / 0.32) * TAU;
-      if (P.st > 0.32) setState('normal');
       break;
     }
   }
@@ -360,14 +289,14 @@ export function update(dt) {
   }
 
   // facing
-  if (P.state === 'normal' && !a.on && hasIn && !P.blocking) P.yawT = Math.atan2(inDir.x, inDir.z);
-  if (P.blocking) P.yawT = camFacingYaw();
+  if (P.state === 'normal' && !a.on && hasIn) P.yawT = Math.atan2(inDir.x, inDir.z);
   P.yaw = angDamp(P.yaw, P.yawT, 14, dt);
 
   integrate(dt);
 
   for (const d of dummies) d.update(dt);
   updateProjs(dt);
+  updateMage(dt);
   tickCombo(dt);
   updateElements(dt);
   updateChallenge(dt);

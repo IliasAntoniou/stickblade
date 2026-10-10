@@ -8,14 +8,16 @@
 // this file what the element changes: blinkPower, spinSpeed, spinSteer, spinTick, spinHit, spinPull, slamPower,
 // slamLanded, risingPower, risingCast, risingHit.
 // Owns: POWERS, the patches of fire left on the ground ("zones"), and things set to happen a moment later.
-// Used by: classes/blade.js, update.js, dummies.js (SOAK), hud.js (skillAlt names the skills), player.js (clearElements),
+// The Mage has no powers written skill by skill. For it a style adds one thing to every skill,
+// at the place where it lands: STRIKES and skillStrike() at the bottom of this file.
+// Used by: classes/blade.js, classes/mage.js, update.js, dummies.js (SOAK), hud.js (skillAlt names the skills), player.js (clearElements),
 // setpieces.js (addZone: a powder keg leaves fire behind).
 
 import * as THREE from 'three';
 import { V3, _fx } from './util.js';
 import { scene } from './core.js';
 import { glowTex, spawnRing, spawnBeam, spawnText, spawnGlow, burst, shake } from './fx.js';
-import { T, P, setHitSrc } from './state.js';
+import { T, P, CL, setHitSrc } from './state.js';
 import { style } from './styles.js';
 import { dummies, hitDummy, hitArea, dummyBlocked } from './dummies.js';
 import { depenetrate, teleTrail } from './player.js';
@@ -306,6 +308,64 @@ export function risingHit(d) {
     // the geyser carries it up and holds it at the top; the hold starts once it has risen
     later(0.3, () => { if (!d.dead) d.floatT = p.geyserHold; });
     heal(p.geyserHeal);
+  }
+}
+// ---------- the Mage ----------
+// What a style adds to every one of the Mage's skills, at the place where the skill lands:
+//   Flame   = fire is left there. fireShare = the patch's radius as a share of the skill's own reach (never
+//             smaller than fireMin); fireTime = seconds it burns; fireDps = burn damage per second.
+//   Thunder = a bolt comes down on everything the skill reached: it is stunned for `stun` seconds and hit again
+//             for boltShare of the skill's damage.
+//   Water   = everything within `pull` times the skill's reach is dragged towards that place at pullSpeed and
+//             soaked for `soak` seconds (see SOAK); the player is healed `heal` for each, up to healMax.
+export const STRIKES = {
+  flame: { fireShare: 0.6, fireMin: 1.6, fireTime: 4, fireDps: 16 },
+  thunder: { stun: 0.8, boltShare: 0.4 },
+  water: { pull: 1.8, pullSpeed: 9, soak: 3, heal: 4, healMax: 20 },
+};
+// What one of the Mage's skills is called on the skill bar under the style in use (the skill's `el` in the
+// class file), or null with a plain weapon.
+export function elName(slot) {
+  const names = CL.skills[slot].el;
+  return style.cur && names ? names[style.cur.id] : null;
+}
+// Called by a Mage skill at the moment it lands. slot = which skill ('q' 'e' 'r' 'f'); x, y, z =
+// where; rad = how far the skill reaches from there; dmg = what it hits for. Does nothing with a plain weapon.
+export function skillStrike(slot, x, y, z, rad, dmg) {
+  if (!style.cur) return;
+  const s = STRIKES[style.cur.id];
+  if (style.cur.id === 'flame') {
+    const fireRad = Math.max(s.fireMin, rad * s.fireShare);
+    addZone(_to.set(x, y, z), fireRad, s.fireTime, s.fireDps);
+    spawnGlow(_fx.set(x, y + 0.6, z), 0xff7a1f, fireRad * 1.6, 0.25);
+    return;
+  }
+  const water = style.cur.id === 'water';
+  const reachOut = water ? rad * s.pull : rad;
+  let reached = 0;
+  for (const d of dummies) {
+    if (d.dead || d.prop || Math.abs(d.pos.y - y) > 3) continue;
+    const dx = x - d.pos.x, dz = z - d.pos.z, dist = Math.hypot(dx, dz);
+    if (dist > reachOut) continue;
+    reached++;
+    if (water) {
+      d.soakT = Math.max(d.soakT, s.soak);
+      if (!d.fixed && !d.pinned && d.type !== 'flying' && dist > 0.8) {
+        d.vel.x += dx / dist * s.pullSpeed;
+        d.vel.z += dz / dist * s.pullSpeed;
+      }
+    } else {
+      d.chest(_to);
+      spawnBeam(_from.set(_to.x + 0.5, _to.y + 13, _to.z), _to, 0xfff3a0, 0.24, 3.2);    // a bolt out of the sky
+      burst(_to, 5, 7, 3);
+      setHitSrc(slot);    // for each enemy: a hit can set off effects that change it
+      hitDummy(d, dmg * s.boltShare, 0, 0, 2, false, 0.02, P.pos, true);
+      if (!d.dead) d.stun(s.stun);
+    }
+  }
+  if (water) {
+    spawnRing(_fx.set(x, y + 0.08, z), reachOut, 0.6, 0.45, 0x2f8fff);    // a ring closing in
+    heal(Math.min(s.healMax, reached * s.heal));
   }
 }
 // Used by tests: how many delayed effects are waiting.

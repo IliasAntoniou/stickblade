@@ -45,17 +45,8 @@ for (const id of SB.CLASS_ORDER) {
     SB.keys.add('KeyC'); press('KeyC', 30); press('Space', 60); SB.keys.delete('KeyC');
     press('KeyX', 30); press('KeyX', 30); SB.keys.delete('KeyW'); run(60);    // onto the mount and off again
   });
-  check(id + ' takes a hit', () => { reset(); const hp = P.hp; SB.hurtPlayer(10, dummies[0].pos, dummies[0]); run(10); return P.hp < hp; });
+  check(id + ' takes a hit', () => { reset(); const hp = P.hp; SB.hurtPlayer(10, dummies[0].pos); run(10); return P.hp < hp; });
 }
-
-// monk parry: block, then get hit inside the parry window
-check('monk parry', () => {
-  SB.setClass('monk'); reset();
-  const f = dummies.find(d => d.type === 'fighter');
-  SB.setMouse(false, true); pressed.add('M2'); run(3);
-  const hp = P.hp; SB.hurtPlayer(15, f.pos, f); run(30); SB.setMouse(false, false);
-  return P.hp === hp && f.stunT > 0;
-});
 
 // every dummy type: take a hit from behind / above, get knocked out, come back
 for (const type of Object.keys(SB.DTYPE)) {
@@ -82,7 +73,7 @@ check('fighter attacks', () => {
   for (let i = 0; i < 600 && !hurt; i++) { run(1); hurt = P.hp < P.maxHp; }
   return hurt;
 });
-check('player defeated', () => { reset(); SB.hurtPlayer(9999, dummies[0].pos, dummies[0]); run(30); return P.hp === P.maxHp; });
+check('player defeated', () => { reset(); SB.hurtPlayer(9999, dummies[0].pos); run(30); return P.hp === P.maxHp; });
 
 // challenges: count in, run, quit
 for (const c of SB.CH) {
@@ -101,9 +92,9 @@ check('master dialog', () => {
   press('KeyG', 2); if (!dlg.open) return false;
   press('Digit3', 2); if (dlg.page !== 'classes') return false;
   press('Digit2', 2);
-  return !dlg.open && SB.CL.id === 'ninja';
+  return !dlg.open && SB.CL.id === 'mage';
 });
-check('class is saved', () => JSON.parse(localStorage.getItem('stickblade.v2')).cls === 'ninja');
+check('class is saved', () => JSON.parse(localStorage.getItem('stickblade.v2')).cls === 'mage');
 SB.setClass('blade');
 
 // tuning: each number has to change the game for real, and reset has to undo it
@@ -132,8 +123,8 @@ check('tune dummy health', () => {
   SB.resetTuning();
   return ok && dummies.every(d => d.maxHp === SB.DTYPE[d.type].hp);
 });
-check('tune cannot be hit', () => { reset(); TUNE.god = true; SB.hurtPlayer(50, dummies[0].pos, dummies[0]); const ok = P.hp === P.maxHp; SB.resetTuning(); return ok; });
-check('tune damage taken', () => { reset(); TUNE.dmgTaken = 2; SB.hurtPlayer(10, dummies[0].pos, dummies[0]); const ok = P.hp === P.maxHp - 20; SB.resetTuning(); return ok; });
+check('tune cannot be hit', () => { reset(); TUNE.god = true; SB.hurtPlayer(50, dummies[0].pos); const ok = P.hp === P.maxHp; SB.resetTuning(); return ok; });
+check('tune damage taken', () => { reset(); TUNE.dmgTaken = 2; SB.hurtPlayer(10, dummies[0].pos); const ok = P.hp === P.maxHp - 20; SB.resetTuning(); return ok; });
 check('tune max health', () => { reset(); TUNE.maxHp = 50; SB.applyTune(); const ok = P.maxHp === 50 && P.hp === 50; SB.resetTuning(); return ok && P.maxHp === 100; });
 check('tune no cooldowns', () => { SB.setClass('blade'); reset(); TUNE.cdMult = 0; press('KeyQ', 3); const ok = P.cd.q === 0; SB.resetTuning(); return ok; });
 check('tune dash charges', () => {
@@ -195,14 +186,6 @@ check('slash: the sword slash follows the blade and then clears', () => {
   run(70);
   return !SB.trail.visible;
 });
-check('slash: fists still use the ready-made arc', () => {
-  SB.setClass('monk'); reset(); P.pos.set(0, 0, 40); run(5);
-  pressed.add('M0'); run(6);
-  const arc = SB.arcs.find(a => a.g.visible);
-  const ok = !!arc && arc.body.material.opacity > 0.5 && arc.ink.material.opacity > 0.5 && !SB.trail.visible;
-  run(60); SB.setClass('blade');
-  return ok && !SB.arcs.some(a => a.g.visible);
-});
 check('slash: Cyclone whirlpool and Slam wave', () => {
   reset(); P.pos.set(0, 0, 40); run(5);
   SB.CL.skills.e.fn(); run(6);
@@ -213,7 +196,7 @@ check('slash: Cyclone whirlpool and Slam wave', () => {
   return whirl && wave && !SB.swirls.some(w => w.g.visible);
 });
 check('slash: fists leave no trail, a teleport does not stretch one', () => {
-  SB.setClass('monk'); reset(); pressed.add('M0'); run(6);
+  SB.setClass('mage'); reset(); pressed.add('M0'); run(6);
   const none = !SB.trail.visible;
   SB.setClass('blade'); reset(); pressed.add('M0'); run(5);
   P.pos.x += 60; run(1);                                 // far away in one frame
@@ -264,7 +247,7 @@ check('progress: starting ranks', () => {
 });
 check('progress: a locked skill does nothing', () => { reset(); press('KeyQ', 5); press('KeyE', 5); press('KeyR', 5); return P.cd.q === 0 && P.cd.e === 0 && P.cd.r === 0 && P.state === 'normal'; });
 check('progress: the starting skill works', () => { reset(); press('KeyF', 3); return P.cd.f > 0; });
-check('progress: other classes are not locked', () => { SB.setClass('ninja'); const ok = rankOf('q') === 1 && rankOf('e') === 1; SB.setClass('blade'); return ok; });
+check('progress: other classes start locked in the same way', () => { SB.setClass('mage'); const ok = rankOf('q') === 0 && rankOf('e') === 0 && rankOf('f') === 1 && rankOf('m2') === 1; SB.setClass('blade'); return ok; });
 check('progress: ranks are earned in order', () => SB.startTrial(trial('blade-q2')) === false && SB.startTrial(trial('blade-e3')) === false && chal.cur === null && !dojo.inside);
 check('progress: tuned numbers block a trial', () => {
   TUNE.dmgMult = 2; const blocked = SB.startTrial(trial('blade-q1')) === false && chal.cur === null; SB.resetTuning();
@@ -315,8 +298,8 @@ check('progress: a trial runs out of time', () => { if (!begin('blade-e1')) retu
 // played for real: spin through the line of three dummies (the camera faces -z after the countdown, so D moves along +x)
 check('progress: Cyclone trial, played', () => {
   if (!begin('blade-e1')) return false;
-  standAt(-5.5, 0, -2.3);
-  SB.keys.add('KeyD'); press('KeyE', 50); SB.keys.delete('KeyD'); run(5);
+  standAt(0, 0, 3); SB.setCamYaw(0); run(2);              // in front of the middle dummy, facing it
+  SB.keys.add('KeyW'); press('KeyE', 50); SB.keys.delete('KeyW'); run(5);    // straight through the middle catches all three
   return chal.cur === null && rankOf('e') === 1;
 });
 // played for real: a slam from the ground must not count, a slam from 9 up must
@@ -373,6 +356,234 @@ check('progress: reset goes back to the start', () => {
   const S = SB.CL.skills;
   return rankOf('q') === 0 && rankOf('f') === 1 && S.q.refund === false && S.q.dmg === 34 && S.e.dur === 0.45 && S.f.dmg === 20;
 });
+// the Mage: the same ranks and trials as the Blademaster (its trials written as data), spells that are missiles,
+// magic to move with, and the sword styles changing how its missiles fly and what it wears
+const trialOf = (cls, id) => SB.CLASSES[cls].trials.find(t => t.id === id);
+// Start a trial of any class and sit through the 3-2-1 countdown.
+function beginFor(cls, id) {
+  if (!SB.startTrial(trialOf(cls, id))) return false;
+  run(200);
+  return chal.cur === trialOf(cls, id) && chal.phase === 'run';
+}
+// One hit of a given size from a given source.
+function hitFor(src, d, dmg, heavy = false) { SB.setHitSrc(src); return SB.hitDummy(d, dmg, 0, 0, 0, heavy, null, P.pos, true); }
+const flying = () => SB.projs.filter(p => p.active);
+// Stand 8 in front of the practice dummy at (0, -7), facing it, with the crosshair on it.
+function faceDummy() {
+  reset(); P.pos.set(0, 0, 1); P.vel.set(0, 0, 0); SB.setCamYaw(0); SB.setCamPitch(-0.05); run(3);
+  return dummies.find(d => d.type === 'basic' && Math.abs(d.pos.x) < 0.5 && Math.abs(d.pos.z + 7) < 0.5);
+}
+SB.resetProgress();
+check('mage ranks: Q, E and R start locked, F is known, and every rank has its numbers, perk, trial and element name', () => {
+  SB.setClass('mage'); reset();
+  const cls = SB.CLASSES.mage;
+  if (rankOf('q') !== 0 || rankOf('e') !== 0 || rankOf('r') !== 0 || rankOf('f') !== 1 || rankOf('m2') !== 1) return false;
+  for (const slot of ['q', 'e', 'r', 'f']) {
+    const skill = cls.skills[slot];
+    if (skill.lv.length !== 3 || skill.perks.length !== 3 || !skill.el.flame || !skill.el.thunder || !skill.el.water) return false;
+    if (!skill.lv.every(row => Object.keys(row).join() === Object.keys(skill.lv[0]).join())) return false;    // every row lists every key
+    for (let rank = skill.start + 1; rank <= 3; rank++) if (!trialOf('mage', `mage-${slot}${rank}`)) return false;
+  }
+  return ['water', 'flame', 'thunder'].every(st => trialOf('mage', `mage-${st}`)) && SB.trainingList().length === 4 && SB.styleList().length === 3;
+});
+check('mage ranks: a locked skill does nothing, the known one works', () => {
+  press('KeyQ', 5); press('KeyE', 5); press('KeyR', 5);
+  if (P.cd.q !== 0 || P.cd.e !== 0 || P.cd.r !== 0 || P.state !== 'normal' || flying().length !== 0) return false;
+  press('KeyF', 3);
+  return P.cd.f > 0;
+});
+check('mage ranks: every trial has a layout that builds', () => {
+  for (const t of SB.CLASSES.mage.trials) {
+    if (!t.arena || !t.arena.spawn || !t.arena.spawn.length || !t.desc || !(t.goal > 0) || !t.count) return false;
+    SB.setupTrial(t);
+    const ok = dojo.spawned.length === t.arena.spawn.length && dojo.spawned.every(d => Math.abs(d.pos.x - DOJO.cx) < DOJO.half && Math.abs(d.pos.z - DOJO.cz) < DOJO.half);
+    run(20);
+    SB.clearTrial();
+    if (!ok) return false;
+  }
+  return dummies.length === arenaDummies;
+});
+check('mage trials: different flying dummies teach Arcane Lance, and a knockout trial takes it to rank III', () => {
+  if (!beginFor('mage', 'mage-q1')) return false;
+  if (rankOf('q') !== 1 || rankOf('e') !== 0) return false;    // lent for the trial
+  const f = spawned('flying');
+  hitFor('atk', f[0], 10); run(2);
+  if (chal.st.n !== 0) return false;                      // another attack is IMMUNE here and counts for nothing
+  hitFor('q', f[0], 10); hitFor('q', f[0], 10); hitFor('q', f[1], 10); run(2);
+  if (chal.cur === null) return false;                    // the same dummy twice is not three
+  hitFor('q', f[2], 10); run(2);
+  if (rankOf('q') !== 1 || SB.CL.skills.q.dmg !== 70 || !beginFor('mage', 'mage-q2')) return false;
+  let d = spawned('basic');
+  hitFor('q', d[0], 210); hitFor('q', d[1], 230); run(2);
+  if (rankOf('q') !== 2 || SB.CL.skills.q.dmg !== 90 || !beginFor('mage', 'mage-q3')) return false;
+  d = spawned('basic');
+  hitFor('q', d[0], 10); run(2);
+  if (chal.st.n !== 0) return false;                      // a hit that knocks nothing out does not count
+  for (const one of d) hitFor('q', one, 999);
+  run(2);
+  return chal.cur === null && rankOf('q') === 3 && SB.CL.skills.q.refund === true;
+});
+check('mage trials: the most in one cast counts for Comet, an interrupt for Force Nova', () => {
+  if (!beginFor('mage', 'mage-r1')) return false;
+  const d = spawned('basic');
+  P.castN++; hitFor('r', d[0], 10); P.castN++; hitFor('r', d[1], 10); P.castN++; hitFor('r', d[2], 10); run(2);
+  if (chal.cur === null) return false;                    // three casts that each hit one are not one cast that hits three
+  P.castN++; for (const one of d) hitFor('r', one, 10);
+  run(2);
+  if (rankOf('r') !== 1) return false;
+  if (!beginFor('mage', 'mage-f2')) return false;
+  P.castN++; for (const one of spawned('basic')) hitFor('f', one, 10);
+  run(2);
+  if (rankOf('f') !== 2 || !beginFor('mage', 'mage-f3')) return false;
+  const fighter = spawned('fighter')[0];
+  hitFor('f', fighter, 10, true); run(2);
+  if (chal.st.n !== 0) return false;                      // a hit that interrupts nothing does not count
+  for (let i = 0; i < 2; i++) { fighter.stunT = 0; fighter.ai = 'windSlam'; fighter.aiT = 0.5; hitFor('f', fighter, 10, true); }
+  run(2);
+  return chal.cur === null && rankOf('f') === 3 && SB.CL.skills.f.rad === 6.5;
+});
+check('mage: the Water trial is taken with R in the pool, and passing it unlocks the style for every class', () => {
+  if (SB.styleUnlocked('water') || !beginFor('mage', 'mage-water')) return false;
+  standAt(0, 0, 9); run(3); press('KeyR', 5);
+  if (P.state !== 'submerge' || !(P.cd.r > 0)) return false;    // the pool was taken; no comet was called
+  run(60);
+  if (!SB.style.cur || SB.style.cur.id !== 'water') return false;
+  const d = spawned('basic')[0];
+  for (let i = 0; i < 12; i++) hitFor('atk', d, 5);
+  run(2);
+  return chal.cur === null && SB.styleUnlocked('water');
+});
+check('ranks: the top rank of every Mage skill has its perk', () => {
+  SB.unlockAll();
+  const M = SB.CLASSES.mage.skills;
+  return M.q.refund === true && M.e.shots === 12 && M.r.stun === 2 && M.f.knock === 22;
+});
+// what the Mage does
+check('mage: the basic attack is a bolt from the staff that flies to the target', () => {
+  SB.setClass('mage'); SB.leaveDojo();
+  const target = faceDummy(), hp = target.hp;
+  press('M0', 8);
+  if (flying().length !== 1 || target.hp !== hp) return false;    // in the air, not there yet
+  run(40);
+  return flying().length === 0 && target.hp < hp && SB.player.W.staff.visible && !SB.player.W.sword.visible;
+});
+check('mage: Arcane Lance is one heavy hit on one target; a Barrage is a stream of small ones', () => {
+  const target = faceDummy();
+  let hp = target.hp;
+  press('KeyQ', 40);
+  const lance = hp - target.hp;
+  if (lance < 75 || !(P.cd.q > 0)) return false;          // 90 at rank III, give or take 10%
+  hp = target.hp;
+  press('KeyE', 3);
+  if (P.state !== 'channel') return false;
+  run(120);
+  return P.state === 'normal' && P.shots === 12 && hp - target.hp > 120;
+});
+check('mage: a Comet lands a moment after it is called, on the target', () => {
+  const target = faceDummy(), hp = target.hp;
+  press('KeyR', 10);
+  if (target.hp !== hp) return false;                     // called, not landed
+  run(60);
+  return hp - target.hp > 100 && target.stunT > 0;        // 140 at rank III, and the stun
+});
+check('mage: Force Nova throws back what is close', () => {
+  reset();                                                // in the middle of the three practice dummies
+  const near3 = dummies.filter(d => d.type === 'basic' && Math.hypot(d.pos.x - P.pos.x, d.pos.z - P.pos.z) < 6);
+  const hp = near3.map(d => d.hp);
+  press('KeyF', 3);
+  return near3.length >= 3 && near3.every((d, i) => d.hp < hp[i]) && near3.some(d => Math.hypot(d.vel.x, d.vel.z) > 5);
+});
+// Hold the right mouse button for some frames, then let go.
+function snipe(frames) { P.cd.m2 = 0; SB.setMouse(false, true); pressed.add('M2'); run(frames); SB.setMouse(false, false); run(3); }
+// As faceDummy, but a step to the left: the camera looks over the right shoulder, and this puts the crosshair
+// itself (not just the lock-on ring) on the dummy.
+function aimAtDummy() { const d = faceDummy(); P.pos.x = -0.6; run(8); return d; }
+check('mage: holding the right mouse button charges a shot while the scope closes in', () => {
+  const target = aimAtDummy(), hp = target.hp;
+  SB.setMouse(false, true); pressed.add('M2'); run(30);
+  if (P.state !== 'aim' || !(P.aimK > 0.3 && P.aimK < 0.6) || !(SB.scope() > 0.3) || target.hp !== hp) return false;    // half way, nothing fired
+  const scoped = SB.camera.fov;
+  run(60);
+  if (P.aimK !== 1 || !(SB.camera.fov < scoped) || !(SB.camera.fov < 40)) return false;    // full, and the view has narrowed
+  SB.setMouse(false, false); run(3);
+  const full = hp - target.hp;                            // 150, give or take 10%
+  run(30);
+  return full >= 130 && full <= 170 && P.cd.m2 > 0 && SB.scope() === 0 && SB.camera.fov > 60;
+});
+check('mage: a quick shot is weak, and a shot hits only what the crosshair is on', () => {
+  const target = aimAtDummy();
+  let hp = target.hp;
+  snipe(4);
+  const quick = hp - target.hp;                           // about 37
+  if (!(quick > 20 && quick < 50)) return false;
+  // a little to one side: the lock-on ring would still pick this dummy, but the shot is not guided
+  SB.setCamYaw(0.14); run(4);
+  if (SB.lockTarget() !== target) return false;
+  hp = target.hp;
+  snipe(90);
+  if (target.hp !== hp) return false;
+  // up at the head: half as much again
+  SB.setCamYaw(0); SB.setCamPitch(0.035); run(4);
+  hp = target.hp;
+  snipe(90);
+  return hp - target.hp >= 195;                           // 150 x 1.5, give or take 10%
+});
+check('mage: a jump in the air hovers', () => {
+  reset(); P.pos.set(0, 0, 30); P.vel.set(0, 0, 0); run(2);
+  press('Space', 12);
+  const rising = P.pos.y > 1;
+  press('Space', 3);
+  if (!rising || !(P.floatT > 0)) return false;
+  run(45);                                                // three quarters of a second later it is still up there
+  return P.pos.y > 1.5 && !P.grounded;
+});
+// the Mage under a sword style
+check('mage style: a style changes how the missile flies, and every hit does what that style does', () => {
+  const target = faceDummy();
+  press('M0', 8);
+  const plain = flying()[0].o;
+  run(60); faceDummy(); SB.giveStyle('flame');    // (standing at the dummy first: a respawn ends a style)
+  const zones = SB.zoneCount();
+  P.cd.q = 0; press('KeyQ', 3);
+  const fireball = flying()[0].o;
+  if (!(fireball.speed < plain.speed) || !(fireball.size > plain.size) || fireball.color === plain.color) return false;
+  run(60);
+  if (!(target.burnT > 0) || SB.zoneCount() <= zones) return false;    // burning, and fire left where it landed
+  if (SB.CL.skills.q.alt() !== 'Fireball') return false;
+  faceDummy(); SB.giveStyle('thunder'); press('M0', 8);
+  const streak = flying()[0].o;
+  SB.clearStyle(); run(60);
+  return streak.pierce === 2 && streak.speed > plain.speed && SB.CL.skills.q.alt() === null;
+});
+check('mage style: the Mage wears robes and a hat, the Blademaster wears plate, and the staff grows a head', () => {
+  SB.giveStyle('flame');
+  const o = SB.outfit;
+  const robes = o.cloth.length >= 6 && o.cloth.every(m => m.visible) && o.plates.every(m => !m.visible) && !o.flameHair.visible;
+  const head = o.staffHeads.flame.visible && !o.staffHeads.water.visible;
+  SB.clearStyle();
+  const bare = o.cloth.every(m => !m.visible) && !o.staffHeads.flame.visible;
+  SB.setClass('blade'); SB.giveStyle('flame');
+  const plate = o.plates.every(m => m.visible) && o.cloth.every(m => !m.visible) && o.flameHair.visible;
+  SB.clearStyle();
+  return robes && head && bare && plate;
+});
+check('mage style: taken at its source with a skill key', () => {
+  SB.setClass('mage'); reset();
+  const pool = SB.sources.find(s => s.id === 'water'), storm = SB.sources.find(s => s.id === 'thunder');
+  P.pos.copy(pool.pos); P.vel.set(0, 0, 0); run(2);
+  press('KeyR', 4);
+  if (P.state !== 'submerge') return false;
+  run(60);
+  if (!SB.style.cur || SB.style.cur.id !== 'water') return false;
+  P.pos.copy(storm.pos); P.vel.set(0, 0, 0); run(2);
+  press('KeyE', 4);
+  const taking = P.state === 'storm' && flying().length === 0;    // the storm was taken; no Barrage started
+  run(60);
+  const ok = taking && SB.style.cur && SB.style.cur.id === 'thunder';
+  SB.clearStyle();
+  return ok;
+});
+SB.resetProgress(); SB.setClass('blade'); reset();
 // the whole route through Master Sen: arena -> hall -> pick a trial -> back to the arena
 check('Master Sen: to the hall, a trial, and back', () => {
   SB.setClass('blade'); reset();
@@ -416,7 +627,7 @@ check('Sen: a second hit inside ten seconds gets you grabbed by the neck and sla
   if (P.state !== 'grabbed') return false;
   run(26);                                               // about half a second in: held up in front of him
   const held = P.pos.y > sen.pos.y + 0.5 && Math.hypot(P.pos.x - sen.pos.x, P.pos.z - sen.pos.z) < 2.5 && P.hp === P.maxHp;
-  SB.hurtPlayer(20, dummies[0].pos, dummies[0]);         // nothing else can hurt him meanwhile
+  SB.hurtPlayer(20, dummies[0].pos);         // nothing else can hurt him meanwhile
   SB.strikeMaster(sen.pos.x, sen.pos.y, sen.pos.z, 3);   // and flailing at Sen does nothing
   if (P.hp !== P.maxHp || P.state !== 'grabbed') return false;
   run(22);                                               // he has jumped: both are well off the ground now
@@ -515,9 +726,9 @@ check('Sen: the menu is made of cards that can be clicked', () => {
   if (!dlg.open || cards.length !== dlg.opts.length || cards.length !== 7 || !cards[0].querySelector('svg')) return false;
   if (!document.body.classList.contains('sen')) return false;
   cards[2].click();                                      // "Change fighting style"
-  if (dlg.page !== 'classes' || win.querySelectorAll('.card').length !== 5) return false;
-  win.querySelectorAll('.card')[2].click();              // the Monk
-  const picked = !dlg.open && SB.CL.id === 'monk' && !document.body.classList.contains('sen') && getComputedStyle(win).display === 'none';
+  if (dlg.page !== 'classes' || win.querySelectorAll('.card').length !== 3) return false;    // two classes and Back
+  win.querySelectorAll('.card')[1].click();              // the Mage
+  const picked = !dlg.open && SB.CL.id === 'mage' && !document.body.classList.contains('sen') && getComputedStyle(win).display === 'none';
   SB.setClass('blade');
   return picked;
 });
@@ -571,7 +782,7 @@ check('style: Flame trial, played', () => {
   pressed.add('KeyQ'); run(4);
   // the scene: standing in the middle of the fire, held there, and nothing can hit him
   if (P.state !== 'ignite' || Math.hypot(P.pos.x - fire.pos.x, P.pos.z - fire.pos.z) > 0.01 || style.cur) return false;
-  const hp = P.hp; SB.hurtPlayer(20, dummies[0].pos, dummies[0]);
+  const hp = P.hp; SB.hurtPlayer(20, dummies[0].pos);
   if (P.hp !== hp) return false;
   run(50);
   if (P.state !== 'normal' || !style.cur || style.cur.id !== 'flame') return false;
@@ -672,7 +883,7 @@ check('style: Thunder trial, played', () => {
   cycloneIn(cloud);
   // the scene: held in the middle of the storm, and nothing can hit him
   if (P.state !== 'storm' || Math.hypot(P.pos.x - cloud.pos.x, P.pos.z - cloud.pos.z) > 0.01 || style.cur) return false;
-  const hp = P.hp; SB.hurtPlayer(20, dummies[0].pos, dummies[0]);
+  const hp = P.hp; SB.hurtPlayer(20, dummies[0].pos);
   if (P.hp !== hp) return false;
   run(50);
   if (P.state !== 'normal' || !style.cur || style.cur.id !== 'thunder' || !dressedAs('thunder')) return false;
@@ -851,7 +1062,7 @@ check('style: ends on respawn and on class change', () => {
   if (!style.cur) return false;
   SB.respawnPlayer();
   if (style.cur) return false;
-  SB.giveStyle('water'); SB.setClass('ninja');
+  SB.giveStyle('water'); SB.setClass('mage');
   const cleared = style.cur === null;
   SB.setClass('blade');
   return cleared;
@@ -892,7 +1103,7 @@ check('mount: riding into an enemy hits it and throws it aside', () => {
 check('mount: an attack, a hit or a respawn gets the player off', () => {
   mountUp(); press('M0', 4);
   if (P.state === 'mounted' || mount.cur) return false;
-  mountUp(); P.iframes = 0; SB.hurtPlayer(5, dummies[0].pos, dummies[0]); run(2);
+  mountUp(); P.iframes = 0; SB.hurtPlayer(5, dummies[0].pos); run(2);
   if (P.state === 'mounted' || mount.cur) return false;
   mountUp(); SB.respawnPlayer(); run(2);
   return P.state === 'normal' && mount.cur === null && P.seat === 0;
@@ -910,7 +1121,7 @@ function take(id) { return SB.acceptQuest() && story.cur === id && phase() === '
 // Knock out every gang member in the world, then wait for them to be cleared away.
 function beatGang() { for (const d of gang()) d.ko(1, 0); run(130); }
 check('story: starts with the first task on offer, and only for the Blademaster', () => {
-  SB.resetProgress(); SB.resetStory(); SB.setClass('ninja');
+  SB.resetProgress(); SB.resetStory(); SB.setClass('mage');
   if (phase() !== 'none' || SB.questLine() !== null) return false;
   SB.setClass('blade');
   return phase() === 'offer' && SB.questState().quest === SB.QUESTS[0] && SB.questLine().includes('Master Sen');
@@ -982,11 +1193,11 @@ check('story: being defeated brings the whole group back and restarts the count'
   if (gang().length !== 3 || gang().filter(d => d.boss).length !== 1) return false;
   gang().find(d => !d.boss).ko(1, 0); run(130);
   if (story.n !== 1 || gang().length !== 2) return false;
-  P.iframes = 0; SB.hurtPlayer(9999, dummies[0].pos, dummies[0]); run(5);
+  P.iframes = 0; SB.hurtPlayer(9999, dummies[0].pos); run(5);
   return story.n === 0 && gang().length === 3 && gang().every(d => d.hp === d.maxHp);
 });
 check('story: changing class pauses the task and takes its enemies away', () => {
-  SB.setClass('monk'); run(3);
+  SB.setClass('mage'); run(3);
   if (gang().length !== 0 || phase() !== 'none') return false;
   SB.setClass('blade'); run(3);
   return gang().length === 3 && phase() === 'active';
@@ -1123,7 +1334,7 @@ check('campaign: the boss wears armour a blast breaks, calls for help at half he
 check('campaign: falling loses the mission and sends you home', () => {
   readyForDocks();
   if (!SB.startMission('docks')) return false;
-  run(5); P.iframes = 0; SB.hurtPlayer(9999, P.pos, null); run(5);
+  run(5); P.iframes = 0; SB.hurtPlayer(9999, P.pos); run(5);
   return cleanHome() && campaign.free.length === 0 && P.maxHp === 100;
 });
 check('docks: once the fuse is lit, running out of time loses the mission', () => {

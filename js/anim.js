@@ -3,12 +3,12 @@
 
 import { TAU, clamp, lerp, damp, easeOut, angDiff, _a, _b } from './util.js';
 import { placeShadow } from './world.js';
-import { POSE_KEYS, BASE, GUARD, applyPose } from './stickman.js';
+import { POSE_KEYS, BASE, applyPose } from './stickman.js';
 import { setBeam, updateTrail } from './fx.js';
 import { T, P, CL } from './state.js';
-import { playerMat, bladeMat, bladeGlow, player, playerShadow, cloneMat, cloneSm, FLIP_T, pose, tp, ropeMesh, hookMesh } from './player.js';
-import { camPitch } from './camera.js';
+import { playerMat, bladeMat, bladeGlow, player, playerShadow, FLIP_T, pose, tp, ropeMesh, hookMesh } from './player.js';
 import { slashColor, reach as styleReach } from './styles.js';
+import { scope, SCOPE_IN } from './camera.js';
 import { mountSit } from './mounts.js';
 import { formScale, formLift } from './dashfx.js';
 
@@ -28,8 +28,8 @@ let wasGrounded = true, lastYaw = 0, lastSpeed = 0, turnLean = 0, speedLean = 0;
 const bladeAim = (pose, aim) => aim - (pose.shRX + pose.elR);
 // The painted slash is a ribbon stretched between the places the blade has just been, so it always follows the
 // weapon's real path. These are its two edges, measured along the blade from the hand: it starts partway up the
-// blade and carries on past the tip, like a wave thrown off the edge. Fists have none.
-const WEAPON_REACH = { sword: [0.35, 2.3], daggers: [0.1, 1.25], spear: [1.3, 2.9] };
+// blade and carries on past the tip, like a wave thrown off the edge. A staff has none.
+const WEAPON_REACH = { sword: [0.35, 2.3] };
 // The blade has to be moving at least this fast (units per second) to leave a slash. Stops a ribbon being drawn
 // while the sword is just being held, and makes the slash end exactly when the swing does.
 const SLASH_SPEED = 5;
@@ -40,16 +40,14 @@ const coilTime = A => Math.max(0.03, A.a0 - 0.02);
 const lastTip = _b.clone();
 let bladeFast = false;
 // States in which the weapon is swinging even though no basic attack is running.
-const TRAIL_STATES = new Set(['cyclone', 'rising', 'slamDown', 'blinkStrike', 'sweep', 'pcharge', 'dragoonDown']);
+const TRAIL_STATES = new Set(['cyclone', 'rising', 'slamDown', 'blinkStrike']);
 export function animatePlayer(dt) {
   Object.assign(tp, BASE);
   const hs = Math.hypot(P.vel.x, P.vel.z);
   let xp = 0, xs = 0;
   const st = P.state, id = CL.id;
   // class idle stance
-  if (id === 'ninja') Object.assign(tp, { shLX: -0.2, shLZ: 0.35, elL: -0.9, wristL: 0.4, shRX: -0.2, shRZ: -0.35, elR: -0.9, wrist: 0.4, spineX: 0.18, bodyY: 0.88, kneeL: 0.3, kneeR: 0.3, hipLX: -0.2, hipRX: -0.1 });
-  else if (id === 'monk') Object.assign(tp, GUARD, { hipLX: -0.25, hipRX: 0.15, kneeL: 0.25, kneeR: 0.25 });
-  else if (id === 'blade') {
+  if (id === 'blade') {
     // Ready stance (chudan, the basic middle guard of Japanese swordsmanship): both hands on the hilt in front of
     // the body, tip pointing at the opponent's eyes, right foot forward, left foot back, knees soft.
     Object.assign(tp, { bodyY: 0.87, spineX: 0.1, spineY: -0.22,
@@ -57,7 +55,11 @@ export function animatePlayer(dt) {
       shRX: -0.78, shRZ: 0.14, elR: -0.95, shLX: -0.7, shLZ: -0.2, elL: -1.05 });
     tp.wrist = bladeAim(tp, -0.3);
   }
-  let spearUp = id === 'lancer';
+  // The Mage stands easy: the staff upright in the right hand like a walking stick, the left arm loose.
+  if (id === 'mage') Object.assign(tp, { shRX: -0.55, shRZ: -0.22, elR: -0.9, shLX: 0.05, shLZ: 0.2, elL: -0.3, spineX: 0.05 });
+  // staffUp = the staff is being carried, so the wrist keeps it upright whatever the arm does (set at the end).
+  // Any pose that points or raises the staff switches it off.
+  let staffUp = id === 'mage';
 
   const runCycle = (speed, amp) => {
     P.runPhase += speed * dt * 1.25;
@@ -82,18 +84,18 @@ export function animatePlayer(dt) {
         shLX: -1.0, shLZ: 0.05, elL: -0.75, shRX: -0.7, shRZ: -0.45, elR: -1.0 });
     }
     tp.wrist = bladeAim(tp, -1.25);
-    spearUp = false;
+    staffUp = false;
   } else if (st === 'slide') {
     Object.assign(tp, { bodyY: 0.45, bodyPitch: -0.65, spineX: 0.45, hipLX: -1.0, kneeL: 0.1, hipLZ: 0.1, hipRX: -0.1, kneeR: 1.9,
-      shLX: 0.5, shLZ: 0.9, elL: 0, shRX: -0.5, shRZ: -0.4, elR: -0.4, wrist: 0.8 }); spearUp = false;
+      shLX: 0.5, shLZ: 0.9, elL: 0, shRX: -0.5, shRZ: -0.4, elR: -0.4, wrist: 0.8 }); staffUp = false;
   } else if (st === 'dash') {
     Object.assign(tp, { bodyPitch: clamp(1.15 * (1 - P.dashDir.y * 1.3), 0.1, 1.6), spineX: 0.1, hipLX: 0.3, kneeL: 0.5, hipRX: 0.05, kneeR: 0.2,
-      shLX: 1.3, shLZ: 0.25, elL: 0, shRX: 1.2, shRZ: -0.25, elR: 0, wrist: 1.5, wristL: 1.5 }); spearUp = false;
+      shLX: 1.3, shLZ: 0.25, elL: 0, shRX: 1.2, shRZ: -0.25, elR: 0, wrist: 1.5, wristL: 1.5 }); staffUp = false;
   } else if (st === 'grapple') {
     Object.assign(tp, { bodyPitch: 0.35, shLX: -2.5, shLZ: 0.1, elL: 0, shRX: 0.6, shRZ: -0.4, elR: -0.3, wrist: 1.2, hipLX: -0.6, kneeL: 1.0, hipRX: 0.3, kneeR: 0.5 });
-  } else if (st === 'cyclone' || st === 'sweep') {
+  } else if (st === 'cyclone') {
     Object.assign(tp, { bodyPitch: 0.25, shLX: 0, shLZ: 1.4, elL: 0, shRX: 0, shRZ: -1.4, elR: 0, wrist: 1.5, hipLX: -0.5, kneeL: 1.1, hipRX: 0.2, kneeR: 0.7 });
-    xs = P.spin; spearUp = false;
+    xs = P.spin; staffUp = false;
   } else if (st === 'slamUp') {
     Object.assign(tp, { hipLX: -1.5, kneeL: 2.0, hipRX: -1.5, kneeR: 2.0, shLX: -2.9, elL: 0, shRX: -2.9, shRZ: 0, elR: 0, wrist: 1.4, spineX: -0.2 });
     xp = -(P.st / 0.24) * TAU;
@@ -102,12 +104,6 @@ export function animatePlayer(dt) {
   } else if (st === 'rising') {
     Object.assign(tp, { shRX: -2.9, shRZ: -0.2, elR: 0, wrist: 1.45, spineX: -0.3, hipLX: -1.1, kneeL: 1.5, hipRX: 0.3, kneeR: 0.3, shLZ: 0.9, shLX: 0.3 });
     xs = clamp(P.st / 0.3, 0, 1) * TAU;
-  } else if (st === 'wallrun') {
-    const s = Math.sin(P.runPhase);
-    tp.hipLX = -s * 0.9; tp.hipRX = s * 0.9; tp.kneeL = 0.2 + Math.max(0, -s) * 1.4; tp.kneeR = 0.2 + Math.max(0, s) * 1.4;
-    tp.shLX = s * 0.8; tp.shRX = -s * 0.8;
-    if (camPitch > 0.5) tp.bodyPitch = -0.5;
-    else { const rx = -Math.cos(P.yaw), rz = Math.sin(P.yaw); tp.bodyRoll = -(P.wallN.x * rx + P.wallN.z * rz) * 0.55; tp.spineX = 0.3; }
   } else if (st === 'grabbed') {
     // held off the ground by the throat: hands up at the neck, legs kicking
     const kick = Math.sin(T * 16);
@@ -128,24 +124,16 @@ export function animatePlayer(dt) {
   } else if (st === 'submerge') {
     // dropping under the water: knees tucked, arms up
     Object.assign(tp, { hipLX: -1.2, kneeL: 1.7, hipRX: -1.0, kneeR: 1.6, shLX: -2.4, shLZ: 0.3, elL: -0.3, shRX: -2.4, shRZ: -0.3, elR: -0.3, spineX: 0.25 });
-  } else if (st === 'dragonKick') {
-    Object.assign(tp, { bodyPitch: -0.9, hipRX: -1.65, kneeR: 0, hipLX: 0.2, kneeL: 1.7, shLX: 0.6, shLZ: 0.6, elL: -0.4, shRX: 0.6, shRZ: -0.6, elR: -0.4, spineX: 0.3 });
-  } else if (st === 'charge') {
-    Object.assign(tp, { bodyY: 0.78, kneeL: 0.6, kneeR: 0.6, hipLX: -0.5, hipRX: 0.1, spineY: -0.6, shRX: 0.5, shRZ: -0.2, elR: -1.5, shLX: -1.3, shLZ: 0.1, elL: -0.3 });
-  } else if (st === 'palm') {
-    Object.assign(tp, { bodyY: 0.82, kneeL: 0.5, kneeR: 0.3, hipLX: -0.7, hipRX: 0.4, spineY: 0.6, spineX: 0.25, shRX: -1.55, shRZ: 0, elR: 0, shLX: 0.5, elL: -1.2 });
-  } else if (st === 'kicks') {
-    const s = Math.sin(P.st * 60);
-    Object.assign(tp, { bodyPitch: -0.3, hipRX: -1.45 + s * 0.35, kneeR: 0.15 + (s < 0 ? 0.9 : 0), hipLX: -0.9 - s * 0.5, kneeL: 0.9 + (s > 0 ? 0.6 : 0) });
-  } else if (st === 'vault') {
-    Object.assign(tp, { hipLX: -1.3, kneeL: 1.6, hipRX: -1.1, kneeR: 1.6, shLX: -0.4, shRX: 0.3, elR: -0.2, wrist: 2.4, spineX: 0.2 }); spearUp = false;
-  } else if (st === 'pcharge') {
-    runCycle(26, 1.1);
-    Object.assign(tp, { bodyPitch: 0.45, shRX: -1.2, shRZ: -0.1, elR: -0.2, wrist: 1.4, shLX: -1.2, shLZ: -0.2, elL: -0.5 }); spearUp = false;
-  } else if (st === 'dragoonUp') {
-    Object.assign(tp, { hipLX: -1.4, kneeL: 1.9, hipRX: -1.2, kneeR: 1.9, shLX: -2.7, elL: -0.2, shRX: -2.7, shRZ: 0, elR: -0.2, wrist: 2.9 + 1.57, spineX: -0.15 }); spearUp = false;
-  } else if (st === 'dragoonDown') {
-    Object.assign(tp, { bodyPitch: 0.7, hipLX: 0.2, kneeL: 0.2, hipRX: 0.4, kneeR: 0.5, shLX: -1.3, elL: -0.3, shRX: -1.3, shRZ: 0, elR: -0.3, wrist: 1.6 + 1.2, spineX: 0.2 }); spearUp = false;
+  } else if (st === 'cast' || st === 'channel' || st === 'aim') {
+    // casting, or taking aim: the staff thrust straight out at the target, the other hand behind it. A Barrage shakes with each missile.
+    Object.assign(tp, { shRX: -1.5, shRZ: -0.1, elR: 0, shLX: -1.2, shLZ: -0.1, elL: -0.6, spineX: 0.3, hipRX: -0.35, kneeR: 0.4, hipLX: 0.3, kneeL: 0.25 });
+    if (st === 'channel') tp.shRX += Math.sin(T * 57) * 0.06;
+    tp.wrist = -(tp.shRX + tp.elR);
+    staffUp = false;
+  } else if (st === 'invoke') {
+    // calling a comet: the staff raised high in both hands, head back
+    Object.assign(tp, { shRX: -2.9, shRZ: -0.1, elR: 0, shLX: -2.7, shLZ: 0.2, elL: -0.2, spineX: -0.22, wrist: 1.45 });
+    staffUp = false;
   } else if (!P.grounded) {
     // In the air the pose follows the vertical speed: tucked while rising, opening out as the fall begins.
     const rise = clamp(0.5 + P.vel.y / 14, 0, 1);    // 1 = going up fast, 0 = falling fast
@@ -160,7 +148,7 @@ export function animatePlayer(dt) {
     }
   } else if (hs > 0.6) {
     const amp = clamp(hs / 9.5, 0.3, 1.2), s = runCycle(hs, amp);
-    if (hs > 12.5 || id === 'ninja') { tp.shLX = 1.3; tp.shLZ = 0.2; tp.elL = 0; tp.shRX = 1.15; tp.shRZ = -0.2; tp.elR = -0.1; tp.wrist = 1.4; tp.wristL = 1.4; tp.spineX = 0.5; spearUp = false; }
+    if (hs > 12.5) { tp.shLX = 1.3; tp.shLZ = 0.2; tp.elL = 0; tp.shRX = 1.15; tp.shRZ = -0.2; tp.elR = -0.1; tp.wrist = 1.4; tp.wristL = 1.4; tp.spineX = 0.5; staffUp = false; }
     else if (id === 'blade') {
       // Running with the sword held low and trailing behind on the right, body leaning in, left arm pumping.
       tp.spineX = 0.32 + 0.14 * amp; tp.spineY = 0.25 - s * 0.16 * amp;
@@ -168,7 +156,7 @@ export function animatePlayer(dt) {
       tp.wrist = bladeAim(tp, 2.75);
       tp.shLX = s * 0.9 * amp; tp.shLZ = 0.2; tp.elL = -0.9;
     }
-    else if (id !== 'monk') { tp.shLX = s * 0.8 * amp; tp.elL = -0.6; tp.shRX = -0.35 - s * 0.5 * amp; }
+    else { tp.shLX = s * 0.8 * amp; tp.elL = -0.6; tp.shRX = -0.35 - s * 0.5 * amp; }
   } else {
     // Standing still is never frozen: slow breathing through the chest and shoulders, and the weight easing
     // from one foot to the other.
@@ -180,13 +168,12 @@ export function animatePlayer(dt) {
     tp.bodyRoll += shift * 0.022;
     tp.wrist += Math.sin(T * 1.7 + 0.8) * 0.05;    // the sword tip drifts with the breath
   }
-  if (P.blocking) { Object.assign(tp, { shLX: -1.5, shLZ: -0.35, elL: -1.5, shRX: -1.5, shRZ: 0.35, elR: -1.5, spineX: 0.2, bodyY: 0.86, kneeL: 0.4, kneeR: 0.4 }); }
 
   // attack overlay
   const a = P.atk;
   if (a.on) {
     const A = CL.atk[a.combo], e = easeOut(clamp(a.t / (A.a1 + 0.03), 0, 1)), last = a.combo === CL.atk.length - 1;
-    spearUp = false;
+    staffUp = false;
     switch (CL.style) {
       case 'slash':
         // Two-handed cuts. The whole body does the work: the hips and chest turn through the cut (spineY), the
@@ -218,24 +205,14 @@ export function animatePlayer(dt) {
           tp.wrist = bladeAim(tp, lerp(-1.2, 0.35, cut) + 0.2 * drift);
         }
         break;
-      case 'dagger':
-        if (last) { tp.shRX = tp.shLX = lerp(-2.9, -0.5, e); tp.elR = tp.elL = -0.1; tp.wrist = tp.wristL = 1.45; tp.spineX = lerp(-0.3, 0.6, e); tp.shLZ = 0.1; tp.shRZ = -0.1; }
-        else if (a.combo % 2 === 0) { tp.spineY = lerp(-0.9, 0.9, e); tp.shRX = -1.4; tp.shRZ = -0.2; tp.elR = -0.1; tp.wrist = 1.45; tp.shLX = -0.5; tp.elL = -1.2; }
-        else { tp.spineY = lerp(0.9, -0.9, e); tp.shLX = -1.4; tp.shLZ = 0.2; tp.elL = -0.1; tp.wristL = 1.45; tp.shRX = -0.5; tp.elR = -1.2; }
-        break;
-      case 'punch':
-        Object.assign(tp, GUARD);
-        if (last) { tp.hipRX = lerp(0.2, -1.7, e); tp.kneeR = lerp(1.6, 0, e); tp.spineX = -0.25; tp.bodyPitch = -0.15; }
-        else if (a.combo % 2 === 0) { tp.shRX = lerp(-0.7, -1.6, e); tp.elR = lerp(-2.0, 0, e); tp.spineY = lerp(-0.2, 0.55, e); }
-        else { tp.shLX = lerp(-0.9, -1.6, e); tp.elL = lerp(-2.0, 0, e); tp.spineY = lerp(0.2, -0.55, e); }
-        break;
-      case 'thrust':
+      // the Mage's bolt: the staff jabs forward at the target, further for the last of the three
+      case 'cast':
         tp.shRX = lerp(-0.9, -1.5, e); tp.shRZ = -0.1; tp.elR = lerp(-1.4, 0, e); tp.wrist = -(tp.shRX + tp.elR);
         tp.shLX = -1.2; tp.shLZ = -0.1; tp.elL = -0.6; tp.spineX = lerp(0, 0.35, e); if (last) tp.spineY = lerp(-0.6, 0.3, e);
         break;
     }
   }
-  if (spearUp) tp.wrist = -1.57 - (tp.shRX + tp.elR);   // lancer carries the spear upright
+  if (staffUp) tp.wrist = -1.57 - (tp.shRX + tp.elR);   // the Mage carries the staff upright
 
   // ----- weight: lean into turns and into speeding up, dip on landing, stretch on take-off -----
   if (dt > 0.004) {    // skipped during hitstop, when dt is almost nothing and these rates would be meaningless
@@ -270,6 +247,7 @@ export function animatePlayer(dt) {
     }
   }
   player.root.position.copy(P.pos);
+  player.root.visible = scope < SCOPE_IN;    // looking down the Mage's scope, the view is from the eye: no body in the way
   player.root.position.y -= P.sink;    // going under the water of a pool; 0 the rest of the time
   player.root.position.y += P.seat;    // sitting on a mount; 0 the rest of the time
   playerShadow.visible = P.sink < 0.3;
@@ -282,7 +260,7 @@ export function animatePlayer(dt) {
   player.root.updateMatrixWorld(true);
   placeShadow(playerShadow, P.pos.x, P.pos.y, P.pos.z);
 
-  const op = P.smokeT > 0 ? 0.22 : (P.iframes > 0 && Math.sin(T * 60) > 0 ? 0.5 : 1);
+  const op = P.iframes > 0 && Math.sin(T * 60) > 0 ? 0.5 : 1;
   playerMat.opacity = op; bladeMat.opacity = op;
   bladeGlow.material.opacity = op * 0.2;
 
@@ -297,10 +275,9 @@ export function animatePlayer(dt) {
     }
     // Only during an attack or a sword skill, after the coil back, and only while the blade is really moving.
     const attacking = (a.on && a.t >= coilTime(CL.atk[a.combo])) || TRAIL_STATES.has(st);
-    updateTrail(dt, attacking && bladeFast && P.smokeT <= 0, _a, _b, slashColor());
+    updateTrail(dt, attacking && bladeFast, _a, _b, slashColor());
   } else updateTrail(dt, false, _a, _b, slashColor());
 
-  if (P.clone) { cloneSm.root.position.copy(P.clone.pos); cloneMat.opacity = 0.45 + Math.sin(T * 8) * 0.2; }
   if (P.state === 'grapple') {
     player.handL.getWorldPosition(_a);
     setBeam(ropeMesh, _a, P.gPoint); hookMesh.position.copy(P.gPoint);

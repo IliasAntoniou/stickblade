@@ -14,7 +14,8 @@ import { V3, clamp, damp, easeOut, _fx } from './util.js';
 import { scene } from './core.js';
 import { glowTex, spawnRing, spawnSwirl, spawnBeam, spawnText, burst, toast, setTrailPaint } from './fx.js';
 import { P, CL } from './state.js';
-import { player, playerMat, bladeMat, bladeGlow, setState } from './player.js';
+import { player, playerMat, bladeMat, bladeGlow, setState, teleTrail } from './player.js';
+import { lockFire } from './camera.js';
 import { styleUnlocked, onHit } from './progress.js';
 import { dummies } from './dummies.js';
 import { playCutin } from './cutin.js';
@@ -29,20 +30,20 @@ const PLAIN_SKIN = 0xeef1f8;     // the player's normal body colour (matches pla
 //   eyes = the two small points of light where his eyes are.
 //   spark = which kind of spark drifts off the body (see burst() in fx.js).
 // reach = multiplies how far sword attacks, Cyclone and Meteor Slam reach.
-// how = how to take it, perk = what it does (both shown to the player).
+// perk = what it does (shown to the player). How it is taken depends on the class: see styleHow() below.
 export const STYLES = {
   water: {
     id: 'water', name: 'Water', color: 0x2f8fff, paint: 'water', reach: 1.2,
     glow: '#2f8fff', core: '#dff3ff', glowHex: 0x2f8fff, eyes: 0xbfe6ff, spark: 2,
     flow: 0.12,        // seconds taken off every cooldown each time a hit lands
-    how: 'Meteor Slam into a pool', perk: 'Control and survival: your skills drag enemies in, shove them away and heal you. Slashes reach further and hits shorten cooldowns',
+    perk: 'Control and survival: your skills drag enemies in, shove them away and heal you. Slashes reach further and hits shorten cooldowns',
   },
   flame: {
     id: 'flame', name: 'Flame', color: 0xff5a1a, paint: 'flame', reach: 1,
     glow: '#ff5a1a', core: '#ffe6a0', glowHex: 0xff5a1a, eyes: 0xffc24a, spark: 0,
     burnTime: 4,       // seconds a target keeps burning after the last hit
     burnDps: 14,       // burn damage per second
-    how: 'Lock on to a fire and Blink Strike into it', perk: 'Destruction: every hit sets the target burning, and your skills leave fire behind',
+    perk: 'Destruction: every hit sets the target burning, and your skills leave fire behind',
   },
   thunder: {
     id: 'thunder', name: 'Thunder', color: 0xffe24a, paint: 'thunder', reach: 1,
@@ -50,7 +51,7 @@ export const STYLES = {
     chain: 0.4,        // share of each hit's damage that jumps on to one more enemy
     chainRange: 6,     // how far that jump can reach
     speed: 1.15,       // multiplies running speed
-    how: 'Use Cyclone inside a storm', perk: 'Speed and stuns: your skills jump between enemies and freeze them. Hits arc to a second enemy and you run faster',
+    perk: 'Speed and stuns: your skills jump between enemies and freeze them. Hits arc to a second enemy and you run faster',
   },
 };
 
@@ -61,6 +62,14 @@ export const style = { cur: null, left: 0 };
 export function slashColor() { return style.cur ? style.cur.color : CL.color; }
 // Multiplier for how far sword attacks reach.
 export function reach() { return style.cur ? style.cur.reach : 1; }
+// How the class being played takes a style, in words (shown by a source, by Master Sen and when it is unlocked).
+// Every class uses the same three keys: R for water, Q for fire, E for the storm.
+export function styleHow(id) {
+  const S = CL.skills;
+  if (id === 'water') return CL.id === 'blade' ? `${S.r.n} into a pool` : `Use ${S.r.n} while standing in a pool`;
+  if (id === 'flame') return CL.id === 'blade' ? `Lock on to a fire and ${S.q.n} into it` : `Lock on to a fire and use ${S.q.n}`;
+  return `Use ${S.e.n} inside a storm`;
+}
 // Multiplier for running speed.
 export function styleSpeed() { return style.cur && style.cur.speed ? style.cur.speed : 1; }
 
@@ -332,7 +341,7 @@ const haloMat = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.Additiv
 const auraMat = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.2, toneMapped: false });
 
 // The pieces. suit.parts is all of them (to show and hide together); the named ones are swapped between styles.
-export const outfit = { parts: [], armoured: [], coats: [], flameHair: null, waterHair: null, thunderHair: null, thunderTips: [], thunderArcs: [],
+export const outfit = { parts: [], armoured: [], coats: [], plates: [], cloth: [], staffHeads: {}, flameHair: null, waterHair: null, thunderHair: null, thunderTips: [], thunderArcs: [],
   coat: null, chest: null, attached: false };
 function attachOutfit() {
   mats = {};
@@ -342,9 +351,13 @@ function attachOutfit() {
     mesh.position.set(x, y, z);
     mesh.castShadow = true;
     parent.add(mesh);
-    outfit.parts.push(mesh);
+    // the Mage's robes are kept out of parts: parts is what every class wears under a style
+    if (kind !== 'cloth' && kind !== 'trim') outfit.parts.push(mesh);
     if (kind === 'armour') outfit.armoured.push(mesh);
-    if (kind === 'coat') outfit.coats.push(mesh);
+    if (kind === 'coat' || kind === 'cloth') outfit.coats.push(mesh);
+    // plate = the hard pieces only the armoured look shows. cloth = the pieces only the Mage's robes show.
+    if (kind === 'armour' || kind === 'plate') outfit.plates.push(mesh);
+    if (kind === 'cloth' || kind === 'trim') outfit.cloth.push(mesh);
     return mesh;
   };
   const armour = mats.water.armour, coat = mats.water.coat;
@@ -359,7 +372,7 @@ function attachOutfit() {
     add(guard, player.chest, 0.185 * side, 0.0, 0, 'armour');
     const spike = new THREE.Mesh(new THREE.ConeGeometry(0.041, 0.195, 6), metalMat);
     spike.rotation.z = -0.75 * side;
-    add(spike, player.chest, 0.26 * side, 0.1, 0);
+    add(spike, player.chest, 0.26 * side, 0.1, 0, 'plate');
   }
   // gauntlets and greaves
   add(tube(0.078, 0.064, 0.21, armour), player.elL, 0, -0.2, 0, 'armour');
@@ -378,6 +391,33 @@ function attachOutfit() {
   const cape = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 1.2), coat);
   cape.rotation.x = 0.18;
   add(cape, player.chest, 0, -0.6, -0.17, 'coat');
+  // The Mage's robes, worn in place of the plate: a pointed hat with a wide brim and a glowing band, wide
+  // sleeves that flare towards the hands, and a short mantle over the shoulders. All of it is the coat's cloth,
+  // so it carries the same glowing cracks in the style's colour. The coat and the cape are shared.
+  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.19, 0.52, 12), coat);
+  hat.rotation.x = -0.22;    // the point leans back a little
+  add(hat, player.head, 0, 0.36, -0.04, 'cloth');
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.025, 18), coat), player.head, 0, 0.12, 0, 'cloth');
+  add(tube(0.172, 0.19, 0.05, eyeMat, false), player.head, 0, 0.155, 0, 'trim');
+  add(tube(0.065, 0.14, 0.3, coat), player.elL, 0, -0.17, 0, 'cloth');
+  add(tube(0.065, 0.14, 0.3, coat), player.elR, 0, -0.17, 0, 'cloth');
+  add(tube(0.09, 0.25, 0.2, coat), player.chest, 0, -0.09, 0, 'cloth');
+  // The staff's head: one shape for each style, round the orb at the top of the staff. Only the one for the
+  // style in use shows (and only a Mage holds the staff at all).
+  const flameHead = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.36, 8).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff9a2a, toneMapped: false }));
+  flameHead.position.z = 1.76;
+  const waterHead = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.022, 6, 20), new THREE.MeshBasicMaterial({ color: 0x8fd0ff, toneMapped: false }));
+  waterHead.position.z = 1.5;
+  const thunderHead = new THREE.Group();
+  const forkMat = new THREE.MeshBasicMaterial({ color: 0xffe24a, toneMapped: false });
+  for (let i = 0; i < 3; i++) {
+    const fork = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.34, 5).rotateX(Math.PI / 2).translate(0, 0.13, 0.12), forkMat);
+    fork.rotation.z = i / 3 * Math.PI * 2;
+    thunderHead.add(fork);
+  }
+  thunderHead.position.z = 1.5;
+  outfit.staffHeads = { flame: flameHead, water: waterHead, thunder: thunderHead };
+  for (const id in outfit.staffHeads) player.W.staff.add(outfit.staffHeads[id]);
   // The hair. Each style's is a group of its own on the head, shown only for that style (they are kept out of
   // outfit.parts, which is everything that shows for every style).
   outfit.flameHair = new THREE.Group();
@@ -463,10 +503,15 @@ function applyLook() {
   setTrailPaint(s ? s.paint : 'plain');
   playerMat.color.setHex(s ? ARMOUR : PLAIN_SKIN);
   player.head.material = s ? faceMat : playerMat;
+  // The Mage wears robes and a hat where the Blademaster wears plate and hair made of the element.
+  const mage = CL.weapon === 'staff';
   for (const m of outfit.parts) m.visible = !!s;
-  outfit.flameHair.visible = !!s && s.id === 'flame';
-  outfit.waterHair.visible = !!s && s.id === 'water';
-  outfit.thunderHair.visible = !!s && s.id === 'thunder';
+  for (const m of outfit.plates) m.visible = !!s && !mage;
+  for (const m of outfit.cloth) m.visible = !!s && mage;
+  outfit.flameHair.visible = !!s && !mage && s.id === 'flame';
+  outfit.waterHair.visible = !!s && !mage && s.id === 'water';
+  outfit.thunderHair.visible = !!s && !mage && s.id === 'thunder';
+  for (const id in outfit.staffHeads) outfit.staffHeads[id].visible = !!s && s.id === id;
   if (s) {
     for (const m of outfit.armoured) m.material = mats[s.id].armour;
     for (const m of outfit.coats) m.material = mats[s.id].coat;
@@ -757,6 +802,25 @@ export function slamSources() {
     if (Math.hypot(s.pos.x - P.pos.x, s.pos.z - P.pos.z) < POOL_RADIUS + 0.4 && Math.abs(s.pos.y - P.pos.y) < 1.5) startTake(s);
   }
 }
+// The Mage takes a style by pressing a skill key at its source: Q with a fire locked on
+// (it is carried into it), E inside a storm, R while standing in a pool. Called by update.js when a skill key
+// is pressed, before the skill itself. Returns true if a style is being taken, in which case the skill does not
+// happen (its cooldown starts all the same). The Blademaster's own skills do this themselves, so for that class
+// it always returns false.
+export function takeWith(slot) {
+  if (CL.id === 'blade') return false;
+  let source = null;
+  if (slot === 'q') source = lockFire;
+  else if (slot === 'e') source = stormAt(P.pos);
+  else if (slot === 'r') {
+    source = sources.find(s => s.id === 'water' && styleUnlocked('water') && Math.hypot(s.pos.x - P.pos.x, s.pos.z - P.pos.z) < POOL_RADIUS + 0.4 && Math.abs(s.pos.y - P.pos.y) < 1.5) || null;
+  }
+  if (!source) return false;
+  P.cd[slot] = CL.skills[slot].cd;
+  if (slot === 'q') teleTrail(_from.copy(P.pos), source.pos, 5);
+  startTake(source);
+  return true;
+}
 // A fire can be locked on to, exactly like a dummy, so the ring on screen says where a Blink Strike will go.
 // Called by updateCamera (camera.js) after it has picked the dummy nearest the crosshair.
 //   camPos, dir = where the camera is and where it looks.   bestAngle = how far off the crosshair that dummy is
@@ -835,7 +899,7 @@ export function sourceHint() {
     if (dist > (s.id === 'water' ? POOL_RADIUS + 2.5 : 7) || Math.abs(s.pos.y - P.pos.y) > 3) continue;
     const st = STYLES[s.id], thing = { water: 'Pool', flame: 'Fire pit', thunder: 'Storm' }[s.id];
     if (!styleUnlocked(s.id)) return `${thing} · you cannot draw on it yet. <b>Master Sen</b> can teach you.`;
-    return `${thing} · ${st.how} to take <b>${st.name}</b> for ${STYLE_TIME}s`;
+    return `${thing} · ${styleHow(s.id)} to take <b>${st.name}</b> for ${STYLE_TIME}s`;
   }
   return null;
 }

@@ -213,7 +213,7 @@ const crescentInner = u => crescentOuter(u) - 0.72 * crescentThick(u);
 const crescentBody = paintCrescent('body', crescentOuter, crescentInner, 0.25, 0.97);
 const crescentInk = paintCrescent('ink', crescentOuter, crescentInner, 0.25, 0.97);
 
-// Ready-made slash arcs, used only for attacks without a blade (the Monk's fists and kicks).
+// Ready-made slash arcs, for attacks without a blade. Nothing uses them at the moment (the Monk's fists did).
 // arcH = the half circle in front of the player for sideways swings, arcV = the tall one for overhead swings.
 export const arcH = arcGeo(1.0, 2.5, Math.PI, Math.PI);
 export const arcV = arcGeo(0.9, 2.4, -Math.PI / 3, 5 * Math.PI / 6);
@@ -416,7 +416,7 @@ export function spawnGhost(src, color, pos = null, dur = 0.28) {
   if (pos) g.sm.root.position.copy(pos);
   g.mat.color.setHex(color); g.life = g.max = dur; g.sm.root.visible = true;
 }
-// beams (thrust streaks, chains)
+// beams (a lookout's throw, bolts from the sky, a comet)
 export const beamGeo = new THREE.CylinderGeometry(0.035, 0.035, 1, 5).translate(0, 0.5, 0);
 // Stretch a thin cylinder from point a to point b.
 export function setBeam(m, a, b, w = 1) {

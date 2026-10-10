@@ -125,7 +125,7 @@ export class Dummy {
   }
   // Take this dummy out of the world for good (trial dummies, when their trial ends). Does not touch the dummies list.
   dispose() {
-    this.dead = true;    // anything still holding on to it (grapple, a stuck kunai) lets go of dead dummies
+    this.dead = true;    // anything still holding on to it (the grapple) lets go of dead dummies
     scene.remove(this.sm.root);
     scene.remove(this.bar);
     scene.remove(this.shadow);
@@ -292,7 +292,7 @@ export class Dummy {
     // A training fighter guards its own patch. A gang member has come for the player: it sees right across the
     // arena, at any height, and has no home to stay near.
     const inSight = this.gang ? dist < GANG_SIGHT : dist < 14 && Math.abs(dy) < 4 && leash < 18;
-    const canSee = TUNE.fightersAttack && P.smokeT <= 0 && !dlg.open && chal.phase !== 'count' && inSight;
+    const canSee = TUNE.fightersAttack && !dlg.open && chal.phase !== 'count' && inSight;
     const pace = this.soakT > 0 ? SOAK.slow : 1;    // soaked: slower to walk and slower to ready an attack
     this.aiCd -= dt * pace; this.rage = 0;
     let tp = F_IDLE;
@@ -343,7 +343,7 @@ export class Dummy {
           this.warnRing.visible = false;
           spawnRing(_dv.set(this.pos.x, gy + 0.05, this.pos.z), 0.5, 3.9, 0.3, 0xff2244); shake(0.3);
           this.ai = 'recover'; this.aiT = 0.7; this.aiCd = 1.6;
-          if (dist < 3.7 && dy > -1.5 && dy < 2.5) hurtPlayer(15, this.pos, this);
+          if (dist < 3.7 && dy > -1.5 && dy < 2.5) hurtPlayer(15, this.pos);
         }
         break;
       }
@@ -361,7 +361,7 @@ export class Dummy {
         const ox = this.pos.x, oz = this.pos.z;
         this.pos.addScaledVector(this.lungeDir, 30 * dt);
         if (dummyBlocked(this.pos)) { this.pos.x = ox; this.pos.z = oz; this.aiT = 0; }
-        if (!this.lungeHit && Math.hypot(P.pos.x - this.pos.x, P.pos.z - this.pos.z) < 1.5 && Math.abs(dy) < 2) { this.lungeHit = true; hurtPlayer(12, this.pos, this); }
+        if (!this.lungeHit && Math.hypot(P.pos.x - this.pos.x, P.pos.z - this.pos.z) < 1.5 && Math.abs(dy) < 2) { this.lungeHit = true; hurtPlayer(12, this.pos); }
         if (this.aiT <= 0 && this.ai === 'lunge') { this.ai = 'recover'; this.aiT = 0.6; this.aiCd = 1.4; }
         break;
       }
@@ -384,7 +384,7 @@ export class Dummy {
           this.chest(_hv);
           _hv.y += 0.25;
           spawnBeam(_hv, _dv, 0xff5a4a, 0.18, 2.4);
-          if (this.throwHits(_dv)) hurtPlayer(THROW_DAMAGE, this.pos, this);
+          if (this.throwHits(_dv)) hurtPlayer(THROW_DAMAGE, this.pos);
           this.ai = 'recover';
           this.aiT = 0.5;
           this.aiCd = 2.2;
@@ -498,7 +498,6 @@ export function hitDummy(d, dmg, kx, kz, up, heavy = false, stop = null, src = P
     if (style.cur && style.cur.id === d.weak) { dmg = Math.round(dmg * WEAK_BONUS); label = 'WEAK'; }
     else dmg = Math.round(dmg * d.tough);
   }
-  if (P.dmgMult > 1) { dmg *= P.dmgMult; P.dmgMult = 1; P.smokeT = Math.min(P.smokeT, 0.01); label = 'AMBUSH'; heavy = true; }
   if (d.fixed) {
     // a barricade, a keg or a lever is not thrown about by a hit
     kx = 0;
