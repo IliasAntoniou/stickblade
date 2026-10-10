@@ -31,7 +31,10 @@ Where everything is, what the short names mean, and how to add things. If this f
 | Kunai and javelin | `js/projectiles.js` |
 | The story: what Sen says, what each task asks for, how many it takes, which enemies it brings and where | `QUESTS` in `js/quests.js` |
 | The campaign: the districts, their layout, their stages, which enemies each stage brings and where | `DISTRICTS` in `js/missions.js` |
-| The kinds of enemy in missions (health, speed, size, which element they are weak to) | `THUG`, `RUNNER`, `IRON`, `RAT`, `BARRICADE` and `MARROW` in `js/missions.js` |
+| The kinds of enemy in missions (health, speed, size, which element they are weak to) | `THUG`, `RUNNER`, `IRON`, `RAT`, `BARRICADE`, `BLOCKADE`, `MARROW`, `TWIN_EMBER` and `TWIN_TIDE` in `js/missions.js` |
+| A timed stage: how long the player has | `time` on the stage in `DISTRICTS` in `js/missions.js` |
+| Where the curtains of light stand (the ones only a dash passes) | `gates` on the district in `DISTRICTS`; how one looks and blocks is `addPhaseWall()` in `js/world.js` |
+| The prisoner to be rescued | `captive` in `js/missions.js`; a stage shows him with `rescue: true` |
 | How much a weakness matters, and how hard a mount hits a barricade | `WEAK_BONUS` and `RAM_BONUS` in `js/dummies.js`; `tough` on the enemy kind |
 | What freeing a district gives, the healing between stages, and how slowly health returns in a mission | `HP_PER_DISTRICT`, `STAGE_HEAL` and `MISSION_REGEN` in `js/missions.js` |
 | The city map in Sen's menu | The `map` page of `renderDlg()` in `js/master.js`; what it lists comes from `districtList()` in `js/missions.js` |
@@ -229,7 +232,9 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `hitSrc` | Which attack the current hits belong to: `atk`, `q`, `e`, `r`, `f` or `other`. Set with `setHitSrc()` just before dealing damage |
 | `P.castN` | Counts skill uses, so a trial can tell one use from the next |
 | district, mission | One part of the city held by the Ash Hand, and the fight to take it back. Data in `DISTRICTS` in `js/missions.js`. `mission.cur` is the one running, or null in the yard |
-| stage | One step of a mission: a group of enemies to beat, or a place to reach. `mission.stage` is its number |
+| stage | One step of a mission: a group of enemies to beat, or a place to reach, sometimes against the clock. `mission.stage` is its number, `mission.clock` the seconds spent on it |
+| curtain of light, phase wall, `s.phase` | A see-through wall that is solid except to a dashing player. A flag on its entry in `solids` |
+| blocker, `d.blocker` | The unseen wall behind a barricade that shuts the way. Removed when the barricade breaks |
 | the yard | The main arena, the player's base between missions |
 | `d.weak`, `d.tough` | The sword style an enemy is weak to, and what every other hit on it is multiplied by |
 | `d.zone` | The square a gang member is kept inside: the yard, or its district |
@@ -290,7 +295,8 @@ Water, Flame and Thunder in `js/styles.js` are the worked examples.
 The docks in `DISTRICTS` in `js/missions.js` are the worked example. Every stage should lean on a different tool.
 
 1. A district that already has a card on the map only needs its data: `area` (pick a centre at least 250 from every other area, so fog hides them from each other), `floor`, `start`, `props`, `sources` and `stages`.
-2. A stage is `goal` and `hint` plus one of: `spawn` (enemies; cleared when all are down) or `point` (a place to stand on; put it somewhere only the hook reaches).
+2. A stage is `goal` and `hint` plus one of: `spawn` (enemies; cleared when all are down) or `point` (a place to stand on; put it somewhere only the hook reaches). With both, the enemies are only in the way. Add `time` for a limit and `rescue: true` to put the prisoner at the point.
+   A district does not have to be a square yard: the Old Market sets `walls: false` and builds a long street out of `props`. To shut a gap, use a curtain (`gates`: only a dash passes) or a `BLOCKADE` (only a mount breaks it).
 3. To make a stage about a mount, spawn `BARRICADE`s. To make it about an element, spawn enemies with `weak` set, and make sure the district has that element's source.
 4. A new kind of enemy is a new set of options next to `THUG`. Give it a row in Part 4 of `docs/ABILITIES.md`.
 5. Look at it: `http://localhost:8000/?debug=mission:<id>`. Add it to `docs/STORY.md` and to the campaign checks in `tests/smoke.js`.
@@ -354,6 +360,8 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **A mission is not a challenge.** It does not use `chal`: it has its own state (`mission`) and runs while the player is in its district. Master Sen stays in the yard, so no trial, class change or other mission can start during one.
 - **Being defeated in a mission is handled before the respawn.** `playerDefeated()` calls `failMission()` first, which puts `SPAWN` and the area back to the yard, so the respawn that follows lands there.
 - **Beaten mission enemies stay in `mission.spawned`,** marked dead, so the stage can tell they are down. Only `despawnAll()` empties the list.
+- **A curtain of light is solid to everything except a dashing player.** Enemies, mounts and walking players are stopped by it. It is left out of ray checks on purpose, so the camera, the crosshair and the hook ignore it. Never pass one to `removeBox()`.
+- **A `BLOCKADE` has to stand in a gap no wider than 6,** which is the width of its unseen wall; anything wider can be walked round.
 - **District ids are in the save,** like task ids.
 - **Task ids are in the save.** Renaming one in `QUESTS` makes saved games forget it.
 - **`SPAWN` moves.** It is where the player respawns: the arena start, the hall's arrival point, or a trial's start. `js/dojo.js` changes it.

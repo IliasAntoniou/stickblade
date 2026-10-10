@@ -46,7 +46,7 @@ This is what the game is for. The city has five districts and the Ash Hand holds
 | # | District | Held by | State |
 |---|---|---|---|
 | 1 | The Docks | Marrow | Built |
-| 2 | The Old Market | the Twins | Not built |
+| 2 | The Old Market | the Twins | Built |
 | 3 | The Foundry | Cinder | Not built |
 | 4 | The Heights | Lady Vane | Not built |
 | 5 | The Ash Citadel | the Ash King | Not built |
@@ -58,6 +58,7 @@ How a mission works:
 - If you are defeated the mission is lost and you start it again. P gives up.
 - Winning frees the district for good and adds 20 to your maximum health. A freed district can be fought again.
 - Each stage is built around a different tool, so the hook, the mounts and the elements all have a job.
+- Districts are different kinds of place, not the same yard with new enemies. The docks are a fight through a yard. The Old Market is a race down a street.
 
 ### The Docks
 
@@ -69,8 +70,19 @@ How a mission works:
 | 4 | Clear the dock rats | Seven small fast enemies (blue bands: Water) |
 | 5 | Defeat Marrow | The boss and two scouts; at half health he calls two runners and an ironclad |
 
+### The Old Market
+
+One long street, 24 wide and 300 long, and a clock. The Twins mean to hang old Tam at the far end.
+
+| Stage | Goal | What it asks of you |
+|---|---|---|
+| 1 | Reach old Tam before they hang him (75 seconds) | Movement. Four curtains of light that only a dash passes through; two barricades that shut the street until a mount breaks them; two walls right across it (9 and 12 high) that the hook gets over. Runners and dock rats harass you on the way but do not have to be beaten. A fire and a pool at the start let you pick your mount: the horse is fastest, the elephant breaks a barricade in one go |
+| 2 | Defeat the Twins | Two bosses at once, one weak to Flame and one to Water. A fire and a pool stand beside them |
+
+Run out of time and the mission is lost.
+
 ## What comes next (not built)
 
-- The other four districts. The plan for each: the Old Market is lanes and rooftops (swarms below, a hook chase above); the Foundry is fire and armour (water and the elephant open it); the Heights is all towers and bridges (nothing reachable on foot); the Citadel uses everything.
+- The other three districts, each meant to be its own kind of place. The plan: the Foundry is fire and armour (water and the elephant open it); the Heights is all towers and bridges (nothing reachable on foot); the Citadel uses everything.
 - New kinds of gang member, so not every enemy fights like a brute.
 - Someone besides Sen to talk to.

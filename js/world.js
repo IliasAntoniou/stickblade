@@ -210,6 +210,22 @@ addBox(4, 0, 44, 3, 12, 3, COL.pillar);
   const flag = new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial({ color: 0xff3d6a, toneMapped: false })); flag.scale.set(1.1, 0.6, 0.05); flag.position.set(0.6, 28, -46); scene.add(flag);
 }
 
+// A curtain of light: it blocks like a wall, except that the player goes straight through it while dashing
+// (player.js skips solids marked `phase` during a dash). Used by missions for gates only a dash can pass.
+// The camera, the crosshair and the grappling hook all look straight through it, so it never pulls the view in.
+// Never pass one to removeBox: its shape is shared.
+const phaseMat = new THREE.MeshBasicMaterial({ color: 0x66e0ff, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+export function addPhaseWall(x, y, z, w, h, d) {
+  const m = new THREE.Mesh(boxGeo, phaseMat);
+  m.scale.set(w, h, d);
+  m.position.set(x, y + h / 2, z);
+  m.raycast = () => {};
+  scene.add(m);
+  solidMeshes.push(m);    // kept in step with solids, which removeBox relies on
+  solids.push({ min: new V3(x - w / 2, y, z - d / 2), max: new V3(x + w / 2, y + h, z + d / 2), phase: true });
+  return m;
+}
+
 // Take a box added with addBox out of the world again (m = what addBox returned).
 export function removeBox(m) {
   const i = solidMeshes.indexOf(m);
