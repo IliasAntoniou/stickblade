@@ -158,9 +158,17 @@ export function updateDomFx(rdt) {
   if (centerT > 0) { centerT -= rdt; if (centerT <= 0) centerEl.style.opacity = 0; }
   if (toastT > 0) { toastT -= rdt; if (toastT <= 0) toastEl.style.opacity = 0; }
   if (hurtFlash > 0) hurtFlash = Math.max(0, hurtFlash - rdt * 2.5);
+  if (flashT > 0) {
+    flashT = Math.max(0, flashT - rdt * 1.5);
+    flashEl.style.opacity = flashT;
+  }
   hurtEl.style.opacity = Math.max(hurtFlash, P.hp < 35 ? 0.35 : 0);
 }
 export const hurtEl = $('hurt');
+// White screen flash that fades out (teleports). flashT is its strength, 1 = full white.
+export const flashEl = $('flash');
+export let flashT = 0;
+export function flash() { flashT = 1; }
 
 // setters for other modules (an imported `let` is read-only)
 export function addHitstop(v) { hitstop = Math.max(hitstop, v * TUNE.hitstopMult); }

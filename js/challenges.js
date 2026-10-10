@@ -9,6 +9,8 @@ import { T, P, CL, chal, combo, resetCombo } from './state.js';
 import { dummies } from './dummies.js';
 import { respawnPlayer } from './player.js';
 import { closeDlg } from './master.js';
+import { updateTrial } from './progress.js';
+import { clearTrial } from './dojo.js';
 
 // ================= challenges =================
 // Sky Rings course: ring positions in order, as [x, y, z].
@@ -38,6 +40,7 @@ export function startChallenge(c) {
   chalEl.style.display = 'block';
 }
 export function endChallenge() {
+  if (chal.cur && chal.cur.trial) clearTrial();    // a skill trial: put the training hall back to empty
   chal.cur = null; chal.phase = 'none';
   for (const r of courseRings) r.visible = false;
   chalEl.style.display = 'none';
@@ -61,6 +64,7 @@ export function updateChallenge(dt) {
     return;
   }
   chal.t += dt;
+  if (c.trial) { updateTrial(c, dt); return; }    // skill trials have their own rules (progress.js)
   let prog = '', done = false;
   if (c.id === 'rings') {
     const r = courseRings[chal.ring];

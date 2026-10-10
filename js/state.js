@@ -50,6 +50,10 @@ export const TUNE = { ...TUNE_DEFAULTS };    // filled in by the files in classe
 
 // setters for other modules (an imported `let` is read-only)
 export function addT(dt) { T += dt; }
+// hitSrc = which attack the hits happening right now belong to: 'atk' (basic attack), 'q' 'e' 'r' 'f' (skills) or 'other'.
+// Code that deals damage sets it just before; hitDummy reads it. update() puts it back to 'other' every frame.
+export let hitSrc = 'other';
+export function setHitSrc(s) { hitSrc = s; }
 export function setCL(c) { CL = c; }
 export function addHit(dmg) { combo++; comboT = 1.8; totalDmg += dmg; dmgLog.push({ t: T, d: dmg }); }
 export function resetCombo() { combo = 0; comboT = 0; }

@@ -17,6 +17,7 @@ function check(name, fn) {
   for (const d of dummies) if (![d.pos.x, d.pos.y, d.pos.z, d.hp].every(Number.isFinite)) { fails.push(name + ': dummy state is not finite'); break; }
 }
 function reset() {
+  if (SB.dojo.inside) SB.leaveDojo();    // the general checks happen in the main arena
   SB.setMouse(false, false);
   if (chal.cur) SB.endChallenge();
   SB.respawnPlayer(); P.iframes = 0;
@@ -25,6 +26,8 @@ function reset() {
   for (const k in P.cd) P.cd[k] = 0;
   run(5);
 }
+
+SB.unlockAll();    // the general checks below need every skill usable; progression has its own checks at the end
 
 // every class: basic combo, each skill twice (second press covers recall / swap / release), movement
 for (const id of SB.CLASS_ORDER) {
@@ -159,12 +162,172 @@ check('tuning panel', () => {
   jump.querySelector('.tx').click();
   if (TUNE.jump !== 13 || jump.classList.contains('chg')) return false;
   slide(rowOf('Hit 1 damage'), 99);
-  slide(rowOf('Q Blink Strike cooldown'), 1);
-  if (SB.CL.atk[0].dmg !== 99 || SB.CL.skills.q.cd !== 1) return false;
+  slide(rowOf('RMB Grapple cooldown'), 1);
+  if (SB.CL.atk[0].dmg !== 99 || SB.CL.skills.m2.cd !== 1) return false;
+  if (rowOf('Q Blink Strike cooldown')) return false;    // ranked skills take their cooldown from their rank
   slide(rowOf('Run speed ×'), 2);
   panel.querySelector('.ra').click();
-  return SB.CL.atk[0].dmg === 12 && SB.CL.skills.q.cd === 4 && TUNE.runMult === 1 && !panel.querySelector('.tr.chg');
+  return SB.CL.atk[0].dmg === 12 && SB.CL.skills.m2.cd === 0.5 && TUNE.runMult === 1 && !panel.querySelector('.tr.chg');
 });
+
+// progression (Blademaster): locked skills, the training hall, trials, ranks, and the closed back doors
+const rankOf = SB.rankOf, dojo = SB.dojo, DOJO = SB.DOJO;
+const trial = id => SB.CLASSES.blade.trials.find(t => t.id === id);
+const skillHit = (src, d, up = 0, heavy = false) => { SB.setHitSrc(src); return SB.hitDummy(d, 10, 0, 0, up, heavy, null, P.pos, true); };
+const spawned = type => dojo.spawned.filter(d => d.type === type);
+const near = (x, z, r = 1.5) => Math.hypot(P.pos.x - x, P.pos.z - z) < r;
+// Start a trial and sit through the 3-2-1 countdown.
+function begin(id) {
+  if (!SB.startTrial(trial(id))) return false;
+  run(200);
+  return chal.cur === trial(id) && chal.phase === 'run';
+}
+// Put the player at a spot given relative to the centre of the hall, standing still.
+function standAt(x, y, z) { P.pos.set(DOJO.cx + x, y, DOJO.cz + z); P.vel.set(0, 0, 0); }
+const arenaDummies = dummies.length;
+
+check('progress: starting ranks', () => {
+  SB.resetProgress(); SB.setClass('blade');
+  return rankOf('q') === 0 && rankOf('e') === 0 && rankOf('r') === 0 && rankOf('f') === 1 && rankOf('m2') === 1;
+});
+check('progress: a locked skill does nothing', () => { reset(); press('KeyQ', 5); press('KeyE', 5); press('KeyR', 5); return P.cd.q === 0 && P.cd.e === 0 && P.cd.r === 0 && P.state === 'normal'; });
+check('progress: the starting skill works', () => { reset(); press('KeyF', 3); return P.cd.f > 0; });
+check('progress: other classes are not locked', () => { SB.setClass('ninja'); const ok = rankOf('q') === 1 && rankOf('e') === 1; SB.setClass('blade'); return ok; });
+check('progress: ranks are earned in order', () => SB.startTrial(trial('blade-q2')) === false && SB.startTrial(trial('blade-e3')) === false && chal.cur === null && !dojo.inside);
+check('progress: tuned numbers block a trial', () => {
+  TUNE.dmgMult = 2; const blocked = SB.startTrial(trial('blade-q1')) === false && chal.cur === null; SB.resetTuning();
+  return blocked;
+});
+
+check('hall: teleport there, stay inside its walls, teleport back', () => {
+  reset(); SB.enterDojo(); run(5);
+  if (!dojo.inside || !near(DOJO.cx, DOJO.cz + 18) || Math.hypot(SB.master.pos.x - P.pos.x, SB.master.pos.z - P.pos.z) > 4) return false;
+  SB.keys.add('KeyW'); press('ShiftLeft', 400); SB.keys.delete('KeyW');     // run and dash at the far wall
+  if (Math.abs(P.pos.x - DOJO.cx) > DOJO.half || Math.abs(P.pos.z - DOJO.cz) > DOJO.half) return false;
+  SB.leaveDojo(); run(5);
+  return !dojo.inside && near(0, 14) && SB.master.pos.x === -5 && SB.master.pos.z === 18;
+});
+check('hall: a trial builds its layout and takes it away again', () => {
+  SB.enterDojo(); run(2);
+  const objects = SB.scene.children.length;
+  if (!begin('blade-q1')) return false;
+  const built = dojo.spawned.length === 3 && spawned('flying').length === 3 && dojo.props.length === 2 && dummies.length === arenaDummies + 3 && near(DOJO.cx, DOJO.cz + 18);
+  SB.endChallenge();
+  return built && dojo.spawned.length === 0 && dojo.props.length === 0 && dummies.length === arenaDummies && SB.scene.children.length === objects;
+});
+check('progress: a trial lends its skill and only that skill counts', () => {
+  if (!begin('blade-q1')) return false;
+  if (rankOf('q') !== 1 || rankOf('e') !== 0) return false;
+  const d = spawned('flying')[0], hp = d.hp;
+  return skillHit('atk', d) === false && d.hp === hp;    // basic attacks are IMMUNE here
+});
+check('progress: tuning during a trial fails it', () => { TUNE.god = true; run(2); const failed = chal.cur === null; SB.resetTuning(); return failed && rankOf('q') === 0; });
+check('progress: quitting a trial keeps the skill locked', () => { if (!begin('blade-q1')) return false; SB.endChallenge(); return rankOf('q') === 0; });
+check('progress: passing a trial teaches the skill', () => {
+  if (!begin('blade-q1')) return false;
+  const f = spawned('flying');
+  skillHit('q', f[0]); skillHit('q', f[0]); skillHit('q', f[1]); run(2);
+  if (chal.cur === null) return false;                 // the same dummy twice must not count twice
+  skillHit('q', f[2]); run(2);
+  return chal.cur === null && rankOf('q') === 1 && SB.CL.skills.q.dmg === 34 && SB.CL.skills.q.cd === 4 && dojo.inside && dojo.spawned.length === 0;
+});
+check('progress: the learned skill can be used', () => { reset(); press('KeyQ', 3); return P.cd.q > 0; });
+check('progress: rank II changes the numbers', () => {
+  if (!begin('blade-q2')) return false;
+  const fighter = spawned('fighter')[0];
+  for (let i = 0; i < 2; i++) { fighter.stunT = 0; fighter.ai = 'windSlam'; fighter.aiT = 0.5; skillHit('q', fighter, 0, true); }
+  run(2);
+  return chal.cur === null && rankOf('q') === 2 && SB.CL.skills.q.dmg === 44 && SB.CL.skills.q.cd === 3.5;
+});
+check('progress: a trial runs out of time', () => { if (!begin('blade-e1')) return false; run(60 * 46); return chal.cur === null && rankOf('e') === 0 && dojo.spawned.length === 0; });
+// played for real: spin through the line of three dummies (the camera faces -z after the countdown, so D moves along +x)
+check('progress: Cyclone trial, played', () => {
+  if (!begin('blade-e1')) return false;
+  standAt(-5.5, 0, -2.3);
+  SB.keys.add('KeyD'); press('KeyE', 50); SB.keys.delete('KeyD'); run(5);
+  return chal.cur === null && rankOf('e') === 1;
+});
+// played for real: a slam from the ground must not count, a slam from 9 up must
+check('progress: Slam trial, played', () => {
+  if (!begin('blade-r1')) return false;
+  standAt(0, 0, -1); run(2); press('KeyR', 60);
+  if (chal.cur === null || chal.st.n !== 0 || P.cd.r <= 0) return false;
+  run(360);                                              // the first slam threw the dummies about: let them walk back
+  P.cd.r = 0; standAt(0, 9, -1); press('KeyR', 40); run(3);
+  return chal.cur === null && rankOf('r') === 1;
+});
+// played for real: the fighter starts out of reach, so the first slam only gets the three dummies
+check('progress: Slam II needs the fighter in the blast', () => {
+  if (!begin('blade-r2')) return false;
+  const fighter = spawned('fighter')[0];
+  standAt(0, 8, -2); press('KeyR', 30);
+  if (chal.cur === null || chal.st.n !== 3) return false;
+  P.iframes = 99; run(360);                              // let the dummies walk back; the fighter cannot hurt us meanwhile
+  P.cd.r = 0; fighter.pos.set(DOJO.cx + 1, 0, DOJO.cz - 2); fighter.vel.set(0, 0, 0);
+  standAt(0, 8, -2); press('KeyR', 30); run(3);
+  return chal.cur === null && rankOf('r') === 2 && SB.CL.skills.r.rad === 9;
+});
+check('progress: air combo trial', () => {
+  if (!begin('blade-f2')) return false;
+  const d = spawned('basic')[0];
+  skillHit('f', d, 17.5, true); run(20);                 // launched and in the air
+  for (let i = 0; i < 3; i++) skillHit('atk', d, 6);
+  run(400);                                              // it lands: the count starts again
+  if (chal.cur === null || chal.st.n !== 3) return false;
+  skillHit('f', d, 17.5, true); run(20);
+  for (let i = 0; i < 6; i++) skillHit('atk', d, 6);
+  run(2);
+  return chal.cur === null && rankOf('f') === 2 && SB.CL.skills.f.dmg === 28;
+});
+check('progress: every trial has a layout that builds', () => {
+  SB.unlockAll();
+  for (const t of SB.CLASSES.blade.trials) {
+    if (!t.arena || !t.arena.spawn || !t.arena.spawn.length) return false;
+    SB.setupTrial(t);
+    const ok = dojo.spawned.length === t.arena.spawn.length && dojo.spawned.every(d => Math.abs(d.pos.x - DOJO.cx) < DOJO.half && Math.abs(d.pos.z - DOJO.cz) < DOJO.half);
+    run(30);                                             // let the layout run for half a second
+    SB.clearTrial();
+    if (!ok) return false;
+  }
+  return dummies.length === arenaDummies;
+});
+check('progress: rank III perks are applied', () => {
+  SB.unlockAll();
+  const S = SB.CL.skills;
+  return rankOf('q') === 3 && S.q.refund === true && S.e.dur === 0.7 && S.r.stun === 2 && S.f.around === true;
+});
+check('progress: reset goes back to the start', () => {
+  SB.resetProgress();
+  const S = SB.CL.skills;
+  return rankOf('q') === 0 && rankOf('f') === 1 && S.q.refund === false && S.q.dmg === 34 && S.e.dur === 0.45 && S.f.dmg === 20;
+});
+// the whole route through Master Sen: arena -> hall -> pick a trial -> back to the arena
+check('Master Sen: to the hall, a trial, and back', () => {
+  SB.setClass('blade'); reset();
+  P.pos.copy(SB.master.pos); P.pos.z -= 2; P.vel.set(0, 0, 0); run(2);
+  press('KeyG', 2); press('Digit2', 2);                  // "Train my skills"
+  if (!dojo.inside || dlg.open) return false;
+  run(5); press('KeyG', 2);                              // he is next to where you arrive
+  if (dlg.page !== 'train' || dlg.opts.length !== 5) return false;
+  press('Digit1', 2);                                    // first skill listed is Blink Strike
+  if (chal.cur !== trial('blade-q1') || dlg.open) return false;
+  SB.endChallenge(); run(2);
+  SB.respawnPlayer(); run(2);
+  press('KeyG', 2); press('Digit5', 2);                  // "Return to the arena"
+  return !dojo.inside && near(0, 14);
+});
+check('Master Sen: offers to reset tuning in the hall', () => {
+  reset(); SB.enterDojo(); run(5); TUNE.jump = 20;
+  press('KeyG', 2);
+  if (dlg.opts.length !== 2) { SB.resetTuning(); return false; }    // only "reset tuning" and "return"
+  press('Digit1', 2);
+  const ok = TUNE.jump === 13 && dlg.opts.length === 5;              // tuning is default again and the trials are listed
+  press('KeyG', 2);
+  return ok;
+});
+reset();
+SB.resetProgress();
+check('hall: nothing is left behind', () => !dojo.inside && dummies.length === arenaDummies && dojo.props.length === 0);
 
 log.push(fails.length ? 'SMOKE FAIL (' + fails.length + ')' : 'SMOKE PASS', ...fails);
 const pre = document.createElement('pre');

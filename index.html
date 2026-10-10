@@ -39,6 +39,8 @@
   .sk.flash{box-shadow:inset 0 0 0 2px #00e5ff}
   .sk.alt{box-shadow:inset 0 0 0 2px #ffd23f}
   .sk.alt span{color:#ffd23f;opacity:1;font-weight:700}
+  .sk.lock{opacity:.45}
+  .sk.lock .pips{color:#ff6b6b;letter-spacing:0;font-weight:800}
   #prompt{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);background:rgba(20,23,28,.88);color:#fff;padding:7px 14px;border-radius:8px;font-weight:600;font-size:14px;display:none;pointer-events:none}
   #prompt b{color:#ffd23f}
   #dlg{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);width:min(640px,92vw);box-sizing:border-box;background:rgba(20,23,28,.95);color:#e8eef3;border-radius:12px;padding:16px 20px;display:none;box-shadow:0 12px 40px rgba(0,0,0,.4);pointer-events:none}
@@ -56,6 +58,7 @@
   #center small{font-size:22px;display:block}
   #toast{position:fixed;left:50%;top:20%;transform:translateX(-50%);background:rgba(20,23,28,.88);color:#fff;padding:10px 18px;border-radius:10px;font-size:15px;opacity:0;transition:opacity .3s;pointer-events:none;max-width:80vw;text-align:center}
   #toast b{color:#ffd23f}
+  #flash{position:fixed;inset:0;pointer-events:none;background:#fff;opacity:0;z-index:15}
   #hurt{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(255,0,0,0) 55%,rgba(220,20,40,.6) 100%);opacity:0}
   #dmg{position:fixed;inset:0;pointer-events:none;overflow:hidden}
   .dn{position:absolute;left:0;top:0;font-weight:900;color:#fff;font-size:20px;-webkit-text-stroke:1px #111;text-shadow:0 2px 0 #111;will-change:transform,opacity;display:none;white-space:nowrap}
@@ -84,6 +87,9 @@
   #tune .tf{padding:10px;display:flex;gap:8px}
   #tune .tf button{flex:1;padding:7px;border:0;border-radius:7px;background:#2a3038;color:#e8eef3;font-weight:700;cursor:pointer}
   #tune .tf button:hover{background:#39424d}
+  #tune .tt{padding-top:0;align-items:center}
+  #tune .tt span{color:#7d8c99;font-size:11px}
+  #tune .tt button{font-weight:500;font-size:11px;padding:5px}
   #hint{position:fixed;right:14px;top:12px;color:#1b1f25;font-size:12px;opacity:.7;pointer-events:none;text-align:right;line-height:1.5}
 </style>
 </head>
@@ -122,6 +128,7 @@
 <div id="center"></div>
 <div id="toast"></div>
 <div id="hurt"></div>
+<div id="flash"></div>
 <div id="dmg"></div>
 <div id="hint">G: talk to master · T: reset dummies<br>P: quit challenge · Tab: pause + tuning</div>
 

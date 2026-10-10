@@ -9,6 +9,7 @@ import { REWIND_CD } from './player.js';
 import { lockTarget, aimHit } from './camera.js';
 import { master } from './master.js';
 import { locked } from './input.js';
+import { rankOf } from './progress.js';
 
 // ================= HUD =================
 export const skEl = $('skills');
@@ -40,6 +41,12 @@ export function updateHud(rdt) {
       frac = max > 0 ? v / max : 0; txt = v > 0.05 && max > 1 ? (v * TUNE.cdMult).toFixed(1) : '';
       const alt = s.slot !== 'x' && CL.skills[s.slot].alt ? CL.skills[s.slot].alt() : null;
       if (!!alt !== s.altOn) { s.altOn = !!alt; s.el.classList.toggle('alt', s.altOn); s.nEl.textContent = alt || s.n; }
+      // Skills with ranks show one diamond per rank, or LOCKED.
+      if (s.slot !== 'x' && CL.skills[s.slot].lv) {
+        const rank = rankOf(s.slot);
+        s.el.classList.toggle('lock', rank === 0);
+        s.pEl.textContent = rank ? '◆'.repeat(rank) : 'LOCKED';
+      }
     }
     if (s.dash) {
       frac = P.dashCharges === 0 && TUNE.dashCd > 0 ? P.dashRecharge / TUNE.dashCd : 0;

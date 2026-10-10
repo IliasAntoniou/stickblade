@@ -6,6 +6,7 @@
 import { $ } from './util.js';
 import { P, CL, CLASSES, TUNE, TUNE_DEFAULTS } from './state.js';
 import { dummies, DTYPE } from './dummies.js';
+import { unlockAll, resetProgress } from './progress.js';
 
 const STORE_KEY = 'stickblade.tune.v1';
 // The smoke test must always run on default numbers, so it ignores and never writes saved tuning.
@@ -50,16 +51,20 @@ const GROUPS = [
 
 // The original numbers of every class, copied before any saved tuning is applied, so reset has something to go back to.
 const classDefaults = {};
+// Skills with ranks (progress.js) get their cooldown from their rank, so the panel leaves those alone.
+function tunableSkills(c) {
+  return Object.keys(SKILL_KEYS).filter(k => !c.skills[k].lv);
+}
 function classNumbers(c) {
   const cd = {};
-  for (const k in SKILL_KEYS) cd[k] = c.skills[k].cd;
+  for (const k of tunableSkills(c)) cd[k] = c.skills[k].cd;
   return { run: c.run, airJumps: c.airJumps, dmg: c.atk.map(a => a.dmg), cd };
 }
 function setClassNumbers(c, n) {
   c.run = n.run;
   c.airJumps = n.airJumps;
   c.atk.forEach((a, i) => { a.dmg = n.dmg[i]; });
-  for (const k in SKILL_KEYS) c.skills[k].cd = n.cd[k];
+  for (const k of tunableSkills(c)) c.skills[k].cd = n.cd[k];
 }
 
 function store() {
@@ -80,7 +85,7 @@ function load() {
   for (const id in CLASSES) {
     const n = s.classes && s.classes[id], d = classDefaults[id];
     const ok = n && typeof n.run === 'number' && typeof n.airJumps === 'number' && Array.isArray(n.dmg) && n.dmg.length === d.dmg.length
-      && n.dmg.every(v => typeof v === 'number') && n.cd && Object.keys(SKILL_KEYS).every(k => typeof n.cd[k] === 'number');
+      && n.dmg.every(v => typeof v === 'number') && n.cd && tunableSkills(CLASSES[id]).every(k => typeof n.cd[k] === 'number');
     if (ok) setClassNumbers(CLASSES[id], n);
   }
 }
@@ -102,6 +107,17 @@ export function applyTune() {
   }
 }
 
+// True if any number differs from its default. Trials refuse to run while this is true (see progress.js).
+export function isTuned() {
+  for (const k in TUNE_DEFAULTS) {
+    if (TUNE[k] !== TUNE_DEFAULTS[k]) return true;
+  }
+  for (const id in classDefaults) {
+    if (JSON.stringify(classNumbers(CLASSES[id])) !== JSON.stringify(classDefaults[id])) return true;
+  }
+  return false;
+}
+
 // Put every number back to its default: the general ones and all four classes.
 export function resetTuning() {
   Object.assign(TUNE, TUNE_DEFAULTS);
@@ -115,7 +131,8 @@ export function resetTuning() {
 const panel = document.createElement('div');
 panel.id = 'tune';
 panel.innerHTML = '<div class="th"><b>TUNING</b><span>click to fold</span></div><div class="tb"></div>'
-  + '<div class="tf"><button class="ra">Reset all</button><button class="cp">Copy changes</button></div>';
+  + '<div class="tf"><button class="ra">Reset all</button><button class="cp">Copy changes</button></div>'
+  + '<div class="tf tt"><span>Testing</span><button class="ua">Unlock all skills</button><button class="rp">Reset progress</button></div>';
 document.body.appendChild(panel);
 const body = panel.querySelector('.tb');
 let rows = [];
@@ -132,7 +149,7 @@ function classRows() {
     const last = i === c.atk.length - 1;
     out.push({ label: `Hit ${i + 1} damage${last ? ' (finisher)' : ''}`, min: 0, max: 200, step: 1, get: () => a.dmg, set: v => { a.dmg = v; }, def: d.dmg[i] });
   });
-  for (const k in SKILL_KEYS) {
+  for (const k of tunableSkills(c)) {
     const s = c.skills[k];
     out.push({ label: `${SKILL_KEYS[k]} ${s.n} cooldown (s)`, min: 0, max: 20, step: 0.5, get: () => s.cd, set: v => { s.cd = v; }, def: d.cd[k] });
   }
@@ -187,6 +204,9 @@ panel.querySelector('.th').addEventListener('click', () => {
   try { localStorage.setItem(STORE_KEY + '.folded', folded ? '1' : ''); } catch (e) {}
 });
 panel.querySelector('.ra').addEventListener('click', resetTuning);
+// Testing shortcuts for skill progress. They skip the trials, so they are for trying things out, not for playing.
+panel.querySelector('.ua').addEventListener('click', unlockAll);
+panel.querySelector('.rp').addEventListener('click', resetProgress);
 // Copy every changed number as text, to paste into a chat or a note ("make these the new defaults").
 panel.querySelector('.cp').addEventListener('click', e => {
   const changed = rows.filter(r => r.get() !== r.def).map(r => `${r.label}: ${fmt(r, r.get())} (default ${fmt(r, r.def)})`);
