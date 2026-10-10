@@ -20,7 +20,7 @@ const STORE_KEY = 'stickblade.story.v1';
 const SMOKE = new URLSearchParams(location.search).get('debug') === 'smoke';
 const STORY_CLASS = 'blade';
 
-export const CHAPTERS = { 1: 'The Recruit', 2: 'The Docks' };
+export const CHAPTERS = { 1: 'The Recruit', 2: 'The Docks', 3: 'The Locksmith' };
 
 // What the gang's fighters are made of. All are built on the 'fighter' dummy (same attacks: a slam up close, a
 // lunge from further away) with less health than a training fighter, because several come at once.
@@ -89,7 +89,14 @@ export const QUESTS = [
     intro: 'Everything the Hand owns comes in by water. Marrow keeps the docks for them: a butcher, and patient. Take the docks and they starve. Ask me about the city when you are ready. And listen: out there I cannot drag you home in one piece twice.',
     goal: 'Free the docks (choose "The city" in his menu)', need: 1,
     check: () => isFree('docks'),
-    outro: 'Marrow is done, and the dockers are ours. Four districts left. They know now that I am not hiding, and they know your face. Good. Let them lose sleep.',
+    outro: 'Marrow is done, and the dockers are ours. You read his ledger? Then you know what the powder was paying for. Tam. He cut every lock in this city, and the one on the Ash Citadel is his best. They want a key out of him, and he will die before he makes it.',
+  },
+  {
+    id: 'c3-market', chapter: 3, name: 'The locksmith',
+    intro: 'The Twins hold the Old Market. Ember and Tide: Tam took them off the street as children and taught them his trade, and now they mean to hang him from his own market bell at dusk. One street, and no time. Do not stop to fight what you can run past. Ask me about the city.',
+    goal: 'Free the Old Market (choose "The city" in his menu)', need: 1,
+    check: () => isFree('market'),
+    outro: 'So he told you. Three pieces. Yes, I carry one. I took it off the Ash King the night I walked away, and I sat eleven years in Blackgate sooner than say where it was. Cinder has the second, Lady Vane the third. We are going to take them, and then we are going to open that gate.',
   },
 ];
 

@@ -4,6 +4,8 @@
 // whole arena, never heals, and once knocked out it stays down and is taken out of the world. Missions (missions.js)
 // give gang members more options: a place they are kept inside (zone), their own speed and size, an element they
 // are weak to, and barricades that stand still and only break when a mount rams them.
+// More options: `ranged` makes a lookout (stays put and throws), `armour` makes a hit count for less until a
+// blast strips it, and `prop` makes a thing that is not a person at all (a powder keg, a lever: setpieces.js).
 // Also the damage functions every attack goes through: hitDummy (one target) and hitArea (everything in a circle).
 // NOTE: per-type behaviour is still if-checks inside Dummy. It moves into DTYPE in the dummy-types phase.
 
@@ -12,7 +14,7 @@ import { V3, TAU, clamp, damp, angDiff, angDamp, _hv, _dv } from './util.js';
 import { scene, camera } from './core.js';
 import { solids, boxGeo, edgeGeo, edgeMat, lam, groundAt, makeShadow, placeShadow, ARENA } from './world.js';
 import { addRim, castShadows, makeStickman, POSE_KEYS, DUMMY_POSE, F_IDLE, F_SLAM, F_LWIND, F_LUNGE, F_STUN, applyPose } from './stickman.js';
-import { ringGeo, spawnRing, burst, spawnText, shake, addHitstop } from './fx.js';
+import { ringGeo, spawnRing, spawnBeam, burst, spawnText, shake, addHitstop } from './fx.js';
 import { T, P, dlg, chal, TUNE, hitSrc, addHit } from './state.js';
 import { hitAllowed, onHit } from './progress.js';
 import { onStyleHit } from './styles.js';
@@ -37,7 +39,12 @@ export const DTYPE = {
 };
 const GANG_SIGHT = 80;     // how far away a gang member notices the player (the arena is 120 across)
 const WEAK_BONUS = 1.6;    // damage multiplier when an enemy is hit under the sword style it is weak to
-const RAM_BONUS = 3;       // damage multiplier for a mount ramming something that only ramming can break
+const THROW_RANGE = 46;    // how far away a lookout can throw from
+const THROW_AIM = 0.8;     // seconds a lookout aims before throwing (the red line is the warning)
+const THROW_LOCK = 0.25;   // for this long before the throw the line stops following the player, so a sidestep or dash dodges it
+const THROW_WIDTH = 1.0;   // how close to the line of the throw the player has to be to get hit
+const THROW_DAMAGE = 10;
+const BARE_TIME = 6;       // seconds an armoured enemy stays without its armour after a blast strips it
 const YARD = { cx: 0, cz: 0, half: ARENA };    // the main arena, where gang members are kept unless told otherwise
 const GANG_SPEED = 5.2;    // how fast it walks, units per second. A training fighter does 3.4; the player runs at about 9.5
 // True if a dummy standing at p would be inside a wall.
@@ -65,6 +72,15 @@ export class Dummy {
     this.look = o.look || null;
     this.fixed = !!o.fixed;
     this.ramOnly = !!o.ramOnly;
+    // prop = a thing, not a person (a powder keg, a lever, a cage: setpieces.js). It can be hit and broken like
+    // any dummy, but it does not fly off, says no "K.O.", counts for no task, and shows no health bar until hurt.
+    this.prop = !!o.prop;
+    // ranged = a lookout: it stays where it is and throws from a distance (the red line is the warning).
+    this.ranged = !!o.ranged;
+    // armour = what every hit is multiplied by while its armour is on (0 = it has none). A blast (a powder keg)
+    // strips it for a while: bareT = seconds left without it.
+    this.armour = o.armour || 0;
+    this.bareT = 0;
     this.baseHp = o.hp || D.hp;      // health before the tuning panel's multiplier
     this.color = o.color ?? D.color;
     this.mat = addRim(new THREE.MeshLambertMaterial({ color: this.color, emissive: 0x000000 }));
@@ -93,6 +109,7 @@ export class Dummy {
     }
     if (type === 'fighter') {
       this.ai = 'idle'; this.aiT = 0; this.aiCd = 1; this.lungeDir = new V3(); this.lungeHit = false;
+      this.throwAim = new V3();    // lookouts: the point the throw is aimed at
       this.warnRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xff2244, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }));
       this.warnLine = new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial({ color: 0xff2244, transparent: true, opacity: 0.4, depthWrite: false, toneMapped: false }));
       this.warnRing.visible = this.warnLine.visible = false; scene.add(this.warnRing); scene.add(this.warnLine);
@@ -150,6 +167,14 @@ export class Dummy {
   }
   // Knocked out: fly off in direction (kx, kz), come back 1.8 s later.
   ko(kx, kz) {
+    if (this.prop) {
+      // a thing just stops being there: whoever made it (setpieces.js) sees it is dead and takes it away
+      this.dead = true;
+      this.hp = 0;
+      this.deadT = 999;
+      this.vel.set(0, 0, 0);
+      return;
+    }
     this.dead = true; this.deadT = 1.8; this.hp = 0; this.floatT = 0; this.cancelAtk();
     const l = Math.hypot(kx, kz) || 1;
     this.vel.set(kx / l * 9, 13, kz / l * 9); this.spin = 0;
@@ -170,7 +195,9 @@ export class Dummy {
     const ty = this.type, flying = ty === 'flying';
     if (this.patrol) this.anchor.x = this.base.x + Math.sin(T * 0.55) * this.patrol;
     const gy = groundAt(this.pos.x, this.pos.z, this.pos.y);
-    if (this.dead) {
+    if (this.dead && this.prop) {
+      // a broken thing stays put until it is taken away
+    } else if (this.dead) {
       this.deadT -= dt; this.vel.y -= 30 * dt; this.pos.addScaledVector(this.vel, dt); this.spin += dt * 9;
       if (this.pos.y < gy) { this.pos.y = gy; this.vel.y = Math.abs(this.vel.y) * 0.3; this.vel.x *= 0.6; this.vel.z *= 0.6; }
       if (this.deadT <= 0) {
@@ -179,6 +206,7 @@ export class Dummy {
       }
     } else {
       this.sinceHit += dt; this.stunT = Math.max(0, this.stunT - dt);
+      this.bareT = Math.max(0, this.bareT - dt);
       this.soakT = Math.max(0, this.soakT - dt);
       if (this.burnT > 0) {
         // Burning: a small hit of damage twice a second. Quiet on purpose: no hitstop, shake or combo.
@@ -245,7 +273,7 @@ export class Dummy {
     this.fgMat.color.setHex(r > 0.5 ? 0x5ee08a : r > 0.25 ? 0xf2c14e : 0xff4d4d);
     this.bar.position.set(this.pos.x, this.pos.y + 2.25, this.pos.z);
     this.bar.quaternion.copy(camera.quaternion);
-    this.bar.visible = !this.dead;
+    this.bar.visible = !this.dead && !(this.prop && this.hp >= this.maxHp);
     if (this.wings) {
       // winged dummies flap; faster while they are being knocked about
       const flap = 0.55 + Math.sin(T * (this.sinceHit < 1 ? 26 : 11) + this.phase) * 0.55;
@@ -278,9 +306,17 @@ export class Dummy {
         this.yaw = angDamp(this.yaw, Math.atan2(dx, dz), 8, dt);
         if (this.aiCd <= 0) {
           if (dist < 3.4) { this.ai = 'windSlam'; this.aiT = 0.75; }
+          else if (this.ranged) {
+            // a lookout does not lunge: it throws, if the player is in range and nothing stands between them
+            this.throwAim.set(P.pos.x, P.pos.y + 1.1, P.pos.z);
+            if (dist < THROW_RANGE && this.clearThrow()) {
+              this.ai = 'windThrow';
+              this.aiT = THROW_AIM;
+            } else this.aiCd = 0.5;
+          }
           else if (dist < 10) { this.ai = 'windLunge'; this.aiT = 0.6; this.lungeDir.set(dx / dist, 0, dz / dist); this.yaw = Math.atan2(dx, dz); }
         }
-        if (this.ai === 'idle' && dist > 2.6 && this.sinceHit > 0.4) {
+        if (this.ai === 'idle' && dist > 2.6 && this.sinceHit > 0.4 && !this.ranged) {
           const ox = this.pos.x, oz = this.pos.z;
           const stride = (this.gang ? this.speed : 3.4) * pace * dt;
           this.pos.x += dx / dist * stride; this.pos.z += dz / dist * stride;
@@ -329,10 +365,67 @@ export class Dummy {
         if (this.aiT <= 0 && this.ai === 'lunge') { this.ai = 'recover'; this.aiT = 0.6; this.aiCd = 1.4; }
         break;
       }
+      case 'windThrow': {
+        this.aiT -= dt;
+        this.rage = 1 - this.aiT / THROW_AIM;
+        tp = F_LWIND;
+        this.yaw = Math.atan2(dx, dz);
+        // the line follows the player until just before the throw, then holds still
+        if (this.aiT > THROW_LOCK) this.throwAim.set(P.pos.x, P.pos.y + 1.1, P.pos.z);
+        this.throwLine(_dv);
+        const L = this.warnLine;
+        L.visible = true;
+        L.position.set((this.pos.x + _dv.x) / 2, (this.pos.y + 1.5 + _dv.y) / 2, (this.pos.z + _dv.z) / 2);
+        L.lookAt(_dv);
+        L.scale.set(0.09, 0.09, Math.hypot(_dv.x - this.pos.x, _dv.y - this.pos.y - 1.5, _dv.z - this.pos.z));
+        L.material.opacity = 0.2 + 0.6 * this.rage;
+        if (this.aiT <= 0) {
+          L.visible = false;
+          this.chest(_hv);
+          _hv.y += 0.25;
+          spawnBeam(_hv, _dv, 0xff5a4a, 0.18, 2.4);
+          if (this.throwHits(_dv)) hurtPlayer(THROW_DAMAGE, this.pos, this);
+          this.ai = 'recover';
+          this.aiT = 0.5;
+          this.aiCd = 2.2;
+        }
+        break;
+      }
       case 'recover': { this.aiT -= dt; if (this.aiT <= 0) this.ai = 'idle'; break; }
     }
     const k = 1 - Math.exp(-16 * dt);
     for (const key of POSE_KEYS) this.pose[key] += (tp[key] - this.pose[key]) * k;
+  }
+  // Lookouts. Where a throw ends: from the hand, through the point aimed at (this.throwAim), and 6 further on
+  // (so it does not stop dead at the player's feet). Written into out.
+  throwLine(out) {
+    const fromY = this.pos.y + 1.5;
+    const ax = this.throwAim.x - this.pos.x, ay = this.throwAim.y - fromY, az = this.throwAim.z - this.pos.z;
+    const length = Math.hypot(ax, ay, az) || 1;
+    const reach = (length + 6) / length;
+    return out.set(this.pos.x + ax * reach, fromY + ay * reach, this.pos.z + az * reach);
+  }
+  // Lookouts. True if nothing solid stands between the hand and the point aimed at. Checked by walking along the
+  // line a step at a time, which is cheap enough for the once or twice a second it is asked.
+  clearThrow() {
+    const fromY = this.pos.y + 1.5;
+    const ax = this.throwAim.x - this.pos.x, ay = this.throwAim.y - fromY, az = this.throwAim.z - this.pos.z;
+    const steps = Math.ceil(Math.hypot(ax, ay, az));
+    for (let i = 1; i < steps; i++) {
+      const x = this.pos.x + ax * i / steps, y = fromY + ay * i / steps, z = this.pos.z + az * i / steps;
+      for (const s of solids) {
+        if (!s.phase && x > s.min.x && x < s.max.x && y > s.min.y && y < s.max.y && z > s.min.z && z < s.max.z) return false;
+      }
+    }
+    return true;
+  }
+  // Lookouts. True if the player is close enough to the line of the throw (hand to `end`) to be hit by it.
+  throwHits(end) {
+    const fromY = this.pos.y + 1.5;
+    const lx = end.x - this.pos.x, ly = end.y - fromY, lz = end.z - this.pos.z;
+    const px = P.pos.x - this.pos.x, py = P.pos.y + 1.1 - fromY, pz = P.pos.z - this.pos.z;
+    const along = clamp((px * lx + py * ly + pz * lz) / (lx * lx + ly * ly + lz * lz), 0, 1);
+    return Math.hypot(px - lx * along, py - ly * along, pz - lz * along) < THROW_WIDTH;
   }
 }
 
@@ -367,8 +460,9 @@ export function hitDummy(d, dmg, kx, kz, up, heavy = false, stop = null, src = P
     spawnText(_hv, 'IMMUNE', 'block');
     return false;
   }
-  // A barricade: swords and skills bounce off. Only a mount running into it does anything (mounts.js sets 'ram').
-  if (d.ramOnly && hitSrc !== 'ram') {
+  // A barricade: swords and skills bounce off. Only a mount running into it (mounts.js sets 'ram') or a blast
+  // (a powder keg: setpieces.js sets 'blast') does anything.
+  if (d.ramOnly && hitSrc !== 'ram' && hitSrc !== 'blast') {
     d.chest(_hv);
     spawnText(_hv, 'RAM IT (X)', 'block');
     d.flash = 0.4;
@@ -387,13 +481,30 @@ export function hitDummy(d, dmg, kx, kz, up, heavy = false, stop = null, src = P
   up *= TUNE.kbMult;
   dmg = Math.round(dmg * TUNE.dmgMult * (0.9 + Math.random() * 0.2) * (d.soakT > 0 ? SOAK.dmg : 1));
   let label = null;
-  if (d.ramOnly) dmg *= RAM_BONUS;
+  if (d.ramOnly) dmg = Math.max(dmg, d.hp);    // one ram from any mount, or one blast, breaks a barricade outright
+  // Armour takes most of a hit away. A blast strips it for a while and staggers whoever wore it.
+  if (d.armour && hitSrc === 'blast') {
+    d.bareT = BARE_TIME;
+    d.stun(1.5);
+    d.chest(_hv);
+    _hv.y += 0.9;
+    spawnText(_hv, 'ARMOUR BROKEN', 'gold');
+  } else if (d.armour && d.bareT <= 0) {
+    dmg = Math.round(dmg * d.armour);
+    label = 'ARMOUR';
+  }
   // An enemy with a weakness: the right sword style cuts deep, anything else is partly shrugged off.
   if (d.weak) {
     if (style.cur && style.cur.id === d.weak) { dmg = Math.round(dmg * WEAK_BONUS); label = 'WEAK'; }
     else dmg = Math.round(dmg * d.tough);
   }
   if (P.dmgMult > 1) { dmg *= P.dmgMult; P.dmgMult = 1; P.smokeT = Math.min(P.smokeT, 0.01); label = 'AMBUSH'; heavy = true; }
+  if (d.fixed) {
+    // a barricade, a keg or a lever is not thrown about by a hit
+    kx = 0;
+    kz = 0;
+    up = 0;
+  }
   d.vel.x += kx; d.vel.z += kz; if (up > 0) d.vel.y = Math.max(d.vel.y, up);
   const c = Math.cos(d.yaw), s = Math.sin(d.yaw);
   const lx = kx * c - kz * s, lz = kx * s + kz * c;

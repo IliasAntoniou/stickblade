@@ -2,6 +2,20 @@
 
 Newest first. One entry per merged feature: what changed, where, how to check it, and the git tag to go back to.
 
+## Not merged yet (branch `feature/living-districts`): a story in the districts, and things that react
+
+- **The story:** the two districts now tell one story while you play. The docks are where the Hand lands its powder; Marrow's ledger shows the powder was paying for a key to the Ash Citadel, which only old Tam the locksmith can cut. The Old Market is the race to stop the Twins, whom Tam raised, from hanging him. Freed, he says the gate takes three pieces of one key: Cinder has one, Lady Vane one, and Sen has carried the third since before Blackgate. Chapter 3 ("The locksmith") is the task to free the market. All of it is in `docs/STORY.md`.
+- **People talk during a mission:** lines appear low on the screen as a stage goes on (the keeper, the prisoners, Tam).
+- **Ledger pages:** three hidden in each district. A found page stays found; all three in a district add 10 to maximum health. The city map shows how many you have.
+- **Things that react:** powder kegs (break one, get clear, it blows up, leaves fire and sets off the next), levers, cages with dockers to free, cracked walls a keg brings down, a crate that falls from the crane, awnings that throw you onto the rooftops, traps that burn on a cycle, and hourglasses that add time.
+- **The Docks are three yards now,** opening one after another. The bell on the crane drops its load on the gate; a keg stands beside each barricade; Marrow wears armour that only a keg blast breaks open, and at half health he lights a 40 second fuse.
+- **The Old Market has a high road:** rooftop ledges that pass over every curtain, barricade and wall, reached by awning or hook and held by lookouts. The clock is 65 seconds (was 75) with five hourglasses of 4 seconds to win back. The Twins get back up unless both fall within 12 seconds. A third stage: cut Tam down.
+- **A new enemy, the lookout:** stays on its perch and throws along a red line.
+- **Barricades break to one ram from any mount** (it used to take the car, the horse and the lion two or three). A keg blast breaks them too.
+- **Where:** new `js/setpieces.js`; both districts and the mission flow in `js/missions.js` (`things`, `say`, `captive`, `together`, `trigger`, `foundPage()`, `addTime()`, `jumpToStage()`); `prop`, `ranged`, `armour` and the barricade rule in `js/dummies.js`; `LOOKS` in `js/skins.js`; `say()` in `js/fx.js` and `#say` in `index.html`; `addZone()` exported from `js/elements.js`; the map card in `js/master.js`; chapter 3 in `js/quests.js`.
+- **Not tuned yet:** the keg's damage and fuse, Marrow's armour and fuse, the market's 65 seconds, the Twins' 12. Played only by the automated test so far.
+- **Check:** `bash tests/smoke.sh`. To look: `?debug=mission:docks&stage=3`, `?debug=mission:market` (any stage number works).
+
 ## v0.13-campaign: take back the city (the docks)
 
 - **The purpose:** the city has five districts, all held by the Ash Hand, each with a keeper. The game is taking them back one by one. Sen's menu has a new card, "The city", with a map of all five: which are free, which are held, which are still locked.

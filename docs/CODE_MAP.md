@@ -31,11 +31,22 @@ Where everything is, what the short names mean, and how to add things. If this f
 | Kunai and javelin | `js/projectiles.js` |
 | The story: what Sen says, what each task asks for, how many it takes, which enemies it brings and where | `QUESTS` in `js/quests.js` |
 | The campaign: the districts, their layout, their stages, which enemies each stage brings and where | `DISTRICTS` in `js/missions.js` |
-| The kinds of enemy in missions (health, speed, size, which element they are weak to) | `THUG`, `RUNNER`, `IRON`, `RAT`, `BARRICADE`, `BLOCKADE`, `MARROW`, `TWIN_EMBER` and `TWIN_TIDE` in `js/missions.js` |
+| The kinds of enemy in missions (health, speed, size, which element they are weak to) | `THUG`, `RUNNER`, `IRON`, `RAT`, `LOOKOUT`, `BARRICADE`, `BLOCKADE`, `MARROW`, `TWIN_EMBER` and `TWIN_TIDE` in `js/missions.js` |
+| What is said during a mission, and when | `say` on the stage in `DISTRICTS` in `js/missions.js`; `speak()` there decides when a line is due. How the caption looks is the `#say` CSS in `index.html` |
+| The things in a district that react: where they stand | `things` on the district in `DISTRICTS` in `js/missions.js` |
+| A powder keg: how hard it hits, how far, how long the fuse is, the fire it leaves | The `KEG_...` numbers at the top of `js/setpieces.js`; the blast is `explode()` |
+| The crane's falling load, a cage's healing, how soon an awning or a trap works again | `LOAD_...`, `CAGE_...`, `PAD_AGAIN` and `TRAP_AGAIN` in `js/setpieces.js` |
+| What a keg, a lever and a cage look like | `LOOKS` in `js/skins.js` |
+| A trap's timing and damage, an awning's throw, an hourglass's seconds | On the thing itself in `things`: `every`, `warn`, `on`, `dmg`; `up`, `push`; `secs` |
+| The ledger pages: what they say, and what finding them all gives | `text` on each `page` in `things`; `HP_PER_LEDGER` and `foundPage()` in `js/missions.js` |
+| The lookout's throw (range, aiming time, damage) | The `THROW_...` numbers in `js/dummies.js`; the `windThrow` case of `fighterAI()` |
+| A boss's armour, and how long a blast strips it for | `armour` on the enemy kind (`MARROW`); `BARE_TIME` in `js/dummies.js` |
+| The two bosses who get back up (how long you have, how much health they return with) | `together` on the stage; `REVIVE_HP` and `updateTogether()` in `js/missions.js` |
 | A timed stage: how long the player has | `time` on the stage in `DISTRICTS` in `js/missions.js` |
 | Where the curtains of light stand (the ones only a dash passes) | `gates` on the district in `DISTRICTS`; how one looks and blocks is `addPhaseWall()` in `js/world.js` |
-| The prisoner to be rescued | `captive` in `js/missions.js`; a stage shows him with `rescue: true` |
-| How much a weakness matters, and how hard a mount hits a barricade | `WEAK_BONUS` and `RAM_BONUS` in `js/dummies.js`; `tough` on the enemy kind |
+| The prisoner to be rescued | `captive` on the district says where he kneels; the stage with `frees: true` lets him go |
+| How much a weakness matters | `WEAK_BONUS` in `js/dummies.js`; `tough` on the enemy kind |
+| What breaks a barricade | The `ramOnly` lines in `hitDummy()` in `js/dummies.js`: one ram from any mount, or one blast, whatever its health |
 | What freeing a district gives, the healing between stages, and how slowly health returns in a mission | `HP_PER_DISTRICT`, `STAGE_HEAL` and `MISSION_REGEN` in `js/missions.js` |
 | The city map in Sen's menu | The `map` page of `renderDlg()` in `js/master.js`; what it lists comes from `districtList()` in `js/missions.js` |
 | What a barricade looks like, and the headband colours | `barricadeGeo` and `weakBandMat` in `js/skins.js` |
@@ -157,6 +168,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/master.js` | Master Sen and the dialog menu |
 | `js/challenges.js` | Timed challenges |
 | `js/missions.js` | The campaign: the districts of the city, and running a mission through its stages |
+| `js/setpieces.js` | The things in a district that react: powder kegs, levers, cages, doors, falling loads, awnings, traps, ledger pages, hourglasses |
 | `js/quests.js` | The story: Sen's chain of tasks, their progress, and the gang enemies they bring |
 | `js/input.js` | Keyboard, mouse, pause |
 | `js/update.js` | One step of the game |
@@ -248,6 +260,15 @@ Where everything is, what the short names mean, and how to add things. If this f
 | stage | One step of a mission: a group of enemies to beat, or a place to reach, sometimes against the clock. `mission.stage` is its number, `mission.clock` the seconds spent on it |
 | curtain of light, phase wall, `s.phase` | A see-through wall that is solid except to a dashing player. A flag on its entry in `solids` |
 | blocker, `d.blocker` | The unseen wall behind a barricade that shuts the way. Removed when the barricade breaks |
+| set piece, thing, `things` | Something in a district that reacts: a keg, a lever, a door... The district lists them in `things`; `js/setpieces.js` builds them when their stage begins and removes them all when the mission ends |
+| trigger | A name for something that has happened in a mission: `lever:crane` (that lever was hit), `load:crane` (that load has landed), `stage:3` (stage 3 has begun). `fire()` announces one; doors and loads wait for one, and so can a stage |
+| prop, `d.prop` | A dummy that is a thing, not a person (a keg, a lever, a cage). It can be hit like any dummy but does not fly off, and whoever made it removes it once it is broken |
+| blast | The hit source `'blast'` (a keg going off, a load landing). It breaks barricades and strips armour |
+| lookout, `d.ranged` | An enemy that stays put and throws. `d.throwAim` is the point it is aiming at |
+| `d.armour`, `d.bareT` | What every hit on an armoured enemy is multiplied by, and the seconds it has left without its armour after a blast |
+| `d.spec` | What a mission enemy was made from, so it can be made again |
+| ledger page | A piece of the story hidden in a district. `campaign.pages` holds which have been found |
+| `mission.limit` | Seconds allowed for the current stage (0 = no clock). An hourglass adds to it; a boss lighting a fuse sets it |
 | the yard | The main arena, the player's base between missions |
 | `d.weak`, `d.tough` | The sword style an enemy is weak to, and what every other hit on it is multiplied by |
 | `d.zone` | The square a gang member is kept inside: the yard, or its district |
@@ -313,7 +334,19 @@ The docks in `DISTRICTS` in `js/missions.js` are the worked example. Every stage
    A district does not have to be a square yard: the Old Market sets `walls: false` and builds a long street out of `props`. To shut a gap, use a curtain (`gates`: only a dash passes) or a `BLOCKADE` (only a mount breaks it).
 3. To make a stage about a mount, spawn `BARRICADE`s. To make it about an element, spawn enemies with `weak` set, and make sure the district has that element's source.
 4. A new kind of enemy is a new set of options next to `THUG`. Give it a row in Part 4 of `docs/ABILITIES.md`.
-5. Look at it: `http://localhost:8000/?debug=mission:<id>`. Add it to `docs/STORY.md` and to the campaign checks in `tests/smoke.js`.
+5. To make the place react, list set pieces in the district's `things` (kegs, levers, doors, a load, awnings, traps, hourglasses, ledger pages). The comment above `DISTRICTS` says what each one takes. A thing with `stage: 3` is put out when stage 3 begins.
+6. To tell the story, give a stage `say`: lines as `[who, line, when]`.
+7. Look at it: `http://localhost:8000/?debug=mission:<id>` (add `&stage=3` to start at a later stage). Add it to `docs/STORY.md` and to the campaign checks in `tests/smoke.js`.
+
+### Add a kind of set piece
+
+The ones in `js/setpieces.js` are the worked examples.
+
+1. Say what it is in the header of `js/setpieces.js` and in the comment above `DISTRICTS` in `js/missions.js`.
+2. Build it in `buildThings()`: add a branch for its `kind`. If it should be hit by swords and skills, make it a dummy with `propDummy()` and give it a shape in `LOOKS` in `js/skins.js`. Otherwise make a mesh, or a solid with `addBox()`.
+3. Make it do its thing in `updateThings()`. If it makes something happen elsewhere, call `fire()` with a trigger name.
+4. Make sure `removeThing()` takes away everything it made. The smoke test fails if a mission leaves a dummy or a solid behind.
+5. Add a row to the set pieces table in Part 4 of `docs/ABILITIES.md` and a check to `tests/smoke.js`.
 
 ### Add a task to the story
 
@@ -375,8 +408,14 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Being defeated in a mission is handled before the respawn.** `playerDefeated()` calls `failMission()` first, which puts `SPAWN` and the area back to the yard, so the respawn that follows lands there.
 - **Beaten mission enemies stay in `mission.spawned`,** marked dead, so the stage can tell they are down. Only `despawnAll()` empties the list.
 - **A curtain of light is solid to everything except a dashing player.** Enemies, mounts and walking players are stopped by it. It is left out of ray checks on purpose, so the camera, the crosshair and the hook ignore it. Never pass one to `removeBox()`.
+- **A set piece lives for one mission.** Everything in `things` is built by `buildThings()` and removed by `clearThings()`. Do not add a district's reacting parts in `initMissions()`: they would not come back for the next attempt.
+- **Kegs, levers and cages are dummies.** They are in `dummies`, so lock-on, every area attack and every mount finds them, but not in `mission.spawned`, so a stage never waits for them. A broken one stays in the world, marked dead, until `updateThings()` removes it.
+- **A keg hurts the player too.** Breaking one starts a fuse (`KEG_FUSE`); a dash gets clear, and a dash's own moment of not being hittable also dodges the blast.
+- **An awning must stand 6 up the street from the end of its ledge.** Any nearer and the throw comes up underneath the ledge.
+- **A lookout cannot see straight down.** The stack it stands on hides anyone close to its foot, which is on purpose: that is the safe way in.
+- **A stage with a `trigger` ignores its enemies.** Beating them does not clear it; the smoke test has to fire the trigger (hit the lever) to move on.
 - **A `BLOCKADE` has to stand in a gap no wider than 6,** which is the width of its unseen wall; anything wider can be walked round.
-- **District ids are in the save,** like task ids.
+- **District ids are in the save,** like task ids. So is the order of a district's `page` entries in `things`: a found page is remembered by its number.
 - **Task ids are in the save.** Renaming one in `QUESTS` makes saved games forget it.
 - **`SPAWN` moves.** It is where the player respawns: the arena start, the hall's arrival point, or a trial's start. `js/dojo.js` changes it.
 - **Glow needs `toneMapped: false`.** Any material meant to look like light (effects, the weapon, warning marks) must set it, or tone mapping dulls it. Lit objects must not set it.

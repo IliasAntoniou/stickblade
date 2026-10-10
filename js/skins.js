@@ -6,6 +6,8 @@
 //   fighter = a brute: horns, spiked shoulders, thick arms, glowing eyes, and bigger than the rest.
 //   gang    = one of the Ash Hand, the story's enemies (any dummy made with the option `gang`): ash-grey, a red
 //             headband with its tails flying and a red mask over the mouth. Their boss also has spiked shoulders.
+//   look    = not a person at all (the option `look`): a barricade, a powder keg, a lever or a cage stands where
+//             the stick figure would. The list is LOOKS.
 // dressDummy() is called once when a dummy is made (dummies.js). The shapes and materials here are made once and
 // shared by every dummy, so a new dummy costs nothing extra to build.
 // To keep the number of draw calls down, shapes that always go together (both horns, both shoulder plates, both
@@ -115,6 +117,46 @@ const barricadeGeo = joined([
   [new THREE.ConeGeometry(0.16, 0.6, 5), -1.9, 2.8, 0], [new THREE.ConeGeometry(0.16, 0.6, 5), -0.95, 2.4, 0], [new THREE.ConeGeometry(0.16, 0.6, 5), 0, 2.8, 0],
   [new THREE.ConeGeometry(0.16, 0.6, 5), 0.95, 2.4, 0], [new THREE.ConeGeometry(0.16, 0.6, 5), 1.9, 2.8, 0],
 ]);
+// Things that are not people (setpieces.js makes them): each is one plain shape, plus one glowing shape that
+// says what it is for.
+// A powder keg: a fat barrel with two hoops, and a glowing orange band and fuse. It explodes when broken.
+const kegMat = new THREE.MeshLambertMaterial({ color: 0x4a2d24 });
+const kegGeo = joined([
+  [new THREE.CylinderGeometry(0.5, 0.5, 1.2, 12), 0, 0.6, 0],
+  [new THREE.CylinderGeometry(0.56, 0.56, 0.1, 12), 0, 0.22, 0], [new THREE.CylinderGeometry(0.56, 0.56, 0.1, 12), 0, 0.98, 0],
+]);
+const fuseMat = new THREE.MeshBasicMaterial({ color: 0xff7a1f, toneMapped: false });
+const fuseGeo = joined([
+  [new THREE.CylinderGeometry(0.53, 0.53, 0.16, 12), 0, 0.6, 0],
+  [new THREE.CylinderGeometry(0.04, 0.04, 0.4, 5), 0.12, 1.36, 0, 0, 0, -0.5],
+]);
+// A lever (also the crane's bell-pull and the gallows rope): a post on a foot, with a glowing gold handle to hit.
+const leverGeo = joined([
+  [new THREE.BoxGeometry(0.7, 0.16, 0.7), 0, 0.08, 0],
+  [new THREE.BoxGeometry(0.16, 1.5, 0.16), 0, 0.85, 0],
+]);
+const handleMat = new THREE.MeshBasicMaterial({ color: 0xffd23f, toneMapped: false });
+const handleGeo = joined([
+  [new THREE.SphereGeometry(0.2, 10, 8), 0, 1.7, 0],
+  [new THREE.BoxGeometry(0.5, 0.08, 0.08), 0, 1.4, 0],
+]);
+// A cage: a ring of bars between two plates, with a glowing lock on the front. Someone is held inside.
+const cageGeo = (() => {
+  const parts = [[new THREE.BoxGeometry(1.7, 0.12, 1.7), 0, 0.06, 0], [new THREE.BoxGeometry(1.7, 0.12, 1.7), 0, 2.3, 0]];
+  for (let i = 0; i < 10; i++) {
+    const angle = i / 10 * Math.PI * 2;
+    parts.push([new THREE.CylinderGeometry(0.04, 0.04, 2.2, 5), Math.sin(angle) * 0.78, 1.18, Math.cos(angle) * 0.78]);
+  }
+  return joined(parts);
+})();
+const lockGeo = joined([[new THREE.BoxGeometry(0.28, 0.3, 0.12), 0, 1.15, 0.84]]);
+// look -> the shapes that stand in for the stick figure: [plain shape, its material, glowing shape, its material].
+const LOOKS = {
+  barricade: [barricadeGeo, plankMat],
+  keg: [kegGeo, kegMat, fuseGeo, fuseMat],
+  lever: [leverGeo, plankMat, handleGeo, handleMat],
+  cage: [cageGeo, steelMat, lockGeo, handleMat],
+};
 const bandGeo = joined([
   [new THREE.CylinderGeometry(0.19, 0.19, 0.06, 12), 0, 0.07, 0],                  // the headband
   [new THREE.BoxGeometry(0.05, 0.035, 0.3), 0.05, 0.05, -0.31, 0.35, 0.25, 0],      // its two tails, behind the head
@@ -146,10 +188,12 @@ function attach(parent, geo, mat, x = 0, y = 0, z = 0) {
 export function dressDummy(d) {
   const sm = d.sm;
   if (d.gang) {
-    if (d.look === 'barricade') {
-      // not a person at all: the stick figure is hidden and a wall of planks stands in its place
+    if (LOOKS[d.look]) {
+      // not a person at all: the stick figure is hidden and the thing stands in its place
+      const [geo, mat, glowGeo, glowMat] = LOOKS[d.look];
       sm.body.visible = false;
-      attach(sm.root, barricadeGeo, plankMat);
+      attach(sm.root, geo, mat);
+      if (glowGeo) attach(sm.root, glowGeo, glowMat).castShadow = false;
       return;
     }
     // Story enemies look the same whatever type they are built on: what matters is whose side they are on.
