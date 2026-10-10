@@ -1,6 +1,9 @@
 // missions.js: the campaign. The city has five districts, each held by one of the Ash Hand's lieutenants, and the
 // purpose of the game is to take them back one by one. A district is a mission: a separate walled area (like the
 // training hall) fought through in stages, with a boss at the end. Being defeated fails the mission.
+// Districts are not all the same kind of place. The docks are a yard fought through stage by stage. The Old
+// Market is one long straight street run against the clock to save a prisoner, where the way is shut by
+// curtains only a dash passes through, barricades only a mount breaks, and walls only the hook gets over.
 // Stages are built so that each one leans on a different tool: the grappling hook (a point high up to reach),
 // a mount (barricades only ramming breaks), and the sword styles (enemies that are weak to one element; the
 // colour of their headband says which).
@@ -11,8 +14,9 @@
 
 import * as THREE from 'three';
 import { V3, _fx } from './util.js';
+import { makeStickman, applyPose, addRim, BASE } from './stickman.js';
 import { scene } from './core.js';
-import { addBox, setArea, makeFloor, ARENA, COL } from './world.js';
+import { addBox, removeBox, addPhaseWall, setArea, makeFloor, ARENA, COL } from './world.js';
 import { glowTex, ringGeo, spawnRing, burst, toast, centerMsg, flash } from './fx.js';
 import { T, P, CL, SPAWN, chal } from './state.js';
 import { spawnDummy, removeDummy, dummyBlocked } from './dummies.js';
@@ -43,14 +47,24 @@ const RAT = { gang: true, hp: 95, color: 0x44566a, weak: 'water', speed: 6.2, si
 // (the elephant in one go, the others in two or three). Built on the 'basic' dummy.
 const BARRICADE = { gang: true, hp: 60, look: 'barricade', fixed: true, ramOnly: true };
 const MARROW = { gang: true, boss: true, hp: 1500, color: 0x33283a };
+// A barricade that also shuts the way: an unseen wall stands where it does until it is broken.
+const BLOCKADE = { ...BARRICADE, block: true };
+// The Twins, keepers of the Old Market. One falls to fire and one to water, so the fight asks for both.
+const TWIN_EMBER = { gang: true, boss: true, hp: 800, color: 0x4a2a22, weak: 'flame', size: 0.82 };
+const TWIN_TIDE = { gang: true, boss: true, hp: 800, color: 0x223a4a, weak: 'water', size: 0.82 };
 
 // The campaign, in order. A district is open once the one before it is free (the first needs `needs`, a story task).
 //   area   = where it is: centre and half-width of its square. Far from everything else, so fog hides the rest.
+//            walls: false leaves out the four outer walls (for a district that builds its own shape from props).
+//   gates  = curtains of light only a dash passes through: [x, z, width].
 //   floor  = colour of its ground.   start = where the player arrives (all coordinates are relative to the centre).
 //   props  = its boxes: [x, y, z, w, h, d, colour name], as in addBox.   sources = [style id, x, z]: a pool, a fire, a storm.
 //   stages = what has to be done, in order. Each: goal (shown on screen), hint (how), and either
 //       spawn = enemies as [type, x, y, z, options]: the stage is cleared when all of them are down, or
 //       point = [x, y, z], a place to stand on: the stage is cleared on reaching it.
+//       point and spawn together = the enemies are only in the way; reaching the point is what counts.
+//     time   = seconds allowed. Run out and the mission is lost.
+//     rescue = someone is held at the point, waiting to be freed (the kneeling figure).
 //     reinforce = { at, spawn, say }: when the stage's boss falls to this share of its health, more enemies arrive.
 export const DISTRICTS = [
   {
@@ -79,7 +93,42 @@ export const DISTRICTS = [
         reinforce: { at: 0.5, say: '"Get out here, all of you!"', spawn: [['fighter', -20, 0, -31, RUNNER], ['fighter', 20, 0, -32, RUNNER], ['fighter', 0, 0, -36, IRON]] } },
     ],
   },
-  { id: 'market', name: 'The Old Market', boss: 'the Twins', blurb: 'Narrow lanes below and rooftops above. Swarms in the alleys, and a chase across the roofs with the hook.' },
+  {
+    id: 'market', name: 'The Old Market', boss: 'the Twins',
+    blurb: 'One long street and no time. The Twins mean to hang old Tam at the far end. Dash, ride and hook your way down it before they do.',
+    // A street 24 wide and 300 long, running from z = +150 (the start) down to z = -150. Nothing here is a
+    // square: the outer walls are left out and the street is made of props.
+    area: { cx: 0, cz: 500, half: 160, walls: false }, floor: 0x8c8478, start: [0, 0, 138],
+    props: [
+      // the two sides of the street, in five lengths each, and a wall across each end
+      [-13, 0, 120, 2, 16, 60, 'wall'], [-13, 0, 60, 2, 16, 60, 'wall'], [-13, 0, 0, 2, 16, 60, 'wall'], [-13, 0, -60, 2, 16, 60, 'wall'], [-13, 0, -120, 2, 16, 60, 'wall'],
+      [13, 0, 120, 2, 16, 60, 'wall'], [13, 0, 60, 2, 16, 60, 'wall'], [13, 0, 0, 2, 16, 60, 'wall'], [13, 0, -60, 2, 16, 60, 'wall'], [13, 0, -120, 2, 16, 60, 'wall'],
+      [0, 0, 151, 28, 16, 2, 'wall'], [0, 0, -151, 28, 16, 2, 'wall'],
+      // pinch points: two blocks that leave a gap 6 wide in the middle, shut by a curtain or a barricade
+      [-7.5, 0, 112, 9, 14, 3, 'stone'], [7.5, 0, 112, 9, 14, 3, 'stone'],
+      [-7.5, 0, 82, 9, 14, 3, 'stone'], [7.5, 0, 82, 9, 14, 3, 'stone'],
+      [-7.5, 0, 18, 9, 14, 11, 'stone'], [7.5, 0, 18, 9, 14, 11, 'stone'],
+      [-7.5, 0, -22, 9, 14, 3, 'stone'], [7.5, 0, -22, 9, 14, 3, 'stone'],
+      [-7.5, 0, -88, 9, 14, 3, 'stone'], [7.5, 0, -88, 9, 14, 3, 'stone'],
+      // walls right across the street: too high to jump, the hook gets over
+      [0, 0, 52, 24, 9, 2, 'pillar'], [0, 0, -58, 24, 12, 2, 'pillar'],
+      // market stalls and crates to weave round
+      [6, 0, 98, 4, 2.5, 3, 'crate'], [-6, 0, 66, 3, 3, 3, 'crate'], [5, 0, 38, 4, 2, 4, 'crate'],
+      [-4, 0, 0, 5, 3, 3, 'crate'], [6, 0, -40, 3, 2.5, 3, 'crate'], [-6, 0, -74, 3, 2, 3, 'crate'], [5, 0, -104, 4, 2, 3, 'crate'],
+    ],
+    gates: [[0, 112, 6], [0, 22, 6], [0, 14, 6], [0, -88, 6]],
+    // an element (and so a mount) to pick at the start, the storm partway, and fire and water again for the Twins
+    sources: [['flame', -7, 127], ['water', 7, 127], ['thunder', -6, 40], ['flame', -8, -142], ['water', 8, -142]],
+    stages: [
+      { goal: 'Reach old Tam before they hang him', hint: 'Dash (Shift) through blue curtains · ride (X) into barricades · hook over walls',
+        time: 75, point: [0, 0, -126], rescue: true,
+        spawn: [['basic', 0, 0, 82, BLOCKADE], ['basic', 0, 0, -22, BLOCKADE],
+          ['fighter', -4, 0, 96, RUNNER], ['fighter', 4, 0, 34, RUNNER], ['fighter', -3, 0, -8, RUNNER], ['fighter', 3, 0, -70, RUNNER],
+          ['fighter', 5, 0, -100, RAT], ['fighter', -5, 0, -100, RAT]] },
+      { goal: 'Defeat the Twins', hint: 'One wears orange, one wears blue. Each falls to the element of their colour',
+        spawn: [['fighter', -5, 0, -138, TWIN_EMBER], ['fighter', 5, 0, -138, TWIN_TIDE]] },
+    ],
+  },
   { id: 'foundry', name: 'The Foundry', boss: 'Cinder', blurb: 'Furnaces and armour. Fire feeds half of what is in there; water and a war elephant open the rest.' },
   { id: 'heights', name: 'The Heights', boss: 'Lady Vane', blurb: 'Towers and bridges. Nothing there can be reached on foot, and nothing there stands still for long.' },
   { id: 'citadel', name: 'The Ash Citadel', boss: 'the Ash King', blurb: 'Where it ends. Everything the Hand has left, and the man Sen once answered to.' },
@@ -90,7 +139,8 @@ export const campaign = { free: [] };
 // The running mission: cur = its district (null in the yard), stage = which stage, spawned = its enemies,
 // wait = seconds until the next thing happens (the next stage, or going home), won = it is finished and only
 // waiting to leave, reinforced = this stage's extra enemies have already come.
-export const mission = { cur: null, stage: 0, spawned: [], wait: 0, won: false, reinforced: false };
+// clock = seconds spent on the current stage (for stages with a time limit).
+export const mission = { cur: null, stage: 0, spawned: [], wait: 0, won: false, reinforced: false, clock: 0 };
 
 function store() {
   if (SMOKE) return;
@@ -115,6 +165,14 @@ const marker = new THREE.Group();
   marker.visible = false;
   scene.add(marker);
 }
+
+// The prisoner: a kneeling figure, hands behind the back, shown at the point of a stage marked `rescue`.
+const captive = makeStickman(addRim(new THREE.MeshLambertMaterial({ color: 0xc9b48a })), null, false);
+applyPose(captive, { ...BASE, bodyY: 0.52, spineX: 0.35, hipLX: 0.15, kneeL: 1.75, hipRX: 0.15, kneeR: 1.75, shLX: 0.6, shLZ: -0.3, elL: -1.2, shRX: 0.6, shRZ: 0.3, elR: -1.2 });
+captive.root.visible = false;
+scene.add(captive.root);
+// The curtains of light, so they can be made to shimmer.
+const gateMeshes = [];
 
 // ---------- the map ----------
 // Every district with where it stands, for Sen's menu:
@@ -144,12 +202,24 @@ function place(type, x, y, z, options) {
     if (!dummyBlocked(_spot)) break;
   }
   const d = spawnDummy(type, _spot.x, y, _spot.z, { ...options, zone: a });
+  // a barricade that shuts the way: an unseen wall across the gap, taken away when the barricade breaks
+  if (options.block) {
+    d.blocker = addBox(_spot.x, 0, _spot.z, 6.2, 3.6, 0.9);
+    d.blocker.visible = false;
+  }
   mission.spawned.push(d);
   spawnRing(_fx.copy(d.pos).setY(d.pos.y + 0.05), 0.2, 2.6, 0.5, 0xc22a2a);
   return d;
 }
+// Take away the unseen wall behind a barricade, if it has one.
+function openWay(d) {
+  if (!d.blocker) return;
+  removeBox(d.blocker);
+  d.blocker = null;
+}
 function despawnAll() {
   for (const d of mission.spawned) {
+    openWay(d);
     if (!d.removed) removeDummy(d);
   }
   mission.spawned.length = 0;
@@ -183,11 +253,16 @@ function beginStage(index) {
   const d = mission.cur, stage = d.stages[index];
   mission.stage = index;
   mission.wait = 0;
+  mission.clock = 0;
   mission.reinforced = false;
   despawnAll();
   for (const [type, x, y, z, options] of stage.spawn || []) place(type, x, y, z, options);
   marker.visible = !!stage.point;
-  if (stage.point) marker.position.set(d.area.cx + stage.point[0], stage.point[1], d.area.cz + stage.point[2]);
+  captive.root.visible = !!stage.rescue;
+  if (stage.point) {
+    marker.position.set(d.area.cx + stage.point[0], stage.point[1], d.area.cz + stage.point[2]);
+    captive.root.position.copy(marker.position);
+  }
   centerMsg(`${stage.goal}<small>${d.name} · ${index + 1} of ${d.stages.length}</small>`, 2.4);
 }
 // Has the current stage been done?
@@ -203,6 +278,7 @@ function stageCleared() {
 function goHome() {
   despawnAll();
   marker.visible = false;
+  captive.root.visible = false;
   mission.cur = null;
   mission.won = false;
   setArea(0, 0, ARENA);
@@ -260,6 +336,21 @@ export function updateMissions(dt) {
   }
   const stage = d.stages[mission.stage];
   marker.rotation.y = T * 1.5;
+  for (const gate of gateMeshes) gate.material.opacity = 0.26 + Math.sin(T * 5) * 0.08;    // the curtains shimmer (they share one material)
+  for (const e of mission.spawned) {
+    if (e.dead) openWay(e);    // a broken barricade no longer shuts the way
+  }
+  // out of time: the mission is lost, the same as being defeated
+  if (stage.time && mission.wait <= 0) {
+    mission.clock += dt;
+    if (mission.clock > stage.time && !stageCleared()) {
+      goHome();
+      respawnPlayer();
+      flash();
+      centerMsg('MISSION FAILED<small>Too late</small>', 3);
+      return;
+    }
+  }
   // the boss calls for help once, when hurt enough
   if (stage.reinforce && !mission.reinforced) {
     const boss = mission.spawned.find(e => e.boss);
@@ -280,7 +371,12 @@ export function updateMissions(dt) {
   P.hp = Math.min(P.maxHp, P.hp + P.maxHp * STAGE_HEAL);
   mission.wait = STAGE_PAUSE;
   marker.visible = false;
-  centerMsg('Stage clear', 1.2);
+  if (stage.rescue) {
+    // freed: the prisoner gets clear in a puff, and says so
+    captive.root.visible = false;
+    burst(_fx.copy(captive.root.position).setY(captive.root.position.y + 1), 20, 8);
+    centerMsg(`Freed with ${Math.max(0, stage.time - mission.clock).toFixed(1)} s to spare`, 1.5);
+  } else centerMsg('Stage clear', 1.2);
 }
 
 // The mission shown on screen (hud.js), as HTML. null = no mission is running.
@@ -290,8 +386,9 @@ export function missionLine() {
   if (mission.won) return `<small>${d.name.toUpperCase()}</small><b>The district is free</b><span class="ok">Heading home</span>`;
   const stage = d.stages[mission.stage];
   const left = mission.spawned.filter(e => !e.dead).length;
-  const count = stage.spawn ? ` · ${left} left` : '';
-  return `<small>${d.name.toUpperCase()} · ${mission.stage + 1} / ${d.stages.length}</small><b>${stage.goal}${count}</b><span>${stage.hint}</span>`;
+  const count = stage.spawn && !stage.point ? ` · ${left} left` : '';
+  const clock = stage.time ? `<span class="tm">${Math.max(0, stage.time - mission.clock).toFixed(1)} s</span>` : '';
+  return `<small>${d.name.toUpperCase()} · ${mission.stage + 1} / ${d.stages.length}</small><b>${stage.goal}${count}</b>${clock}<span>${stage.hint}</span>`;
 }
 
 // Testing tool (the "Reset progress" button in the tuning panel): every district goes back to the Hand.
@@ -317,10 +414,13 @@ export function initMissions() {
     const floor = makeFloor(size + 2, d.floor);
     floor.position.set(a.cx, 0, a.cz);
     scene.add(floor);
-    addBox(a.cx, 0, a.cz - edge, size + 2, 9, 1, COL.wall);
-    addBox(a.cx, 0, a.cz + edge, size + 2, 9, 1, COL.wall);
-    addBox(a.cx - edge, 0, a.cz, 1, 9, size, COL.wall);
-    addBox(a.cx + edge, 0, a.cz, 1, 9, size, COL.wall);
+    if (a.walls !== false) {
+      addBox(a.cx, 0, a.cz - edge, size + 2, 9, 1, COL.wall);
+      addBox(a.cx, 0, a.cz + edge, size + 2, 9, 1, COL.wall);
+      addBox(a.cx - edge, 0, a.cz, 1, 9, size, COL.wall);
+      addBox(a.cx + edge, 0, a.cz, 1, 9, size, COL.wall);
+    }
+    for (const [x, z, w] of d.gates || []) gateMeshes.push(addPhaseWall(a.cx + x, 0, a.cz + z, w, 14, 0.8));
     for (const [x, y, z, w, h, depth, col] of d.props) addBox(a.cx + x, y, a.cz + z, w, h, depth, COL[col] || COL.stone);
     for (const [id, x, z] of d.sources) addSource(id, a.cx + x, 0, a.cz + z);
   }

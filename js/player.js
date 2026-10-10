@@ -67,8 +67,9 @@ export const LOCKED = new Set(['slamUp', 'slamDown', 'dragoonUp', 'dragoonDown',
 export const pose = { ...BASE }, tp = { ...BASE };
 
 // collision
-// Would the player's box at (x, y, z) overlap solid s?
-export function overl(s, x, y, z) { return x + PR > s.min.x && x - PR < s.max.x && z + PR > s.min.z && z - PR < s.max.z && y + PH > s.min.y && y < s.max.y; }
+// Would the player's box at (x, y, z) overlap solid s? A curtain of light (s.phase, see addPhaseWall in world.js)
+// does not count while dashing: that is how a dash passes through it.
+export function overl(s, x, y, z) { return !(s.phase && P.state === 'dash') && x + PR > s.min.x && x - PR < s.max.x && z + PR > s.min.z && z - PR < s.max.z && y + PH > s.min.y && y < s.max.y; }
 export function anyOverlap(x, y, z) { for (const s of solids) if (overl(s, x, y, z)) return s; return null; }
 // Move along ONE axis ('x', 'y' or 'z') by d, then push back out of anything hit. Doing one axis at a time is
 // what makes sliding along walls work. Also steps up small ledges (up to 0.55 high) and remembers the wall just
@@ -139,6 +140,7 @@ export function setState(s) {
   const o = P.state;
   if (o === 'grapple' && s !== 'grapple') { ropeMesh.visible = hookMesh.visible = false; P.cd.m2 = CL.skills.m2.cd; }
   if (o === 'wallrun') P.wallrunCd = 0.35;
+  if (o === 'dash') depenetrate();    // a dash that ends inside a curtain of light is pushed out of it
   if (o === 'pcharge') releaseDrag(P.st >= 0.5);
   if (o === 'charge') { P.chargeK = 0; playerMat.emissive.setHex(0); }
   if (o === 'dragoonUp' || o === 'dragoonDown') diveMark.visible = s === 'dragoonDown';

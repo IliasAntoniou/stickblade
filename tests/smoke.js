@@ -1084,6 +1084,51 @@ check('campaign: P gives up, and a reset gives every district back', () => {
   SB.resetCampaign();
   return campaign.free.length === 0 && P.maxHp === 100;
 });
+// the Old Market: a different kind of district. One long street against the clock, shut by curtains only a dash
+// passes, barricades only a mount breaks, and a prisoner to reach at the far end
+const MARKET = SB.DISTRICTS[1].area;
+let solidsBefore = 0;
+function readyForMarket() { readyForDocks(); campaign.free.push('docks'); SB.applyTune(); solidsBefore = SB.solids.length; }
+// Stand in the middle of the street at a distance along it, facing down it, and not able to be hit.
+function onStreet(z) { P.pos.set(MARKET.cx, 0, MARKET.cz + z); P.vel.set(0, 0, 0); P.iframes = 99; SB.setCamYaw(0); run(2); }
+check('market: it opens once the docks are free, and starts the clock', () => {
+  readyForDocks(); if (SB.startMission('market')) return false;
+  readyForMarket(); if (!SB.startMission('market')) return false;
+  run(5);
+  return mission.cur.id === 'market' && SB.missionLine().includes(' s</span>') && foes().filter(d => d.ramOnly).length === 2;
+});
+check('market: a curtain of light stops you walking, and a dash goes straight through', () => {
+  onStreet(116);
+  SB.keys.add('KeyW'); run(70);
+  const stopped = P.pos.z > MARKET.cz + 112.4;
+  press('ShiftLeft', 25); SB.keys.delete('KeyW');
+  return stopped && P.pos.z < MARKET.cz + 111.5;
+});
+check('market: a barricade shuts the way until a mount breaks it', () => {
+  onStreet(87);
+  SB.keys.add('KeyW'); run(60);
+  const stopped = P.pos.z > MARKET.cz + 82.4;
+  const wall = foes().find(d => d.ramOnly && Math.abs(d.pos.z - (MARKET.cz + 82)) < 1);
+  SB.setHitSrc('ram'); SB.hitDummy(wall, 28, 0, 0, 0, true);    // what the elephant does
+  run(90); SB.keys.delete('KeyW');
+  return stopped && wall.dead && P.pos.z < MARKET.cz + 80;
+});
+check('market: running out of time loses the mission, and nothing of it is left behind', () => {
+  mission.clock = 74.9; run(20);
+  return mission.cur === null && near(0, 14) && !campaign.free.includes('market') && dummies.length === arenaDummies && SB.solids.length === solidsBefore;
+});
+check('market: reaching the prisoner in time brings the Twins, and beating them frees the district', () => {
+  if (!SB.startMission('market')) return false;
+  run(5); onStreet(-126); run(135);
+  if (mission.stage !== 1 || foes().length !== 2) return false;
+  const [ember, tide] = foes();
+  if (ember.weak !== 'flame' || tide.weak !== 'water' || !ember.boss) return false;
+  for (const d of foes()) d.ko(1, 0);
+  run(5);
+  if (!mission.won || !campaign.free.includes('market') || P.maxHp !== 140) return false;
+  run(60 * 4);
+  return mission.cur === null && near(0, 14) && dummies.length === arenaDummies && SB.solids.length === solidsBefore;
+});
 reset();
 SB.resetStory();
 SB.resetCampaign();
