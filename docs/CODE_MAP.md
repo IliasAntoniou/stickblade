@@ -30,6 +30,12 @@ Where everything is, what the short names mean, and how to add things. If this f
 | The map (boxes, platforms, walls) | The `addBox()` lines in `js/world.js` |
 | Kunai and javelin | `js/projectiles.js` |
 | The story: what Sen says, what each task asks for, how many it takes, which enemies it brings and where | `QUESTS` in `js/quests.js` |
+| The campaign: the districts, their layout, their stages, which enemies each stage brings and where | `DISTRICTS` in `js/missions.js` |
+| The kinds of enemy in missions (health, speed, size, which element they are weak to) | `THUG`, `RUNNER`, `IRON`, `RAT`, `BARRICADE` and `MARROW` in `js/missions.js` |
+| How much a weakness matters, and how hard a mount hits a barricade | `WEAK_BONUS` and `RAM_BONUS` in `js/dummies.js`; `tough` on the enemy kind |
+| What freeing a district gives, the healing between stages, and how slowly health returns in a mission | `HP_PER_DISTRICT`, `STAGE_HEAL` and `MISSION_REGEN` in `js/missions.js` |
+| The city map in Sen's menu | The `map` page of `renderDlg()` in `js/master.js`; what it lists comes from `districtList()` in `js/missions.js` |
+| What a barricade looks like, and the headband colours | `barricadeGeo` and `weakBandMat` in `js/skins.js` |
 | How strong the gang's fighters are (health, colour) | `SCOUT` and `ROOK` in `js/quests.js` |
 | How far a gang member sees and how fast it walks | `GANG_SIGHT` and `GANG_SPEED` in `js/dummies.js` |
 | What the gang looks like (headband, mask) | The `d.gang` part of `dressDummy()` in `js/skins.js` |
@@ -147,6 +153,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/classes/blade.js`, `ninja.js`, `monk.js`, `lancer.js` | One class each: skill functions and the class table |
 | `js/master.js` | Master Sen and the dialog menu |
 | `js/challenges.js` | Timed challenges |
+| `js/missions.js` | The campaign: the districts of the city, and running a mission through its stages |
 | `js/quests.js` | The story: Sen's chain of tasks, their progress, and the gang enemies they bring |
 | `js/input.js` | Keyboard, mouse, pause |
 | `js/update.js` | One step of the game |
@@ -234,6 +241,12 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `lv` | A skill's numbers at each rank. The current rank's row is copied onto the skill by `applyRanks()` |
 | `hitSrc` | Which attack the current hits belong to: `atk`, `q`, `e`, `r`, `f` or `other`. Set with `setHitSrc()` just before dealing damage |
 | `P.castN` | Counts skill uses, so a trial can tell one use from the next |
+| district, mission | One part of the city held by the Ash Hand, and the fight to take it back. Data in `DISTRICTS` in `js/missions.js`. `mission.cur` is the one running, or null in the yard |
+| stage | One step of a mission: a group of enemies to beat, or a place to reach. `mission.stage` is its number |
+| the yard | The main arena, the player's base between missions |
+| `d.weak`, `d.tough` | The sword style an enemy is weak to, and what every other hit on it is multiplied by |
+| `d.zone` | The square a gang member is kept inside: the yard, or its district |
+| `d.ramOnly`, `d.fixed`, `d.look` | A barricade: only a mount can damage it, it never moves, and it is drawn as a wall of planks |
 | quest, task | One step of the story, given by Master Sen. Data in `QUESTS` in `js/quests.js` |
 | `story` | Where the story stands: `story.done` (finished task ids), `story.cur` (the running one), `story.n` (its count) |
 | phase (of the story) | `none` (wrong class), `offer` (Sen has a task), `active` (doing it), `ready` (done, go and tell him), `end` (nothing left). From `questState()` |
@@ -285,6 +298,16 @@ Water, Flame and Thunder in `js/styles.js` are the worked examples.
 5. Add its trial to the class's `trials` with `style: '<id>'` and `arena.sources`. Passing it unlocks the style.
    Give it a job: an entry in `POWERS` in `js/elements.js` (a role, a name for each skill, its numbers), and a branch for it in each of the hook functions there (`blinkPower()`, `spinTick()`, `slamPower()`, `slamLanded()`, `risingPower()`, `risingHit()`). Give its dash a look: an entry in `FORMS` in `js/dashfx.js`.
 6. Add checks to the style part of `tests/smoke.js`, and a column to Part 2 of `docs/ABILITIES.md`.
+
+### Add a district, or a stage to one
+
+The docks in `DISTRICTS` in `js/missions.js` are the worked example. Every stage should lean on a different tool.
+
+1. A district that already has a card on the map only needs its data: `area` (pick a centre at least 250 from every other area, so fog hides them from each other), `floor`, `start`, `props`, `sources` and `stages`.
+2. A stage is `goal` and `hint` plus one of: `spawn` (enemies; cleared when all are down) or `point` (a place to stand on; put it somewhere only the hook reaches).
+3. To make a stage about a mount, spawn `BARRICADE`s. To make it about an element, spawn enemies with `weak` set, and make sure the district has that element's source.
+4. A new kind of enemy is a new set of options next to `THUG`. Give it a row in Part 4 of `docs/ABILITIES.md`.
+5. Look at it: `http://localhost:8000/?debug=mission:<id>`. Add it to `docs/STORY.md` and to the campaign checks in `tests/smoke.js`.
 
 ### Add a task to the story
 
@@ -342,6 +365,10 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Dummies and boxes can now come and go.** Trial dummies are added with `spawnDummy()` and removed with `removeDummy()`; trial boxes with `addBox()` and `removeBox()`. Never keep a dummy in a variable across frames without checking `d.dead`.
 - **Gang members are dummies, but not all dummy rules hold for them.** `respawn()` does nothing to one, they have no home spot, and they are removed from `dummies` after a knockout. Removal happens in `updateQuests()`, never inside the loop that updates dummies.
 - **Sen's main menu starts with the story card.** The number keys follow the cards, so adding or moving a card changes which number does what (the smoke test presses them).
+- **A mission is not a challenge.** It does not use `chal`: it has its own state (`mission`) and runs while the player is in its district. Master Sen stays in the yard, so no trial, class change or other mission can start during one.
+- **Being defeated in a mission is handled before the respawn.** `playerDefeated()` calls `failMission()` first, which puts `SPAWN` and the area back to the yard, so the respawn that follows lands there.
+- **Beaten mission enemies stay in `mission.spawned`,** marked dead, so the stage can tell they are down. Only `despawnAll()` empties the list.
+- **District ids are in the save,** like task ids.
 - **Task ids are in the save.** Renaming one in `QUESTS` makes saved games forget it.
 - **`SPAWN` moves.** It is where the player respawns: the arena start, the hall's arrival point, or a trial's start. `js/dojo.js` changes it.
 - **Glow needs `toneMapped: false`.** Any material meant to look like light (effects, the weapon, warning marks) must set it, or tone mapping dulls it. Lit objects must not set it.

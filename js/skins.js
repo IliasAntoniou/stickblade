@@ -100,6 +100,21 @@ const glareGeo = joined([
 
 // ---------- the Ash Hand (story enemies) ----------
 const bandMat = new THREE.MeshLambertMaterial({ color: 0xc22a2a });
+// A gang member that is weak to an element wears that element's colour in place of red: the band tells the
+// player which sword style to bring.
+const weakBandMat = {
+  flame: new THREE.MeshBasicMaterial({ color: 0xff5a1a, toneMapped: false }),
+  thunder: new THREE.MeshBasicMaterial({ color: 0xffe24a, toneMapped: false }),
+  water: new THREE.MeshBasicMaterial({ color: 0x2f8fff, toneMapped: false }),
+};
+// A barricade: a wall of planks with spikes along the top. Only a mount can break it (dummies.js).
+const plankMat = new THREE.MeshLambertMaterial({ color: 0x7a5a38 });
+const barricadeGeo = joined([
+  [new THREE.BoxGeometry(4.4, 0.5, 0.3), 0, 0.5, 0], [new THREE.BoxGeometry(4.4, 0.5, 0.3), 0, 1.2, 0], [new THREE.BoxGeometry(4.4, 0.5, 0.3), 0, 1.9, 0],
+  [new THREE.BoxGeometry(0.35, 2.5, 0.45), -1.9, 1.25, 0], [new THREE.BoxGeometry(0.35, 2.5, 0.45), 0, 1.25, 0], [new THREE.BoxGeometry(0.35, 2.5, 0.45), 1.9, 1.25, 0],
+  [new THREE.ConeGeometry(0.16, 0.6, 5), -1.9, 2.8, 0], [new THREE.ConeGeometry(0.16, 0.6, 5), -0.95, 2.4, 0], [new THREE.ConeGeometry(0.16, 0.6, 5), 0, 2.8, 0],
+  [new THREE.ConeGeometry(0.16, 0.6, 5), 0.95, 2.4, 0], [new THREE.ConeGeometry(0.16, 0.6, 5), 1.9, 2.8, 0],
+]);
 const bandGeo = joined([
   [new THREE.CylinderGeometry(0.19, 0.19, 0.06, 12), 0, 0.07, 0],                  // the headband
   [new THREE.BoxGeometry(0.05, 0.035, 0.3), 0.05, 0.05, -0.31, 0.35, 0.25, 0],      // its two tails, behind the head
@@ -131,12 +146,18 @@ function attach(parent, geo, mat, x = 0, y = 0, z = 0) {
 export function dressDummy(d) {
   const sm = d.sm;
   if (d.gang) {
+    if (d.look === 'barricade') {
+      // not a person at all: the stick figure is hidden and a wall of planks stands in its place
+      sm.body.visible = false;
+      attach(sm.root, barricadeGeo, plankMat);
+      return;
+    }
     // Story enemies look the same whatever type they are built on: what matters is whose side they are on.
     bulk(sm, d.boss ? 2.6 : 1.7, d.boss ? 2.3 : 1.6);
-    attach(sm.head, bandGeo, bandMat);
+    attach(sm.head, bandGeo, weakBandMat[d.weak] || bandMat);
     attach(sm.head, glareGeo, glareMat);
     if (d.boss) attach(sm.chest, spikedGeo, darkMat);
-    sm.root.scale.setScalar(d.boss ? 1.38 : 1.04);
+    sm.root.scale.setScalar((d.boss ? 1.38 : 1.04) * d.size);
   } else if (d.type === 'basic') {
     attach(sm.chest, targetGeo, targetMat, 0, -0.17, 0.062);
     attach(sm.head, bucketGeo, woodMat, 0, 0.1, 0);

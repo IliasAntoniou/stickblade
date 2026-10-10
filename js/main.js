@@ -34,6 +34,7 @@ import { cutinActive, playCutin } from './cutin.js';
 import { playerMat, player } from './player.js';
 import { quality, applyQuality, updateQuality } from './quality.js';
 import { POWERS, zoneCount, pendingCount, skillAlt, blinkPower } from './elements.js';
+import { DISTRICTS, campaign, mission, initMissions, startMission, districtList, missionLine, resetCampaign, campaignHp } from './missions.js';
 import { QUESTS, story, initStory, questState, acceptQuest, turnInQuest, questEvent, questLine, resetStory } from './quests.js';
 import { MOUNTS, mount, initMounts, toggleMount, animateMount, mountFor } from './mounts.js';
 import { form, soft, bright, bolts, ribbons, updateDashForm, formScale } from './dashfx.js';
@@ -71,6 +72,7 @@ function frame() {
 }
 initProgress();  // loads saved skill ranks and puts each skill's numbers in place; must come before initTuning
 initStory();     // loads which story tasks are done
+initMissions();  // loads which districts are free and builds the districts; before applyTune, which reads the health bonus
 initTuning();    // loads saved tuning; must come before the first setClass
 setClass(save.cls, false);
 applyTune();
@@ -84,6 +86,7 @@ if (DEBUG !== null) {
   window.SB = { QUESTS, story, questState, acceptQuest, turnInQuest, questEvent, questLine, resetStory, styleSpeed, solids, strikeMaster, openDlg, renderDlg, lockFire: () => lockFire, lockTarget: () => lockTarget, player, outfit, startTake, playCutin, playerMat, STYLES, style, sources, giveStyle, forceStyle, clearStyle, reach, styleUnlocked, freeze: v => { frozen = v; }, setCamYaw, setCamPitch, setCamDist, trail, arcs, swirls, renderer, camera, quality, applyQuality, P, dummies, DTYPE, CLASSES, CLASS_ORDER, CH, chal, dlg, keys, pressed, scene, master, setClass, startChallenge, endChallenge,
     hurtPlayer, respawnPlayer, hitDummy, setMouse, step, updateCamera, updateHud, TUNE, applyTune, resetTuning, rankOf, startTrial, unlockAll, resetProgress, setHitSrc, DOJO, dojo, enterDojo, leaveDojo, setupTrial, clearTrial, totalDmg: () => totalDmg,
     get T() { return T; }, get CL() { return CL; } };
+  Object.assign(window.SB, { DISTRICTS, campaign, mission, startMission, districtList, missionLine, resetCampaign, campaignHp });
   Object.assign(window.SB, { MOUNTS, mount, toggleMount, mountFor });
   Object.assign(window.SB, { dashForm: form, dashSoft: soft, dashBright: bright, dashBolts: bolts, dashRibbons: ribbons, formScale });
   Object.assign(window.SB, { POWERS, zoneCount, pendingCount, skillAlt, blinkPower });
@@ -92,6 +95,11 @@ if (DEBUG !== null) {
   if (wantQuality) applyQuality(wantQuality);
   if (DEBUG === 'smoke') import('../tests/smoke.js');
   if (DEBUG.startsWith('pose:')) import('../tests/poses.js');
+  // ?debug=mission:docks goes straight to a district, locked or not, to look at its layout. &stage=3 jumps to a stage.
+  if (DEBUG.startsWith('mission:')) {
+    startMission(DEBUG.slice(8), true);
+    flash(0);
+  }
   // ?debug=hall:blade-r1 goes straight to the training hall dressed for that trial, to look at a layout.
   if (DEBUG.startsWith('hall:')) {
     const wanted = CLASSES.blade.trials.find(t => t.id === DEBUG.slice(5));

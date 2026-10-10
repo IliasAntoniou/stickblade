@@ -1,7 +1,9 @@
 // dummies.js: the things you hit. One Dummy class for every type; `type` switches the behaviour:
 //   basic = stands still, shield = blocks hits from the front, flying = circles in the air, fighter = attacks the player.
 // A dummy made with the option `gang` is a real enemy from the story (quests.js): it hunts the player across the
-// whole arena, never heals, and once knocked out it stays down and is taken out of the world.
+// whole arena, never heals, and once knocked out it stays down and is taken out of the world. Missions (missions.js)
+// give gang members more options: a place they are kept inside (zone), their own speed and size, an element they
+// are weak to, and barricades that stand still and only break when a mount rams them.
 // Also the damage functions every attack goes through: hitDummy (one target) and hitArea (everything in a circle).
 // NOTE: per-type behaviour is still if-checks inside Dummy. It moves into DTYPE in the dummy-types phase.
 
@@ -18,6 +20,7 @@ import { strikeMaster } from './master.js';
 import { dressDummy } from './skins.js';
 import { questEvent } from './quests.js';
 import { SOAK } from './elements.js';
+import { style } from './styles.js';
 import { tp, hurtPlayer } from './player.js';
 import { update } from './update.js';
 
@@ -33,6 +36,9 @@ export const DTYPE = {
   fighter: { color: 0xa070ff, hp: 900 },
 };
 const GANG_SIGHT = 80;     // how far away a gang member notices the player (the arena is 120 across)
+const WEAK_BONUS = 1.6;    // damage multiplier when an enemy is hit under the sword style it is weak to
+const RAM_BONUS = 3;       // damage multiplier for a mount ramming something that only ramming can break
+const YARD = { cx: 0, cz: 0, half: ARENA };    // the main arena, where gang members are kept unless told otherwise
 const GANG_SPEED = 5.2;    // how fast it walks, units per second. A training fighter does 3.4; the player runs at about 9.5
 // True if a dummy standing at p would be inside a wall.
 export function dummyBlocked(p) {
@@ -47,6 +53,18 @@ export class Dummy {
     this.gang = !!o.gang;
     this.boss = !!o.boss;
     this.gone = false;               // a gang member that has been knocked out and is waiting to be removed
+    this.zone = o.zone || YARD;      // the square it is kept inside: { cx, cz, half }
+    this.speed = o.speed || GANG_SPEED;    // how fast a gang member walks
+    this.size = o.size || 1;         // how big it is drawn (1 = normal)
+    // weak = the sword style that hurts it most (WEAK_BONUS). tough = what every other hit is multiplied by:
+    // an enemy with a weakness shrugs off part of anything else.
+    this.weak = o.weak || null;
+    this.tough = o.tough ?? (o.weak ? 0.6 : 1);
+    // look = a shape it is drawn as in place of a person ('barricade'). fixed = it never moves or turns.
+    // ramOnly = only a mount running into it can damage it.
+    this.look = o.look || null;
+    this.fixed = !!o.fixed;
+    this.ramOnly = !!o.ramOnly;
     this.baseHp = o.hp || D.hp;      // health before the tuning panel's multiplier
     this.color = o.color ?? D.color;
     this.mat = addRim(new THREE.MeshLambertMaterial({ color: this.color, emissive: 0x000000 }));
@@ -180,6 +198,7 @@ export class Dummy {
       } else if (flying && this.sinceHit >= 0.9) {
         this.path(_dv); this.pos.lerp(_dv, 1 - Math.exp(-2.5 * dt)); this.vel.multiplyScalar(Math.exp(-4 * dt));
       } else this.vel.y -= (this.sinceHit < 0.6 ? 15 : 32) * dt;
+      if (this.fixed) { this.vel.x = 0; this.vel.z = 0; }    // a barricade is not pushed about
       const ox = this.pos.x, oz = this.pos.z;
       this.pos.addScaledVector(this.vel, dt);
       if (!this.pinned && dummyBlocked(this.pos)) {
@@ -198,15 +217,15 @@ export class Dummy {
         } else if (this.sinceHit > 2.2) this.respawn();
       }
       if (this.gang) {
-        // Nothing pulls a gang member back to a home spot, so keep it inside the arena walls where it can be reached.
-        this.pos.x = clamp(this.pos.x, -ARENA + 1, ARENA - 1);
-        this.pos.z = clamp(this.pos.z, -ARENA + 1, ARENA - 1);
+        // Nothing pulls a gang member back to a home spot, so keep it inside the walls of its zone where it can be reached.
+        this.pos.x = clamp(this.pos.x, this.zone.cx - this.zone.half + 1, this.zone.cx + this.zone.half - 1);
+        this.pos.z = clamp(this.pos.z, this.zone.cz - this.zone.half + 1, this.zone.cz + this.zone.half - 1);
       }
       if (TUNE.dummyRegen && !this.gang && this.sinceHit > 4 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + this.maxHp * dt * 0.5);
       if (!this.dead) {
         const want = Math.atan2(P.pos.x - this.pos.x, P.pos.z - this.pos.z);
         if (ty === 'shield') this.yaw += clamp(angDiff(this.yaw, want), -2.2 * dt, 2.2 * dt);
-        else if (ty !== 'fighter') this.yaw = angDamp(this.yaw, want, 3, dt);
+        else if (ty !== 'fighter' && !this.fixed) this.yaw = angDamp(this.yaw, want, 3, dt);
         if (ty === 'fighter') this.fighterAI(dt, gy);
       }
     }
@@ -263,7 +282,7 @@ export class Dummy {
         }
         if (this.ai === 'idle' && dist > 2.6 && this.sinceHit > 0.4) {
           const ox = this.pos.x, oz = this.pos.z;
-          const stride = (this.gang ? GANG_SPEED : 3.4) * pace * dt;
+          const stride = (this.gang ? this.speed : 3.4) * pace * dt;
           this.pos.x += dx / dist * stride; this.pos.z += dz / dist * stride;
           if (dummyBlocked(this.pos)) {
             this.pos.x = ox; this.pos.z = oz;
@@ -348,6 +367,13 @@ export function hitDummy(d, dmg, kx, kz, up, heavy = false, stop = null, src = P
     spawnText(_hv, 'IMMUNE', 'block');
     return false;
   }
+  // A barricade: swords and skills bounce off. Only a mount running into it does anything (mounts.js sets 'ram').
+  if (d.ramOnly && hitSrc !== 'ram') {
+    d.chest(_hv);
+    spawnText(_hv, 'RAM IT (X)', 'block');
+    d.flash = 0.4;
+    return false;
+  }
   if (d.type === 'shield' && !top && src.y < d.pos.y + 1.3) {
     const tx = src.x - d.pos.x, tz = src.z - d.pos.z, l = Math.hypot(tx, tz) || 1;
     if ((tx * Math.sin(d.yaw) + tz * Math.cos(d.yaw)) / l > 0.25) {
@@ -361,6 +387,12 @@ export function hitDummy(d, dmg, kx, kz, up, heavy = false, stop = null, src = P
   up *= TUNE.kbMult;
   dmg = Math.round(dmg * TUNE.dmgMult * (0.9 + Math.random() * 0.2) * (d.soakT > 0 ? SOAK.dmg : 1));
   let label = null;
+  if (d.ramOnly) dmg *= RAM_BONUS;
+  // An enemy with a weakness: the right sword style cuts deep, anything else is partly shrugged off.
+  if (d.weak) {
+    if (style.cur && style.cur.id === d.weak) { dmg = Math.round(dmg * WEAK_BONUS); label = 'WEAK'; }
+    else dmg = Math.round(dmg * d.tough);
+  }
   if (P.dmgMult > 1) { dmg *= P.dmgMult; P.dmgMult = 1; P.smokeT = Math.min(P.smokeT, 0.01); label = 'AMBUSH'; heavy = true; }
   d.vel.x += kx; d.vel.z += kz; if (up > 0) d.vel.y = Math.max(d.vel.y, up);
   const c = Math.cos(d.yaw), s = Math.sin(d.yaw);

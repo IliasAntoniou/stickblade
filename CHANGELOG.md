@@ -2,6 +2,18 @@
 
 Newest first. One entry per merged feature: what changed, where, how to check it, and the git tag to go back to.
 
+## v0.13-campaign: take back the city (the docks)
+
+- **The purpose:** the city has five districts, all held by the Ash Hand, each with a keeper. The game is taking them back one by one. Sen's menu has a new card, "The city", with a map of all five: which are free, which are held, which are still locked.
+- **Missions:** a district is a mission in its own walled area, fought in stages with a boss at the end. Fall and the mission is lost; P gives up. Clearing a stage gives back 35% of your health, and health returns on its own only a quarter as fast as in the yard. Winning frees the district for good and adds 20 to your maximum health.
+- **The Docks** (the first district, open once chapter 1 is done). Five stages, each built around a different tool: break through the gate (runners, weak to Thunder); hook up the crane to cut the alarm (only the grappling hook reaches it); ram three barricades that only a mount can break, guarded by ironclads (weak to Flame); clear a swarm of dock rats (weak to Water); defeat Marrow, who calls for help at half health.
+- **Weaknesses:** some gang members are weak to one element, shown by the colour of their headband. Under that sword style they take 60% more; from anything else only 60%.
+- **Story:** chapter 2 has one task, to free the docks. The other four districts are on the map with their keepers' names, not built yet.
+- **Menu numbers moved again:** "The city" is card 2 in Sen's menu, so changing class is 3 and training is 4.
+- **Where:** new `js/missions.js` (the campaign is data in `DISTRICTS`); enemy options in `js/dummies.js` (`weak`, `tough`, `zone`, `speed`, `size`, `ramOnly`, `fixed`, `look`); the barricade and band colours in `js/skins.js`; the map page in `js/master.js`; hooks in `js/update.js`, `js/player.js`, `js/hud.js`, `js/tuning.js`, `js/mounts.js`, `js/quests.js`.
+- **Not tuned yet:** every enemy's health and speed, how many come, and how much health you get back. It has only been played by the automated test, so it may be far too hard or too easy.
+- **Check:** `bash tests/smoke.sh` (plays the whole mission, a defeat, giving up and a reset). To look at the area: `?debug=mission:docks`.
+
 ## v0.12-elements: each element is its own power
 
 - **What:** a sword style no longer just recolours the sword. Each element has a job, and all four skills do something different under it. The skill bar shows each skill's new name in gold while the style is on.
