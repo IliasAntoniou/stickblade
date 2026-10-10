@@ -13,6 +13,7 @@ import { T, P, dlg, chal, TUNE, hitSrc, addHit } from './state.js';
 import { hitAllowed, onHit } from './progress.js';
 import { onStyleHit } from './styles.js';
 import { strikeMaster } from './master.js';
+import { dressDummy } from './skins.js';
 import { tp, hurtPlayer } from './player.js';
 import { update } from './update.js';
 
@@ -70,6 +71,7 @@ export class Dummy {
     this.fg = new THREE.Mesh(barFgGeo, this.fgMat); this.fg.position.set(-0.6, 0, 0.001); this.bar.add(this.fg);
     scene.add(this.bar);
     this.shadow = makeShadow();
+    dressDummy(this);    // the shapes that make each type look like what it is (skins.js)
     if (type === 'flying') this.path(this.pos);
   }
   // Take this dummy out of the world for good (trial dummies, when their trial ends). Does not touch the dummies list.
@@ -199,6 +201,12 @@ export class Dummy {
     this.bar.position.set(this.pos.x, this.pos.y + 2.25, this.pos.z);
     this.bar.quaternion.copy(camera.quaternion);
     this.bar.visible = !this.dead;
+    if (this.wings) {
+      // winged dummies flap; faster while they are being knocked about
+      const flap = 0.55 + Math.sin(T * (this.sinceHit < 1 ? 26 : 11) + this.phase) * 0.55;
+      this.wings[0].rotation.y = -flap;
+      this.wings[1].rotation.y = flap;
+    }
     placeShadow(this.shadow, this.pos.x, this.pos.y, this.pos.z);
   }
   // Fighter brain. A small state machine kept in this.ai:

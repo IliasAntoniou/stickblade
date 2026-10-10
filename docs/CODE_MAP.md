@@ -34,7 +34,8 @@ Where everything is, what the short names mean, and how to add things. If this f
 | How his menu looks (the window, the cards, his portrait) | The `#dlg` CSS and HTML in `index.html` |
 | The pictures on the menu cards | `ICONS` in `js/master.js` |
 | What happens when he is hit: the warning and how long it lasts | `strikeMaster()`, `warnPlayer()` and `WARNING_TIME` in `js/master.js` |
-| The grab, the jump and the slam: timing, how high he leaps, how much health it takes | `grabPlayer()`, `updateGrab()` and the `GRAB_...`, `JUMP_HEIGHT` and `SLAM_DAMAGE` numbers in `js/master.js` |
+| The grab, then the slam or the throw: timing, how high he leaps, how much health each takes | `grabPlayer()`, `updateGrab()` and the `GRAB_...`, `SLAM_...`, `THROW_...` and `JUMP_HEIGHT` numbers in `js/master.js` |
+| Which rocks he can throw you onto | `pickRock()` in `js/master.js` |
 | How his head and eyes follow the player | `updateMaster()` in `js/master.js` |
 | Camera distance, shake, zoom with speed, lock-on | `updateCamera()` in `js/camera.js` |
 | Which key does what | The "actions" block in `update()` in `js/update.js`; raw key handling is in `js/input.js` |
@@ -57,7 +58,9 @@ Where everything is, what the short names mean, and how to add things. If this f
 | The lock-on ring | The lock part of `updateHud()` in `js/hud.js`; what gets locked is decided at the end of `updateCamera()` in `js/camera.js` |
 | The suit worn under a style: what colour it glows | `glow`, `core`, `glowHex` and `eyes` in `STYLES` in `js/styles.js` |
 | The thin wisps running along the sword under a style | `wispTex` and `wispMat` in `js/styles.js`; how fast they flow is the `wispTex.offset` line in `updateStyles()` |
-| The hat worn under a style, and the symbol painted on it | `hatTex()` and the hat lines in `attachOutfit()` in `js/styles.js` |
+| The hair worn under a style: the tongues of fire, the strands of water | `TONGUES`, `STRANDS` and the hair lines in `attachOutfit()` in `js/styles.js` |
+| How the hair moves (flicker, sway, how far it streams out behind) | `updateHair()` in `js/styles.js` |
+| What each kind of enemy looks like (bucket, helm, wings, horns) | `dressDummy()` and the shapes above it in `js/skins.js` |
 | The size of each piece of armour | The numbers in `attachOutfit()` in `js/styles.js` |
 | The suit's glowing cracks, and the coat's ragged hem | `drawCracks()`, `armourGlow()`, `coatCloth()` and `coatGlow()` in `js/styles.js` |
 | The suit's pieces (hood, armour, coat, cape) and where they sit on the body | `attachOutfit()` in `js/styles.js` |
@@ -111,6 +114,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/state.js` | Shared state: `P`, `CL`, `T`, combo counters, `CLASSES` |
 | `js/fx.js` | Effects, messages, screen shake, hitstop |
 | `js/dummies.js` | The `Dummy` class, the list of dummies, the damage functions |
+| `js/skins.js` | What each kind of enemy looks like |
 | `js/projectiles.js` | Kunai and javelin |
 | `js/player.js` | Player body, collision, taking damage, basic attack, dash, slide, rewind |
 | `js/camera.js` | Camera and aiming |
@@ -250,6 +254,7 @@ Water and Flame in `js/styles.js` are the worked examples.
 1. Add it to `DTYPE` in `js/dummies.js` (colour, health).
 2. Place at least one in the `dummies` list.
 3. Give it behaviour with checks on `this.type` in the `Dummy` class, the way `shield` and `flying` do.
+   Give it a look in `dressDummy()` in `js/skins.js`, and a row in Part 4 of `docs/ABILITIES.md`.
 4. Run the smoke test: it loops over `DTYPE` and fails if a type has no dummy on the map.
 
 ### Add a challenge
@@ -273,7 +278,8 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Glow needs `toneMapped: false`.** Any material meant to look like light (effects, the weapon, warning marks) must set it, or tone mapping dulls it. Lit objects must not set it.
 - **`lam()` needs baked shading.** It expects a `color` attribute on the shape, as `boxGeo` and every rock from `rockGeo()` have; on any other shape the result is black.
 - **Rocks are drawn chipped but collide as plain boxes.** A rock's top is exactly flat and at full height, and its sides only ever go inwards. Keep it that way, or the player will stand on air or sink into stone.
-- **Low quality has a draw budget.** The smoke test fails if one frame on Low needs more than 335 draw calls. Put expensive extras behind High in `js/quality.js`.
+- **Low quality has a draw budget.** The smoke test fails if one frame on Low needs more than 375 draw calls.
+- **Enemy shapes cost draw calls.** Each shape on each enemy is one more. In `js/skins.js`, shapes that always go together are joined into one (`joined()`); do the same for new ones. Put expensive extras behind High in `js/quality.js`.
 - **A blade's slash must come from the blade.** Do not add a ready-made slash shape for a weapon attack: it will not line up with the swing. Change the pose in `js/anim.js` and the slash follows by itself.
 - **Poses are targets, not positions.** `animatePlayer()` sets where each joint should go (`tp`); springs move the real pose there. To make something happen instantly, set `pose` as well as `tp`.
 - **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.

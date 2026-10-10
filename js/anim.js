@@ -99,6 +99,7 @@ export function animatePlayer(dt) {
     const kick = Math.sin(T * 16);
     Object.assign(tp, { spineX: -0.28, shLX: -2.3, shLZ: -0.25, elL: -1.9, shRX: -2.3, shRZ: 0.25, elR: -1.9,
       hipLX: -0.3 + kick * 0.4, kneeL: 0.55 - kick * 0.3, hipRX: -0.1 - kick * 0.4, kneeR: 0.55 + kick * 0.3 });
+    if (P.thrown) xp = T * 13;    // thrown: tumbling end over end through the air
   } else if (st === 'ignite') {
     // standing in the fire: head back, chest out, arms flung wide
     Object.assign(tp, { spineX: -0.32, shLX: -0.2, shLZ: 1.15, elL: -0.25, shRX: -0.2, shRZ: -1.15, elR: -0.25, hipLZ: 0.2, hipRZ: -0.2, bodyY: 0.96 });

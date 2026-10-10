@@ -232,12 +232,13 @@ check('quality: switch to High and back', () => {
   SB.applyQuality('low'); run(5); SB.renderer.render(SB.scene, SB.camera);
   return high && SB.quality.level === 'low' && SB.renderer.shadowMap.enabled === false && document.getElementById('quality').value === 'low';
 });
-// Draw calls for one frame from the start point. 319 before the dusk look, 322 after it. The limit leaves a little
-// room; if this fails, something made the cheap setting more expensive. Either undo that or raise the limit on purpose.
+// Draw calls for one frame from the start point. About 310 after the rocks, about 350 once every enemy wore its own
+// shapes (the limit was raised on purpose for that). The limit leaves a little room; if this fails, something made
+// the cheap setting more expensive. Either undo that or raise the limit on purpose.
 check('quality: Low stays within its draw budget', () => {
   reset(); SB.respawnPlayer(); run(30);
   SB.renderer.render(SB.scene, SB.camera);
-  return SB.renderer.info.render.calls <= 335;
+  return SB.renderer.info.render.calls <= 375;
 });
 
 // progression (Blademaster): locked skills, the training hall, trials, ranks, and the closed back doors
@@ -409,6 +410,7 @@ check('Sen: the first hit is only a warning', () => {
 check('Sen: a second hit inside ten seconds gets you grabbed by the neck and slammed', () => {
   run(60 * 3);
   if (!(sen.warnT > 0)) return false;
+  sen.nextMove = 'slam';
   swingAtSen();
   if (P.state !== 'grabbed') return false;
   run(26);                                               // about half a second in: held up in front of him
@@ -426,13 +428,47 @@ check('Sen: the slam never takes the last of your health', () => {
   reset(); run(120);
   swingAtSen(); run(50);
   P.hp = 25;
+  sen.nextMove = 'slam';
   swingAtSen();
   if (P.state !== 'grabbed') return false;
   run(90);
-  return P.state === 'normal' && P.hp === 1 && !near(0, 14);
+  return P.state === 'normal' && P.hp === 1 && !near(0, 14) && sen.nextMove === 'throw';    // and next time it is the throw
+});
+check('Sen: the other time he throws you onto a rock', () => {
+  reset(); run(120);
+  swingAtSen(); run(50);
+  sen.nextMove = 'throw';
+  swingAtSen();
+  if (P.state !== 'grabbed') return false;
+  run(70);                                               // let go by now: flying, well away from his hand
+  const flying = P.thrown === true && Math.hypot(P.pos.x - sen.pos.x, P.pos.z - sen.pos.z) > 3;
+  run(200);
+  // landed on top of something tall, for 40 of 100 health, and free again; next time it is the slam
+  return flying && P.state === 'normal' && P.grounded && P.pos.y > sen.pos.y + 3 && P.hp === P.maxHp - 40 && sen.nextMove === 'slam';
+});
+check('Sen: with no rock to throw onto (the training hall), he slams', () => {
+  reset(); run(120); SB.enterDojo(); run(5);
+  swingAtSen(); run(50);
+  sen.nextMove = 'throw';
+  swingAtSen();
+  if (P.state !== 'grabbed') return false;
+  run(100);
+  const slammed = P.state === 'normal' && P.hp === P.maxHp - 60 && P.pos.y < sen.pos.y + 1;
+  SB.leaveDojo();
+  return slammed;
+});
+check('enemies: each type wears its own shapes', () => {
+  const of = type => dummies.find(d => d.type === type);
+  const basic = of('basic'), guard = of('shield'), winged = of('flying'), brute = of('fighter');
+  if (!basic.sm.head.children.length || !guard.sm.head.children.length || !brute.sm.head.children.length) return false;    // bucket, helm, horns
+  if (!winged.wings || winged.wings.length !== 2) return false;
+  const before = winged.wings[0].rotation.y;
+  run(4);
+  if (winged.wings[0].rotation.y === before) return false;                    // the wings flap
+  return brute.sm.root.scale.x > guard.sm.root.scale.x && guard.sm.root.scale.x > winged.sm.root.scale.x;    // brute biggest, winged slightest
 });
 check('Sen: after ten seconds it is only a warning again', () => {
-  reset(); run(120);                                     // after a slam he cannot be provoked again for a moment
+  reset(); run(200);                                     // after a slam or a throw he cannot be provoked again for a moment
   swingAtSen();
   if (!(sen.warnT > 0)) return false;
   run(60 * 11);
@@ -475,11 +511,13 @@ check('Sen: the menu is made of cards that can be clicked', () => {
 const style = SB.style, PLAIN_SKIN = 0xeef1f8, outfit = SB.outfit;
 let flameArmour = null;    // remembered from the Flame check, to make sure Water wears different colours
 // Is the style's suit on? Dark limbs, every piece showing, the armour and coat glowing in that style's cracks
-// (each style has its own pictures for those), and the face in shadow under the hood.
+// (each style has its own pictures for those), and that style's hair, and only that style's, on the head.
 const dressedAs = id => SB.playerMat.color.getHex() !== PLAIN_SKIN && outfit.parts.length > 15 && outfit.parts.every(m => m.visible)
   && outfit.chest.material.emissiveMap !== null && outfit.coat.material.emissiveMap !== null
-  && outfit.chest.material !== outfit.coat.material && SB.player.head.material !== SB.playerMat;
-const undressed = () => SB.playerMat.color.getHex() === PLAIN_SKIN && outfit.parts.every(m => !m.visible) && SB.player.head.material === SB.playerMat;
+  && outfit.chest.material !== outfit.coat.material && SB.player.head.material !== SB.playerMat
+  && outfit.flameHair.visible === (id === 'flame') && outfit.waterHair.visible === (id === 'water');
+const undressed = () => SB.playerMat.color.getHex() === PLAIN_SKIN && outfit.parts.every(m => !m.visible) && SB.player.head.material === SB.playerMat
+  && !outfit.flameHair.visible && !outfit.waterHair.visible;
 const pool = SB.sources.find(s => s.id === 'water'), firePit = SB.sources.find(s => s.id === 'flame');
 // Stand six units from a fire, facing it (the camera looks along -z after a respawn), and Blink Strike.
 function faceFire(src) { P.pos.set(src.pos.x, src.pos.y, src.pos.z + 6); P.vel.set(0, 0, 0); P.cd.q = 0; run(3); }

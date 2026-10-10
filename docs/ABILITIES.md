@@ -4,6 +4,8 @@ A running list of everything a character can do, kept up to date whenever someth
 
 - **Part 1** is abilities: what every class has, and what each rank changes.
 - **Part 2** is sword styles: temporary changes taken from the world.
+- **Part 3** is Master Sen: what he does when you hit him.
+- **Part 4** is the enemies: what each kind is and how it looks.
 
 Damage numbers vary by about 10% either way on each hit. Distances are in world units; a character is about 1.9 tall.
 
@@ -110,7 +112,8 @@ Rules for all styles:
 | **Needs first** | Meteor Slam learned | Blink Strike learned |
 | **The scene** | You go under the water; a close-up shows your eyes closed, a blue slash sweeps across, and they snap open blazing blue; you burst back out | You stand burning in the flames; the same close-up with an orange slash and orange eyes; you step out |
 | **Slash** | Blue, with white foam along the edge | Orange, with tongues of fire along the edge |
-| **Suit** | Dark armour split by glowing blue cracks; a straw sun hat with a water drop painted on it; pale blue eyes; thin blue wisps flowing along the sword; blue sparks | The same armour split by glowing lava-orange cracks; a straw sun hat with a flame painted on it; gold eyes; thin wisps of fire flowing along the sword; orange sparks |
+| **Hair** | Long hair of running water down the back. It sways, streams out behind when you run and lifts when you fall | A head of fire: tongues of flame standing up and back, each flickering |
+| **Suit** | Dark armour split by glowing blue cracks; pale blue eyes; thin blue wisps flowing along the sword; blue sparks | The same armour split by glowing lava-orange cracks; gold eyes; thin wisps of fire flowing along the sword; orange sparks |
 | **Effect on every hit** | Takes 0.12 s off all your cooldowns | Sets the target burning: 14 damage a second for 4 s |
 | **Other change** | Sword attacks, Cyclone and Meteor Slam reach 20% further | None |
 | **Trial to unlock** | Take Water, then hit 4 dummies with one sword swing (60 s) | Take Flame, then have 3 dummies burning at once (60 s) |
@@ -119,7 +122,7 @@ Rules for all styles:
 
 ---
 
-The suit is the same for every style: a wide straw sun hat with the style's symbol on it, small glowing eyes, a chest plate, spiked shoulder guards, gauntlets, greaves, a long ragged coat open at the front, and a torn cape. Only what glows changes.
+The suit is the same for every style: small glowing eyes, a chest plate, spiked shoulder guards, gauntlets, greaves, a long ragged coat open at the front, and a torn cape. Only what glows changes.
 
 ---
 
@@ -130,10 +133,23 @@ He cannot be hurt, but he reacts to being hit. Sword swings, blasts, Cyclone and
 | What you do | What he does |
 |---|---|
 | Hit him once | He points at you, throws you back, and his eyes burn brighter for 10 seconds |
-| Hit him again within those 10 seconds | He catches you by the neck, holds you off the ground for a moment, leaps into the air with you, and slams you into the ground from the top of the jump. It takes 60% of your full health, but never your last point |
+| Hit him again within those 10 seconds | He catches you by the neck and holds you off the ground. Then one of two things, taking turns: **the slam** (he leaps into the air with you and slams you into the ground from the top of the jump, for 60% of your full health) or **the throw** (he winds up and hurls you in a long arc onto the top of one of the rocks, for 40%). Neither ever takes your last point. Where there is no rock to throw you onto, such as the training hall, it is always the slam |
 | Hit him again after the 10 seconds | Another warning |
 
 Hits less than 0.6 seconds apart count as one. For about a second and a half after a slam he cannot be provoked again.
+
+---
+
+# Part 4: Enemies
+
+All of them are the same stick figure underneath. Colour and shape say what each one does.
+
+| Kind | Colour | Looks like | What it does | Health |
+|---|---|---|---|---|
+| Practice dummy | Red | A bucket on its head and a painted target on its chest | Stands still, or slides side to side | 600 |
+| Guard | Grey | A steel helm with a crest, heavy shoulder plates, thick limbs, a big shield held in front | Turns to face you and blocks every hit from the front. Strike from behind or from above | 700 |
+| Winged | Blue | Two flapping wings, a halo, a slight body | Circles in the air | 400 |
+| Brute | Purple | Horns, spiked shoulders, thick arms, glowing red eyes; bigger than the rest | Comes after you. Slams the ground around it when you are close, lunges when you are further away. Red marks on the ground warn of both | 900 |
 
 ---
 
@@ -142,5 +158,6 @@ Hits less than 0.6 seconds apart count as one. For about a second and a half aft
 - **A new ability or a changed number:** update the class's table here (and its rank and trial rows if it has them).
 - **A new style:** add a column to the table in Part 2.
 - **A new class:** add a section in Part 1.
+- **A new kind of enemy:** add a row to Part 4.
 
 Where the numbers live in the code: each class's table at the bottom of its file in `js/classes/`, and `STYLES` in `js/styles.js`.

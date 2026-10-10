@@ -1,6 +1,6 @@
 // Pose viewer: open index.html?debug=pose:<name> to freeze the game in the middle of an action and look at it from
 // the side. For checking animation and effects without having to catch the moment by hand.
-// Names: idle, run, slash0, slash1, slash2, cyclone, slam, rising, master, pool, fire, ignite, submerge, grab.
+// Names: idle, run, slash0, slash1, slash2, cyclone, slam, rising, master, pool, fire, ignite, submerge, grab, enemies.
 // Add &view=<angle> to turn the camera (radians), &style=water or &style=flame to see a sword style,
 // &lit=1 to show the pool and fire as unlocked, &cutin=water or &cutin=flame to hold the eye close-up on screen,
 // and &menu=main, classes, chal, train or tips to open that page of Master Sen's menu.
@@ -30,7 +30,17 @@ if (name === 'ignite' || name === 'submerge') { SB.startTake(SB.sources[name ===
 if (name === 'grab') {
   const m = SB.master.pos;
   SB.strikeMaster(m.x, m.y, m.z, 3); run(45);
-  SB.strikeMaster(m.x, m.y, m.z, 3); run(params.get('jump') ? 58 : 34);    // &jump=1 stops at the top of his leap
+  if (params.get('throw')) SB.master.nextMove = 'throw';                    // &throw=1 shows the throw instead
+  SB.strikeMaster(m.x, m.y, m.z, 3); run(params.get('throw') ? 76 : params.get('jump') ? 58 : 34);    // &jump=1 stops at the top of his leap
+}
+// one of each kind of enemy, lined up in front of the player
+if (name === 'enemies') {
+  ['basic', 'shield', 'flying', 'fighter'].forEach((type, i) => {
+    const d = SB.dummies.find(e => e.type === type);
+    d.anchor.set(P.pos.x - 3.3 + i * 2.2, 0, P.pos.z - 3.2); d.base.copy(d.anchor); d.radius = 0; d.patrol = 0; d.pos.copy(d.anchor);
+    d.ai = 'none';
+  });
+  run(20);
 }
 if (params.get('cutin')) {
   const band = document.getElementById('cutin');

@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { V3, pick, $, save, damp, clamp, angDiff, angDamp, DEBUG, _fx } from './util.js';
 import { scene, renderer } from './core.js';
-import { boxGeo, lam, makeShadow, placeShadow } from './world.js';
+import { solids, boxGeo, lam, makeShadow, placeShadow } from './world.js';
 import { SG, makeStickman, BASE, POSE_KEYS, applyPose, addRim, castShadows } from './stickman.js';
 import { ringGeo, glowTex, centerMsg, shake, spawnRing, burst, spawnText, flashHurt, addHitstop } from './fx.js';
 import { T, P, CL, dlg, chal, CLASSES } from './state.js';
@@ -23,10 +23,13 @@ import { dojo, enterDojo, leaveDojo } from './dojo.js';
 //   WARN: one arm thrust out, pointing at the player.
 //   GRAB: right arm up and forward, holding the player off the ground by the neck.
 //   SLAM: bent over with that arm driven down into the ground.
+//   WINDUP: the arm drawn back behind the shoulder, body twisted away.   THROW: the arm flung out ahead, body following.
 const POSE_IDLE = { ...BASE, bodyY: 0.93, spineX: 0.12, shLX: -0.85, shLZ: -0.55, elL: -1.85, shRX: -0.7, shRZ: 0.55, elR: -1.95,
   hipLZ: 0.24, hipRZ: -0.24, hipLX: 0, hipRX: 0, kneeL: 0.05, kneeR: 0.05 };
 const POSE_WARN = { ...POSE_IDLE, spineX: 0.2, spineY: -0.35, shRX: -1.55, shRZ: 0.05, elR: -0.05, shLX: 0.25, shLZ: 0.5, elL: -1.2 };
 const POSE_GRAB = { ...POSE_IDLE, spineX: -0.08, spineY: 0.2, shRX: -2.05, shRZ: 0.3, elR: -0.1, shLX: 0.2, shLZ: 0.45, elL: -0.9 };
+const POSE_WINDUP = { ...POSE_IDLE, spineX: -0.2, spineY: -0.75, shRX: 0.9, shRZ: 0.5, elR: -0.9, shLX: -0.9, shLZ: 0.3, elL: -0.4, hipLX: -0.3, hipRX: 0.3 };
+const POSE_THROW = { ...POSE_IDLE, spineX: 0.5, spineY: 0.65, shRX: -1.7, shRZ: 0.1, elR: 0, shLX: 0.5, shLZ: 0.5, elL: -0.7, hipLX: 0.35, hipRX: -0.45, kneeR: 0.5 };
 const POSE_SLAM = { ...POSE_IDLE, spineX: 0.85, bodyY: 0.74, shRX: -0.75, shRZ: 0.25, elR: -0.05, shLX: 0.5, shLZ: 0.6, elL: -0.6, kneeL: 0.8, kneeR: 0.8, hipLX: -0.6, hipRX: -0.6 };
 const SEN_HEIGHT = 1.45;    // how many times the size of the player he is
 
@@ -110,7 +113,10 @@ export const master = (() => {
   return { sm, mark, eyes, pad: mat2, shadow: sh, pos: new V3(-5, 0, 18), home: new V3(-5, 0, 18), yaw: 0, near: false,
     pose: { ...POSE_IDLE }, poseTo: POSE_IDLE, poseT: 0, warnT: 0, hitCd: 0, headYaw: 0, headPitch: 0,
     // the grab: where the player was caught, where they are slammed from and to, and whether the slam has begun
-    grabFrom: new V3(), slamFrom: new V3(), slamTo: new V3(), slamming: false };
+    grabFrom: new V3(), slamFrom: new V3(), slamTo: new V3(), slamming: false,
+    // which punishment comes next ('slam' or 'throw': they take turns), which one is happening now, and for a
+    // throw: the rock top being aimed at, how long the flight takes and how high it goes
+    nextMove: 'slam', move: 'slam', throwTo: new V3(), throwTime: 1, throwArc: 6 };
 })();
 
 // Move Master Sen, his gold ring and his shadow to another spot (the training hall and back).
@@ -175,20 +181,39 @@ function warnPlayer() {
   shake(0.55);
   centerMsg(`"Touch me again and I break you."<small>Master Sen · ${WARNING_TIME} seconds</small>`, 2.6);
 }
-// Second hit inside the warning: he catches the player by the neck, holds them off the ground, leaps into the
-// air with them, and slams them down from the top of the jump. It costs most of their health but never the last of it.
-// The times are seconds since the grab began.
-const GRAB_PULL = 0.18;     // the player has been hauled into his hand
-const GRAB_HOLD = 0.6;      // he stops holding them up and jumps
-const GRAB_APEX = 1.0;      // he is at the top of the jump
-const GRAB_SLAM = 1.2;      // he lands, and the player hits the ground
-const JUMP_HEIGHT = 4.4;    // how high he leaps
-const SLAM_DAMAGE = 0.6;    // share of the player's full health the slam takes
-const NECK_HEIGHT = 1.5;    // how far above the player's feet their neck is
+// Second hit inside the warning: he catches the player by the neck and holds them off the ground. What he does
+// next alternates from one time to the next:
+//   'slam'  = he leaps into the air with them and slams them down from the top of the jump.
+//   'throw' = he winds up and hurls them in a long arc onto the top of one of the rocks.
+// Either costs a large share of their health but never the last of it. Times are seconds since the grab began.
+const GRAB_PULL = 0.18;       // the player has been hauled into his hand
+const GRAB_HOLD = 0.6;        // he stops just holding them up
+const SLAM_APEX = 1.0;        // slam: he is at the top of his jump
+const SLAM_END = 1.2;         // slam: he lands, and the player hits the ground
+const JUMP_HEIGHT = 4.4;      // slam: how high he leaps
+const SLAM_DAMAGE = 0.6;      // slam: share of the player's full health it takes
+const THROW_RELEASE = 0.9;    // throw: he lets go (between GRAB_HOLD and this he is winding up)
+const THROW_DAMAGE = 0.4;     // throw: share of the player's full health the landing takes
+const NECK_HEIGHT = 1.5;      // how far above the player's feet their neck is
 const _hold = new V3();
+// Somewhere to throw the player: the top of a rock that is big enough to land on, well above the ground, and
+// neither too close nor too far. Returns false if there is none (the training hall has none), true if master.throwTo is set.
+function pickRock() {
+  const good = solids.filter(s => {
+    const cx = (s.min.x + s.max.x) / 2, cz = (s.min.z + s.max.z) / 2, away = Math.hypot(cx - master.pos.x, cz - master.pos.z);
+    return s.max.x - s.min.x >= 3 && s.max.z - s.min.z >= 3 && s.max.y > master.pos.y + 3 && s.max.y < master.pos.y + 30 && away > 7 && away < 55;
+  });
+  if (!good.length) return false;
+  const rock = pick(good);
+  master.throwTo.set((rock.min.x + rock.max.x) / 2, rock.max.y, (rock.min.z + rock.max.z) / 2);
+  return true;
+}
 function grabPlayer() {
   master.warnT = 0;
   master.slamming = false;
+  // take turns, falling back to the slam when there is nothing to throw the player onto
+  master.move = master.nextMove === 'throw' && pickRock() ? 'throw' : 'slam';
+  master.nextMove = master.move === 'slam' ? 'throw' : 'slam';
   master.poseTo = POSE_GRAB;
   master.grabFrom.copy(P.pos);
   // he turns on the player at once, not at his usual unhurried pace
@@ -196,61 +221,93 @@ function grabPlayer() {
   master.sm.root.rotation.y = master.yaw;
   P.atk.on = false;
   P.vel.set(0, 0, 0);
+  P.thrown = false;
   setState('grabbed');
   shake(0.45);
   centerMsg('"I warned you."<small>Master Sen</small>', 1.5);
+}
+// What both endings share: the damage, the crash, and letting the player go. share = part of full health taken.
+function grabImpact(share, bounceX, bounceZ) {
+  const dmg = Math.min(P.hp - 1, Math.round(P.maxHp * share));    // never the last point of health
+  P.hp -= dmg;
+  P.hurtT = 0;
+  _fx.copy(P.pos).setY(P.pos.y + 0.1);
+  spawnRing(_fx, 0.4, 7, 0.5, 0xff2a1a);
+  spawnRing(_fx, 0.2, 3.5, 0.35, 0xffffff);
+  burst(_fx.setY(P.pos.y + 0.5), 34, 14);
+  burst(_fx, 16, 9, 1);
+  spawnText(_fx.setY(P.pos.y + 1.6), '-' + dmg, 'hurt');
+  shake(1.3); addHitstop(0.12); flashHurt();
+  P.thrown = false;
+  setState('normal');
+  P.vel.set(bounceX, 5, bounceZ);
+  P.iframes = 1.2;
+  master.slamming = false;
+  master.poseT = 0.8;     // he holds his last pose for a moment
+  master.hitCd = 1.5;     // and cannot be provoked again straight away
 }
 // Runs every frame of the player's 'grabbed' state (from the state switch in update.js).
 export function updateGrab() {
   const t = P.st;
   P.vel.set(0, 0, 0);
   P.grav = 0;
-  P.yaw = P.yawT = Math.atan2(master.pos.x - P.pos.x, master.pos.z - P.pos.z);    // face him
   // Where the player belongs while held: hanging from his raised hand by the neck.
   master.sm.handR.getWorldPosition(_hold);
   _hold.y -= NECK_HEIGHT;
+  if (!P.thrown) P.yaw = P.yawT = Math.atan2(master.pos.x - P.pos.x, master.pos.z - P.pos.z);    // face him
   if (t < GRAB_PULL) {
     P.pos.lerpVectors(master.grabFrom, _hold, t / GRAB_PULL);
-  } else if (t < GRAB_APEX) {
-    // held up by the neck; then, from GRAB_HOLD, carried up as he leaps (the player hangs from his hand, so
-    // moving him moves them)
-    const up = clamp((t - GRAB_HOLD) / (GRAB_APEX - GRAB_HOLD), 0, 1);
-    master.sm.root.position.y = master.pos.y + JUMP_HEIGHT * (1 - (1 - up) * (1 - up));    // fast off the ground, slowing at the top
-    P.pos.copy(_hold);
-    P.pos.x += Math.sin(T * 38) * 0.012;    // struggling
-  } else if (t < GRAB_SLAM) {
-    if (!master.slamming) {
-      master.slamming = true;
-      master.poseTo = POSE_SLAM;
-      master.slamFrom.copy(P.pos);
-      // the ground a little in front of where he took off
-      master.slamTo.set(master.pos.x + Math.sin(master.yaw) * 2, master.pos.y, master.pos.z + Math.cos(master.yaw) * 2);
+  } else if (master.move === 'slam') {
+    if (t < SLAM_APEX) {
+      // held up by the neck; then, from GRAB_HOLD, carried up as he leaps (the player hangs from his hand, so
+      // moving him moves them)
+      const up = clamp((t - GRAB_HOLD) / (SLAM_APEX - GRAB_HOLD), 0, 1);
+      master.sm.root.position.y = master.pos.y + JUMP_HEIGHT * (1 - (1 - up) * (1 - up));    // fast off the ground, slowing at the top
+      P.pos.copy(_hold);
+      P.pos.x += Math.sin(T * 38) * 0.012;    // struggling
+    } else if (t < SLAM_END) {
+      if (!master.slamming) {
+        master.slamming = true;
+        master.poseTo = POSE_SLAM;
+        master.slamFrom.copy(P.pos);
+        // the ground a little in front of where he took off
+        master.slamTo.set(master.pos.x + Math.sin(master.yaw) * 2, master.pos.y, master.pos.z + Math.cos(master.yaw) * 2);
+      }
+      // both come down together: slowly at first, then driven into the ground
+      const k = (t - SLAM_APEX) / (SLAM_END - SLAM_APEX);
+      master.sm.root.position.y = master.pos.y + JUMP_HEIGHT * (1 - k * k);
+      P.pos.lerpVectors(master.slamFrom, master.slamTo, k * k);
+    } else {
+      // impact: he lands, and the player goes into the ground
+      master.sm.root.position.y = master.pos.y;
+      spawnRing(_fx.set(master.pos.x, master.pos.y + 0.1, master.pos.z), 0.6, 9, 0.55, 0xffffff);
+      P.pos.copy(master.slamTo);
+      grabImpact(SLAM_DAMAGE, Math.sin(master.yaw) * 5, Math.cos(master.yaw) * 5);    // a small bounce away from him
     }
-    // both come down together: slowly at first, then driven into the ground
-    const k = (t - GRAB_APEX) / (GRAB_SLAM - GRAB_APEX);
-    master.sm.root.position.y = master.pos.y + JUMP_HEIGHT * (1 - k * k);
-    P.pos.lerpVectors(master.slamFrom, master.slamTo, k * k);
+  } else if (t < THROW_RELEASE) {
+    // held up; then, from GRAB_HOLD, swung back behind his shoulder as he winds up
+    if (t >= GRAB_HOLD) master.poseTo = POSE_WINDUP;
+    P.pos.copy(_hold);
+    P.pos.x += Math.sin(T * 38) * 0.012;
   } else {
-    // impact: he lands, and the player goes into the ground
-    master.sm.root.position.y = master.pos.y;
-    spawnRing(_fx.set(master.pos.x, master.pos.y + 0.1, master.pos.z), 0.6, 9, 0.55, 0xffffff);
-    P.pos.copy(master.slamTo);
-    const dmg = Math.min(P.hp - 1, Math.round(P.maxHp * SLAM_DAMAGE));    // never the last point of health
-    P.hp -= dmg;
-    P.hurtT = 0;
-    _fx.copy(P.pos).setY(P.pos.y + 0.1);
-    spawnRing(_fx, 0.4, 7, 0.5, 0xff2a1a);
-    spawnRing(_fx, 0.2, 3.5, 0.35, 0xffffff);
-    burst(_fx.setY(P.pos.y + 0.5), 34, 14);
-    burst(_fx, 16, 9, 1);
-    spawnText(_fx.setY(P.pos.y + 1.6), '-' + dmg, 'hurt');
-    shake(1.3); addHitstop(0.12); flashHurt();
-    setState('normal');
-    P.vel.set(Math.sin(master.yaw) * 5, 5, Math.cos(master.yaw) * 5);    // a small bounce away from him
-    P.iframes = 1.2;
-    master.slamming = false;
-    master.poseT = 0.8;     // he stays bent over the crater for a moment
-    master.hitCd = 1.5;     // and cannot be provoked again straight away
+    if (!P.thrown) {
+      // let go: from here the player flies on their own, tumbling
+      P.thrown = true;
+      master.poseTo = POSE_THROW;
+      master.slamFrom.copy(P.pos);
+      const far = Math.hypot(master.throwTo.x - P.pos.x, master.throwTo.z - P.pos.z);
+      master.throwTime = 0.75 + far * 0.013;    // further away takes longer
+      master.throwArc = 5 + far * 0.13;         // and goes higher
+      shake(0.5);
+    }
+    const k = (t - THROW_RELEASE) / master.throwTime;
+    if (k < 1) {
+      P.pos.lerpVectors(master.slamFrom, master.throwTo, k);
+      P.pos.y += master.throwArc * 4 * k * (1 - k);    // the arc: highest halfway there
+    } else {
+      P.pos.copy(master.throwTo);
+      grabImpact(THROW_DAMAGE, 0, 0);
+    }
   }
 }
 

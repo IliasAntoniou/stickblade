@@ -9,7 +9,7 @@
 // Dying, teleporting, changing class and starting a trial all end the current style, so trials start plain.
 
 import * as THREE from 'three';
-import { V3, clamp, easeOut, _fx } from './util.js';
+import { V3, clamp, damp, easeOut, _fx } from './util.js';
 import { scene } from './core.js';
 import { glowTex, spawnRing, spawnSwirl, burst, toast, setTrailPaint } from './fx.js';
 import { P, CL } from './state.js';
@@ -53,8 +53,8 @@ export function slashColor() { return style.cur ? style.cur.color : CL.color; }
 export function reach() { return style.cur ? style.cur.reach : 1; }
 
 // ---------- the suit ----------
-// Taking a style puts the character in a suit of dark armour that glows with the style's colour: a wide straw sun
-// hat painted with the style's symbol, a chest plate, spiked shoulder guards, gauntlets and greaves split by
+// Taking a style puts the character in a suit of dark armour that glows with the style's colour: hair made of the
+// element itself (fire, or long running water), a chest plate, spiked shoulder guards, gauntlets and greaves split by
 // glowing cracks, a long ragged coat open at the front, and a torn cape. Thin wisps of the same colour run along the sword.
 // Everything here is built once, attached to the player's body the first time a style is worn, and hidden otherwise.
 const ARMOUR = 0x17151c;    // the dark colour of the suit, and of the limbs under it
@@ -137,56 +137,116 @@ function suitMats(s) {
   };
 }
 let mats = null;    // { water: {armour, coat}, flame: {...} }, made the first time a style is worn
-// The hat: a plain wide sun hat, a low cone of woven straw, with the style's symbol painted on it front and back
-// (a flame, or a drop of water). The picture wraps once around the cone: left to right is around the hat, top to
-// bottom is from the point down to the brim.
-function hatTex(s) {
-  return canvasTex(512, 128, x => {
-    x.fillStyle = '#c9ad74';
-    x.fillRect(0, 0, 512, 128);
-    // the weave: fine lines running from point to brim, and a few rings
-    x.strokeStyle = 'rgba(90,62,24,0.35)';
-    x.lineWidth = 1;
-    for (let px = 0; px < 512; px += 6) { x.beginPath(); x.moveTo(px, 0); x.lineTo(px, 128); x.stroke(); }
-    for (const py of [34, 68, 98]) { x.beginPath(); x.moveTo(0, py); x.lineTo(512, py); x.stroke(); }
-    x.fillStyle = '#5a3e1c';
-    x.fillRect(0, 116, 512, 12);    // a dark band round the brim
-    // the symbol, once at the front (which sits on the seam of the picture, so it is drawn at both ends) and
-    // once at the back
-    for (const cx of [0, 256, 512]) {
-      x.save();
-      x.translate(cx, 72);
-      x.fillStyle = '#1a1410';
-      x.beginPath(); x.arc(0, 0, 31, 0, Math.PI * 2); x.fill();
-      x.strokeStyle = s.glow; x.lineWidth = 3;
-      x.beginPath(); x.arc(0, 0, 27, 0, Math.PI * 2); x.stroke();
-      x.fillStyle = s.glow;
-      x.beginPath();
-      if (s.id === 'flame') {
-        // a flame: a tall tongue with a smaller one beside it
-        x.moveTo(0, -22);
-        x.bezierCurveTo(6, -8, 18, -4, 16, 10);
-        x.bezierCurveTo(15, 20, 6, 22, 0, 22);
-        x.bezierCurveTo(-8, 22, -17, 18, -16, 8);
-        x.bezierCurveTo(-15, 0, -9, -2, -8, -10);
-        x.bezierCurveTo(-4, -4, 0, -8, 0, -22);
-      } else {
-        // a drop of water
-        x.moveTo(0, -22);
-        x.bezierCurveTo(4, -8, 17, 0, 17, 9);
-        x.bezierCurveTo(17, 18, 9, 23, 0, 23);
-        x.bezierCurveTo(-9, 23, -17, 18, -17, 9);
-        x.bezierCurveTo(-17, 0, -4, -8, 0, -22);
-      }
-      x.fill();
-      x.fillStyle = s.core;    // a small bright centre
-      x.beginPath(); x.arc(0, 10, 5, 0, Math.PI * 2); x.fill();
-      x.restore();
-    }
-  });
+// ---------- hair ----------
+// A style gives the character hair made of its element.
+//   Flame: tongues of fire standing up and back from the head, each one flickering on its own.
+//   Water: long hair of running water that hangs down the back, sways, and streams out behind when he moves.
+// Both sit on the head and are hidden until that style is worn. updateHair() moves them every frame.
+
+// One tongue of fire: a cone standing on its base, pale yellow at the root through orange to red at the tip.
+const tongueGeo = (() => {
+  const HEIGHT = 0.36;
+  const geo = new THREE.ConeGeometry(0.075, HEIGHT, 7, 3).translate(0, HEIGHT / 2, 0);
+  const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
+  const root = new THREE.Color('#fff3b8'), mid = new THREE.Color('#ffae28'), tip = new THREE.Color('#ff3a0a'), c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const t = pos.getY(i) / HEIGHT;
+    if (t < 0.4) c.copy(root).lerp(mid, t / 0.4); else c.copy(mid).lerp(tip, (t - 0.4) / 0.6);
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return geo;
+})();
+const fireHairMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
+// Where each tongue stands on the head: x, y, z, how far it leans back, how far to the side, and its size.
+const TONGUES = [
+  [0, 0.15, 0.03, -0.2, 0, 1.25], [0.09, 0.13, 0.01, -0.3, -0.45, 1.05], [-0.09, 0.13, 0.01, -0.3, 0.45, 1.05],
+  [0, 0.14, -0.08, -0.75, 0, 1.3], [0.11, 0.09, -0.07, -0.8, -0.6, 1.0], [-0.11, 0.09, -0.07, -0.8, 0.6, 1.0],
+  [0.05, 0.06, -0.15, -1.3, -0.25, 1.15], [-0.05, 0.06, -0.15, -1.3, 0.25, 1.15], [0, -0.02, -0.17, -1.75, 0, 0.95],
+];
+// A cap over the top and back of the head, so there is something for the hair to grow from.
+const hairCapGeo = new THREE.SphereGeometry(0.183, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.52);
+
+// Water hair is made of flat strands. A strand is a ribbon of STRAND_CUTS pieces, rebuilt every frame so it can flow.
+const STRAND_CUTS = 12;
+// Each strand: which side of the head it hangs on (-1, 0, 1), its width at the root, its length, and a number that
+// puts its swaying out of step with the others.
+const STRANDS = [[0, 0.13, 1.05, 0], [1, 0.095, 0.9, 1.7], [-1, 0.095, 0.9, 3.1]];
+// The surface of the water: a mid blue with lighter and darker lines running down it. It slides down the strand
+// (see updateHair), which is what makes the hair look as if it is pouring.
+const waterHairTex = canvasTex(64, 256, x => {
+  x.fillStyle = '#4f9df0';
+  x.fillRect(0, 0, 64, 256);
+  x.lineCap = 'round';
+  for (let i = 0; i < 26; i++) {
+    const px = Math.random() * 64, py = Math.random() * 256, len = 30 + Math.random() * 70;
+    x.strokeStyle = Math.random() < 0.6 ? 'rgba(225,244,255,0.75)' : 'rgba(20,70,170,0.5)';
+    x.lineWidth = 1.5 + Math.random() * 2.5;
+    x.beginPath();
+    x.moveTo(px, py);
+    x.quadraticCurveTo(px + (Math.random() - 0.5) * 10, py + len * 0.5, px, py + len);
+    x.stroke();
+  }
+});
+waterHairTex.wrapT = THREE.RepeatWrapping;
+const waterHairMat = new THREE.MeshBasicMaterial({ map: waterHairTex, vertexColors: true, side: THREE.DoubleSide, transparent: true, opacity: 0.94, toneMapped: false });
+function strandGeo() {
+  const count = (STRAND_CUTS + 1) * 2;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 3), 3).setUsage(THREE.DynamicDrawUsage));
+  const uv = new Float32Array(count * 2), col = new Float32Array(count * 3), idx = [];
+  for (let i = 0; i <= STRAND_CUTS; i++) {
+    const along = i / STRAND_CUTS;
+    uv.set([0, along * 1.5, 1, along * 1.5], i * 4);
+    // deeper blue at the root, almost white at the tip
+    const shade = [0.5 + 0.5 * along, 0.68 + 0.32 * along, 1];
+    col.set([...shade, ...shade], i * 6);
+    if (i < STRAND_CUTS) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
+  }
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  return geo;
 }
-const hatUnderMat = new THREE.MeshLambertMaterial({ color: 0x6a5230 });    // the shaded underside of the brim
-let hatMats = null;    // { water, flame }: the top of the hat with each style's symbol, made with the suit
+// How the player is moving, in his own terms (forwards, sideways, up), smoothed. The water hair trails against it.
+const hairFlow = { ahead: 0, aside: 0, up: 0 };
+// Once per frame while a style is worn (from updateStyles). t = seconds, for the flicker and sway.
+function updateHair(t, dt) {
+  if (outfit.flameHair.visible) {
+    outfit.flameHair.children.forEach((tongue, i) => {
+      if (!tongue.userData.tongue) return;
+      const [, , , , lean, size] = tongue.userData.tongue;
+      // each tongue stretches and shrinks at its own pace, and wavers from side to side
+      const stretch = 1 + Math.sin(t * (7 + i * 1.3) + i * 2.1) * 0.2 + Math.sin(t * 21 + i * 4.7) * 0.08;
+      tongue.scale.set(size / Math.sqrt(stretch), size * stretch, size / Math.sqrt(stretch));
+      tongue.rotation.z = lean + Math.sin(t * 5.5 + i * 1.9) * 0.13;
+    });
+  }
+  if (outfit.waterHair.visible) {
+    const sin = Math.sin(P.yaw), cos = Math.cos(P.yaw);
+    hairFlow.ahead = damp(hairFlow.ahead, P.vel.x * sin + P.vel.z * cos, 7, dt);
+    hairFlow.aside = damp(hairFlow.aside, P.vel.x * cos - P.vel.z * sin, 7, dt);
+    hairFlow.up = damp(hairFlow.up, P.vel.y, 7, dt);
+    // how far the tip is carried: back when running forwards, up when falling, sideways against a strafe
+    const back = clamp(hairFlow.ahead * 0.03, -0.12, 0.65), lift = clamp(-hairFlow.up * 0.03, -0.2, 0.6), drift = clamp(-hairFlow.aside * 0.025, -0.3, 0.3);
+    for (const strand of outfit.waterHair.children) {
+      if (!strand.userData.strand) continue;
+      const [side, width, length, phase] = strand.userData.strand;
+      const pos = strand.geometry.attributes.position;
+      for (let i = 0; i <= STRAND_CUTS; i++) {
+        const along = i / STRAND_CUTS, tipward = along * along;    // the further down the strand, the more it moves
+        const x = side * (0.07 + 0.05 * along) + Math.sin(t * 2.6 + along * 5 + phase) * 0.045 * along + drift * tipward;
+        const y = 0.1 - along * length + lift * tipward;
+        const z = -0.15 - 0.2 * Math.sin(along * 1.4) - back * tipward;
+        const half = width * (1 - 0.7 * along);
+        pos.setXYZ(i * 2, x - half, y, z);
+        pos.setXYZ(i * 2 + 1, x + half, y, z);
+      }
+      pos.needsUpdate = true;
+    }
+    waterHairTex.offset.y = -t * 0.55;
+  }
+}
 // Wisps for the sword: a strip of fine wavy lines, mostly along its two long edges, that repeats end to end.
 const wispTex = canvasTex(256, 64, x => {
   x.lineCap = 'round';
@@ -211,7 +271,7 @@ const haloMat = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.Additiv
 const auraMat = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.2, toneMapped: false });
 
 // The pieces. suit.parts is all of them (to show and hide together); the named ones are swapped between styles.
-export const outfit = { parts: [], armoured: [], coats: [], hat: null, coat: null, chest: null, attached: false };
+export const outfit = { parts: [], armoured: [], coats: [], flameHair: null, waterHair: null, coat: null, chest: null, attached: false };
 function attachOutfit() {
   mats = { water: suitMats(STYLES.water), flame: suitMats(STYLES.flame) };
   // put a piece on a part of the body and remember it. kind says which material set it follows.
@@ -255,11 +315,31 @@ function attachOutfit() {
   const cape = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 1.2), coat);
   cape.rotation.x = 0.18;
   add(cape, player.chest, 0, -0.6, -0.17, 'coat');
-  // The hat: a low wide cone sitting on the head, tipped back a little. A cone has two surfaces, its sloping top
-  // and its flat underside, so it takes two materials.
-  hatMats = { water: new THREE.MeshLambertMaterial({ map: hatTex(STYLES.water) }), flame: new THREE.MeshLambertMaterial({ map: hatTex(STYLES.flame) }) };
-  outfit.hat = add(new THREE.Mesh(new THREE.ConeGeometry(0.37, 0.17, 28), [hatMats.water, hatUnderMat]), player.head, 0, 0.19, 0);
-  outfit.hat.rotation.x = -0.1;
+  // The hair. Each style's is a group of its own on the head, shown only for that style (they are kept out of
+  // outfit.parts, which is everything that shows for every style).
+  outfit.flameHair = new THREE.Group();
+  const fireCap = new THREE.Mesh(hairCapGeo, new THREE.MeshBasicMaterial({ color: 0xff9a2a, toneMapped: false }));
+  fireCap.rotation.x = -0.45;
+  outfit.flameHair.add(fireCap);
+  for (const spec of TONGUES) {
+    const tongue = new THREE.Mesh(tongueGeo, fireHairMat);
+    tongue.position.set(spec[0], spec[1], spec[2]);
+    tongue.rotation.set(spec[3], 0, spec[4]);
+    tongue.userData.tongue = spec;
+    outfit.flameHair.add(tongue);
+  }
+  outfit.waterHair = new THREE.Group();
+  const waterCap = new THREE.Mesh(hairCapGeo, new THREE.MeshBasicMaterial({ color: 0x3a86e6, toneMapped: false }));
+  waterCap.rotation.x = -0.45;
+  outfit.waterHair.add(waterCap);
+  for (const spec of STRANDS) {
+    const strand = new THREE.Mesh(strandGeo(), waterHairMat);
+    strand.frustumCulled = false;    // its shape changes every frame
+    strand.userData.strand = spec;
+    outfit.waterHair.add(strand);
+  }
+  player.head.add(outfit.flameHair);
+  player.head.add(outfit.waterHair);
   // the eyes: two small points of light in the style's colour, each with a faint halo
   for (const side of [1, -1]) {
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), eyeMat);
@@ -295,10 +375,11 @@ function applyLook() {
   playerMat.color.setHex(s ? ARMOUR : PLAIN_SKIN);
   player.head.material = s ? faceMat : playerMat;
   for (const m of outfit.parts) m.visible = !!s;
+  outfit.flameHair.visible = !!s && s.id === 'flame';
+  outfit.waterHair.visible = !!s && s.id === 'water';
   if (s) {
     for (const m of outfit.armoured) m.material = mats[s.id].armour;
     for (const m of outfit.coats) m.material = mats[s.id].coat;
-    outfit.hat.material = [hatMats[s.id], hatUnderMat];
     eyeMat.color.setHex(s.eyes);
     haloMat.color.setHex(s.glowHex);
     auraMat.color.setHex(s.glowHex);
@@ -593,6 +674,7 @@ export function updateStyles(dt) {
   if (style.cur) {
     // the wisps on the sword flow along the blade, and now and then a spark drifts off the body
     wispTex.offset.x = -t * 1.5;
+    updateHair(t, dt);
     sparkT -= dt;
     if (sparkT <= 0) {
       sparkT = 0.09 + Math.random() * 0.12;

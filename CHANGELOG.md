@@ -2,14 +2,16 @@
 
 Newest first. One entry per merged feature: what changed, where, how to check it, and the git tag to go back to.
 
-## v0.8-world: grass, rocks, a resized suit and a sun hat
+## v0.8-world: grass, rocks, element hair, enemy looks, and Sen's throw
 
 - **Grass:** the arena floor is painted grass, flat on the ground. (A first version also had tufts standing up out of it; those were removed.) The training hall keeps its tiled floor.
 - **Rocks:** every block in the world is now drawn as a faceted rock with chipped, uneven sides and rock colours (grey stone, sandstone platforms, mossy stairs), and the outline edges are gone. Collision is unchanged: each rock still behaves as the plain box it was, its top is exactly flat, and its sides only go inwards.
 - **Suit:** the same design at a new size, halfway between the original bulky build and a slim one that was tried: chest plate, shoulder guards and spikes, gauntlets, greaves, belt, coat and cape.
-- **Hat:** the hood is gone. In its place is a plain wide straw sun hat with the style's symbol painted on it front and back: a flame for Flame, a drop of water for Water. The face is its normal colour again under it, with two small glowing eyes. (A deep cowl and then an assassin's hood were tried first.)
-- **Where:** `rockGeo()` and `grassTex` in `js/world.js`; `hatTex()` and the sizes in `attachOutfit()` in `js/styles.js`.
-- **Load on Low:** draw calls in the arena went down, from 328 to about 310, because the outline edges are gone. Triangles went up from about 14,400 to about 15,000 (rock facets).
+- **Hair:** no hood and no hat. A style now gives the character hair made of its element. Flame: a head of fire, tongues of flame standing up and back, each flickering. Water: long hair of running water down the back that sways, streams out behind when you run and lifts when you fall. The face is its normal colour, with two small glowing eyes. (A deep cowl, an assassin's hood and a sun hat were each tried first.)
+- **Enemy looks:** each kind of enemy now has shapes that say what it does. Practice dummies wear a bucket and a painted target. Shield ones are guards with a steel helm, shoulder plates and thick limbs. Flying ones have wings that flap. Fighters are horned brutes with spiked shoulders, thick arms and glowing red eyes, and are bigger than the rest.
+- **Master Sen's throw:** his punishment for a second hit now takes turns. One time it is the leap and slam (60% of your health); the next he winds up and hurls you in a long arc onto the top of one of the rocks (40%). Where there is no rock to land on, such as the training hall, it is always the slam.
+- **Where:** `rockGeo()` and `grassTex` in `js/world.js`; the hair and the sizes in `attachOutfit()`, and `updateHair()`, in `js/styles.js`; new `js/skins.js`; the grab section of `js/master.js`.
+- **Load on Low:** about 340 draw calls in the arena, up from 328: the rocks removed about 20 (no outline edges) and the enemy shapes added about 30. The draw budget in the smoke test was raised from 335 to 375 on purpose for this. Triangles went from about 14,400 to about 17,000.
 - **Check:** `bash tests/smoke.sh`; `bash tests/drawcost.sh`.
 
 ## v0.7-styles: sword styles from the world, and a new Master Sen
