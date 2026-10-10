@@ -101,6 +101,8 @@ Long spear. Everything unlocked.
 
 A style is taken from a place in the world and lasts 20 seconds. It changes the slash's colour and painted look, puts the character in a suit of dark armour glowing in that element's colour, and adds one effect. The normal moves stay the same.
 
+Under any style the dash (Shift) turns you into its element for as long as it lasts. Your body shrinks into the heart of the effect as the dash starts and grows back out of it over about a quarter of a second afterwards, with the last of the element drawn back in. Only the look changes: the dash goes as far and as fast as ever, and you still cannot be hit during it.
+
 Rules for all styles:
 
 - One at a time. Taking another replaces it; taking the same one again refills the time.
@@ -114,6 +116,7 @@ Rules for all styles:
 | **The scene** | You go under the water; a close-up shows your eyes closed, a blue slash sweeps across, and they snap open blazing blue; you burst back out | You stand burning in the flames; the same close-up with an orange slash and orange eyes; you step out | You spin in the middle of the storm with the sword held up while bolt after bolt comes down on you; the same close-up with a yellow slash and yellow eyes |
 | **Slash** | Blue, with white foam along the edge | Orange, with tongues of fire along the edge | Yellow, with a jagged line of lightning along the edge and another through the middle |
 | **Hair** | Long hair of running water down the back. It sways, streams out behind when you run and lifts when you fall | A head of fire: tongues of flame standing up and back, each flickering | Sharp yellow spikes standing straight out from the head, twitching, with small white arcs jumping between them |
+| **Dash** | You become a stream of water: blue blobs that sag and fall, bright drops flung off, a ring where you land | You become smoke: a thick dark rush with a glow of heat inside and embers thrown out | You become lightning: a jagged bolt along your path with thin branches and sparks |
 | **Suit** | Dark armour split by glowing blue cracks; pale blue eyes; thin blue wisps flowing along the sword; blue sparks | The same armour split by glowing lava-orange cracks; gold eyes; thin wisps of fire flowing along the sword; orange sparks | The same armour split by glowing yellow cracks; pale yellow eyes; thin yellow wisps along the sword; yellow sparks |
 | **Effect on every hit** | Takes 0.12 s off all your cooldowns | Sets the target burning: 14 damage a second for 4 s | 40% of the damage jumps along a bolt to the nearest other enemy within 6. A jump does not jump again |
 | **Other change** | Sword attacks, Cyclone and Meteor Slam reach 20% further | None | You run 15% faster |

@@ -94,6 +94,8 @@ Where everything is, what the short names mean, and how to add things. If this f
 | The Blademaster's stance, run and sword swings | The `id === 'blade'` blocks and `case 'slash'` in `animatePlayer()` in `js/anim.js` |
 | How much things glow (impact flashes, the halo on the weapon, afterimages) | `spawnGlow()` and the effect pools in `js/fx.js`; `bladeGlow` in `js/player.js` |
 | The outline light on characters | `addRim()` in `js/stickman.js` |
+| What a dash looks like under a sword style (the smoke, the bolt, the water) | `FORMS` in `js/dashfx.js`: each style's `stream` and `gather` |
+| How fast the body turns into the element and comes back, and how small it shrinks | `DISSOLVE_TIME`, `REFORM_TIME` and `SMALLEST` in `js/dashfx.js` |
 | What Low and High graphics do | `applyQuality()` in `js/quality.js` |
 | What gets saved between sessions | `save` in `js/util.js` |
 
@@ -148,6 +150,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/dojo.js` | The training hall: teleporting there, building and clearing each trial's layout |
 | `js/styles.js` | Sword styles (Water, Flame, Thunder), the pools, fires and storms they are taken from, and the scene of taking one |
 | `js/cutin.js` | The close-up of the eyes that cuts across the screen when a style is taken |
+| `js/dashfx.js` | The elemental dash: under a sword style the player becomes smoke, lightning or water for the dash |
 | `js/sky.js` | The dusk sky: gradient dome, sun, stars |
 | `js/quality.js` | The Low / High graphics setting |
 | `vendor/three.module.js` | The three.js library (not ours; do not edit) |
@@ -207,6 +210,8 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `P.splat` | True while the player is stuck flat against a rock after Master Sen's throw |
 | `P.sink` | How far the body is drawn below where it stands, for going under the water. 0 the rest of the time |
 | `reach()` | How much further sword attacks reach under the current style (1 = normal) |
+| dash form, `form.amount` | The player turned into their style's element during a dash. 0 = the body, 1 = all element; it rises fast when a dash starts and falls more slowly after |
+| particle cloud | Many small soft dots drawn in one draw call. `soft` (drawn normally: smoke, water) and `bright` (added as light: embers, sparks) in `js/dashfx.js` |
 | `slashColor()` | The colour sword effects should use: the style's, or the class's when there is none |
 | rank | How far a skill has been trained: 0 = locked, 1 to 3 = learned. `rankOf()` in `js/progress.js` |
 | trial | A timed test that earns a rank. Runs on top of the challenge system; `chal.st` is its scratch space, `chal.st.n` its progress |
@@ -334,6 +339,8 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Enemy shapes cost draw calls.** Each shape on each enemy is one more. In `js/skins.js`, shapes that always go together are joined into one (`joined()`); do the same for new ones. Put expensive extras behind High in `js/quality.js`.
 - **A blade's slash must come from the blade.** Do not add a ready-made slash shape for a weapon attack: it will not line up with the swing. Change the pose in `js/anim.js` and the slash follows by itself.
 - **Poses are targets, not positions.** `animatePlayer()` sets where each joint should go (`tp`); springs move the real pose there. To make something happen instantly, set `pose` as well as `tp`.
+- **The player's size belongs to the dash form.** `animatePlayer()` sets `player.root.scale` from `formScale()` every frame, so setting that scale anywhere else has no effect.
+- **Particle clouds have a fixed size.** Each holds `CLOUD_SIZE` particles and reuses the oldest. Emitting far more per second than that lasts makes the trail cut off early.
 - **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.
 - **`dt` or `rdt`.** Gameplay uses `dt` so it slows down during hitstop. Camera and on-screen display use `rdt`.
 - **Only boxes.** Collision assumes every solid is an upright box (however rocky it is drawn). A slope or rotated wall will not collide correctly.

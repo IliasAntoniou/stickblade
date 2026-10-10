@@ -35,6 +35,7 @@ import { playerMat, player } from './player.js';
 import { quality, applyQuality, updateQuality } from './quality.js';
 import { QUESTS, story, initStory, questState, acceptQuest, turnInQuest, questEvent, questLine, resetStory } from './quests.js';
 import { MOUNTS, mount, initMounts, toggleMount, animateMount, mountFor } from './mounts.js';
+import { form, soft, bright, bolts, updateDashForm, formScale } from './dashfx.js';
 
 // ================= loop =================
 const clock = new THREE.Clock();
@@ -42,6 +43,7 @@ let frozen = false;    // debug only: stops the game advancing so a moment can b
 function step(dt) {
   update(dt);
   updateStyles(dt);
+  updateDashForm(dt);    // before animatePlayer, which draws the body at the size this sets
   animatePlayer(dt);
   animateMount(dt);
   updateFx(dt);
@@ -82,6 +84,7 @@ if (DEBUG !== null) {
     hurtPlayer, respawnPlayer, hitDummy, setMouse, step, updateCamera, updateHud, TUNE, applyTune, resetTuning, rankOf, startTrial, unlockAll, resetProgress, setHitSrc, DOJO, dojo, enterDojo, leaveDojo, setupTrial, clearTrial, totalDmg: () => totalDmg,
     get T() { return T; }, get CL() { return CL; } };
   Object.assign(window.SB, { MOUNTS, mount, toggleMount, mountFor });
+  Object.assign(window.SB, { dashForm: form, dashSoft: soft, dashBright: bright, dashBolts: bolts, formScale });
   // &quality=high (with ?debug) switches the graphics setting for this visit, for screenshots.
   const wantQuality = new URLSearchParams(location.search).get('quality');
   if (wantQuality) applyQuality(wantQuality);

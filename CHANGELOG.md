@@ -2,6 +2,16 @@
 
 Newest first. One entry per merged feature: what changed, where, how to check it, and the git tag to go back to.
 
+## v0.11-dash: the dash turns you into your element
+
+- **What:** dashing under a sword style no longer leaves afterimages. You become the element for the length of the dash. Flame: a thick rush of dark smoke with a glow of heat in it and embers flying off. Thunder: a jagged bolt of lightning along your path, with thin branches and sparks. Water: a stream of water that sags and falls, with bright drops flung off and a ring where you land. With no style the dash looks as it did.
+- **Smooth in and out:** the body is never swapped for the effect in one frame. It shrinks into the heart of the effect over the first 0.05 s of the dash and grows back out over 0.24 s afterwards, while what is left of the element is drawn back in towards it.
+- **Only the look:** distance, speed, charges and not being hit are all unchanged.
+- **Load:** all the smoke, water and sparks are two particle clouds, one draw call each, and only while something is in them. A lightning dash adds up to 18 short-lived pieces. Nothing is added when not dashing, so the Low draw budget is unchanged.
+- **Where:** new `js/dashfx.js` (`FORMS`, `updateDashForm()`, `formScale()`); `animatePlayer()` in `js/anim.js` draws the body at that size; the `dash` case in `js/update.js` skips the afterimages; `step()` in `js/main.js` runs it.
+- **Not tuned yet:** how thick, dark and long-lasting each effect is.
+- **Check:** `bash tests/smoke.sh`. To look at a dash frozen partway: `?debug=pose:dash&style=flame`, `&style=thunder`, `&style=water`; add `&frames=14` to stop it while the body is growing back.
+
 ## v0.10-mounts: X calls a mount (Rewind is gone), and the camera starts zoomed out
 
 - **Mounts:** X no longer rewinds. It calls something to ride, and X again gets off. With no sword style it is a car; with Flame a fire horse; with Thunder a lightning lion; with Water a war elephant. The mount changes under you if the style changes or runs out. Every class can ride (the other classes always get the car, since only the sword takes styles).
