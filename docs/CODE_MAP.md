@@ -359,6 +359,7 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Read the style before a slam lands.** Landing in a pool changes the style during the blast, so the slam case in `update()` takes `power()` first and passes it to `slamLanded()`.
 - **Fire on the ground outlives the style, not a respawn.** `clearElements()` runs on every respawn (and so at the start of a trial); the style running out does not put fires out.
 - **Call `setHitSrc()` for each enemy in a loop.** A hit can set off an element's effect that deals damage of its own and changes the source.
+- **Nothing new may come out of a dash once it has ended.** After the dash the ribbons keep waving and fading (that is what keeps the ending alive), and their front end stays on the player, but `recordPath()` adds no more to them. Do not freeze them or pull them in either: that was tried and made the ending feel dead.
 - **A dash effect has to be one continuous shape from the player backwards.** Puffs left along the path read as a trail behind the player, not as the player. The lightning's bolt and the ribbons are what make it read as being the element: keep that when changing them.
 - **Colours for particles are not what they look like.** They are brightened on the way to the screen: orange needs very little green, dark smoke is almost black.
 - **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.

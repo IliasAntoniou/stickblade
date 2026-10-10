@@ -233,7 +233,14 @@ scene.add(ribbons);
 
 // Remember where the dash is now. The newest point always follows the player; a new one is started only every
 // PATH_GAP seconds.
-function recordPath(at) {
+// grow = false (the dash is over, the body is coming back): nothing new is added. The front end of the ribbons
+// only keeps hold of the player, and the rest goes on waving and fading as it was. Adding to them here made a
+// fresh, bright length of ribbon pour out behind the player after the dash had finished.
+function recordPath(at, grow) {
+  if (!grow) {
+    if (pathCount > 0) path[0].pos.copy(at);
+    return;
+  }
   if (pathCount === 0 || ribbonClock - path[Math.min(1, pathCount - 1)].born >= PATH_GAP || pathCount === 1) {
     const oldest = path.pop();
     path.unshift(oldest);
@@ -408,7 +415,7 @@ export function updateDashForm(dt) {
       _side.normalize();
       _up.crossVectors(P.dashDir, _side).normalize();
       if (_up.y < 0) _up.negate();
-      recordPath(_at);
+      recordPath(_at, dashing);
     }
     if (dashing) {
       // dt-based, so the stream is as thick at 30 frames a second as at 144
