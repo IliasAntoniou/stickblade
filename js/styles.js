@@ -1,5 +1,6 @@
 // styles.js: sword styles. A style is a temporary change to the character: a new colour and painted look for the
 // slashes, a suit of armour, and one extra effect on top of the normal moves. It lasts STYLE_TIME seconds.
+// What each style does to the four skills (its job as a power) is in elements.js.
 // Styles are taken from places in the world ("sources"): Meteor Slam into a pool for Water, Blink Strike into a
 // fire for Flame, Cyclone inside a storm for Thunder. Taking one plays a short scene: the character goes under the
 // water, stands burning in the fire or spins under the lightning, a close-up of his eyes blazing in the style's
@@ -34,14 +35,14 @@ export const STYLES = {
     id: 'water', name: 'Water', color: 0x2f8fff, paint: 'water', reach: 1.2,
     glow: '#2f8fff', core: '#dff3ff', glowHex: 0x2f8fff, eyes: 0xbfe6ff, spark: 2,
     flow: 0.12,        // seconds taken off every cooldown each time a hit lands
-    how: 'Meteor Slam into a pool', perk: 'Slashes reach further, and every hit shortens your cooldowns',
+    how: 'Meteor Slam into a pool', perk: 'Control and survival: your skills drag enemies in, shove them away and heal you. Slashes reach further and hits shorten cooldowns',
   },
   flame: {
     id: 'flame', name: 'Flame', color: 0xff5a1a, paint: 'flame', reach: 1,
     glow: '#ff5a1a', core: '#ffe6a0', glowHex: 0xff5a1a, eyes: 0xffc24a, spark: 0,
     burnTime: 4,       // seconds a target keeps burning after the last hit
     burnDps: 14,       // burn damage per second
-    how: 'Lock on to a fire and Blink Strike into it', perk: 'Every hit sets the target burning',
+    how: 'Lock on to a fire and Blink Strike into it', perk: 'Destruction: every hit sets the target burning, and your skills leave fire behind',
   },
   thunder: {
     id: 'thunder', name: 'Thunder', color: 0xffe24a, paint: 'thunder', reach: 1,
@@ -49,7 +50,7 @@ export const STYLES = {
     chain: 0.4,        // share of each hit's damage that jumps on to one more enemy
     chainRange: 6,     // how far that jump can reach
     speed: 1.15,       // multiplies running speed
-    how: 'Use Cyclone inside a storm', perk: 'Every hit arcs to a second enemy nearby, and you run faster',
+    how: 'Use Cyclone inside a storm', perk: 'Speed and stuns: your skills jump between enemies and freeze them. Hits arc to a second enemy and you run faster',
   },
 };
 

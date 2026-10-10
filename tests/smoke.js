@@ -700,6 +700,117 @@ check('style: Cyclone outside the storm gives nothing', () => {
   run(90);
   return spinning && style.cur === null;
 });
+// element powers: under a sword style the four skills do something different, and each element has its own job
+// Stand in open ground with a style on (null = plain sword), every skill usable and off cooldown.
+function asElement(id) {
+  SB.unlockAll(); SB.setClass('blade'); reset(); SB.clearStyle();
+  P.pos.set(0, 0, 40); P.vel.set(0, 0, 0); SB.setCamYaw(0);
+  if (id) SB.giveStyle(id);
+  run(3);
+}
+// Stand a dummy somewhere and keep it there.
+function put(d, x, z) { d.respawn(false); d.pos.set(x, 0, z); d.anchor.set(x, 0, z); d.vel.set(0, 0, 0); return d; }
+function putBack(...list) { for (const d of list) { d.anchor.copy(d.base); d.respawn(false); } }
+const basics = () => dummies.filter(d => d.type === 'basic' && !d.patrol);
+// Meteor Slam from 6 up, and wait for the landing.
+function slamHere() { P.pos.y = 6; P.grounded = false; P.cd.r = 0; press('KeyR', 3); for (let i = 0; i < 90 && P.state !== 'normal'; i++) run(1); }
+check('element: the skills are renamed while a style is on', () => {
+  asElement('flame'); if (SB.skillAlt('q') !== 'Fire Burst' || SB.skillAlt('r') !== 'Burning Crater') return false;
+  SB.giveStyle('water'); if (SB.skillAlt('e') !== 'Whirlpool') return false;
+  SB.clearStyle();
+  return SB.skillAlt('q') === null;
+});
+check('element: Flame slam leaves a crater that burns whoever walks in, then goes out', () => {
+  asElement('flame'); slamHere();
+  if (SB.zoneCount() !== 1) return false;
+  const d = put(basics()[0], 1.5, 40); run(20);
+  const burning = d.burnT > 0;
+  run(60 * 7);
+  const out = SB.zoneCount() === 0;
+  putBack(d);
+  return burning && out;
+});
+check('element: Flame Cyclone leaves a trail of fire; a plain one leaves nothing', () => {
+  asElement(null); press('KeyE', 40); if (SB.zoneCount() !== 0) return false;
+  asElement('flame'); press('KeyE', 40);
+  return SB.zoneCount() >= 3;
+});
+check('element: Flame Blink Strike explodes on those standing near the target', () => {
+  asElement('flame');
+  const [a, b] = basics(); put(a, 0, 34); put(b, 2.5, 34);
+  const hp = b.hp;
+  SB.blinkPower(a, { dmg: 40 });
+  const ok = b.hp < hp && b.burnT > 0;
+  putBack(a, b);
+  return ok;
+});
+check('element: Thunder Blink Strike jumps on to two more enemies and stuns them', () => {
+  asElement('thunder');
+  const [a, b, c, far] = basics(); put(a, 0, 34); put(b, 4, 34); put(c, 8, 34); put(far, 30, 34);
+  const hpB = b.hp, hpC = c.hp, hpFar = far.hp;
+  SB.blinkPower(a, { dmg: 40 });
+  const ok = b.hp < hpB - 20 && c.hp < hpC - 20 && far.hp === hpFar && b.stunT > 0 && c.stunT > 0 && Math.hypot(P.pos.x - c.pos.x, P.pos.z - c.pos.z) < 2.5;
+  putBack(a, b, c, far);
+  return ok;
+});
+check('element: Water Blink Strike soaks the target, which then takes more', () => {
+  asElement('water');
+  const a = put(basics()[0], 0, 34);
+  SB.blinkPower(a, { dmg: 40 });
+  if (!(a.soakT > 0)) return false;
+  SB.clearStyle();                                        // so only the soaking is measured
+  const hp = a.hp; skillHit('atk', a);
+  const soaked = hp - a.hp;                               // 10 damage, give or take 10%, times 1.3: at least 12
+  a.soakT = 0; const hp2 = a.hp; skillHit('atk', a);
+  const dry = hp2 - a.hp;                                 // at most 11
+  putBack(a);
+  return soaked >= 12 && dry <= 11;
+});
+check('element: Water Cyclone drags enemies in from outside its reach', () => {
+  asElement('water');
+  const d = put(basics()[0], 6, 37);                      // off to the side of the path, beyond the spin
+  press('KeyE', 20);
+  const pulled = d.pos.x < 5;
+  putBack(d);
+  return pulled;
+});
+check('element: Thunder Cyclone can be steered', () => {
+  asElement('thunder'); SB.keys.add('KeyW'); press('KeyE', 4); SB.keys.delete('KeyW');
+  const before = P.skDir.x;
+  SB.keys.add('KeyD'); run(12); SB.keys.delete('KeyD');   // lean right mid-spin
+  return P.state === 'cyclone' && Math.abs(P.skDir.x - before) > 0.4;
+});
+check('element: Water slam heals for each enemy hit; Thunder slam stuns', () => {
+  asElement('water');
+  const [a, b, c] = basics(); put(a, 2, 40); put(b, -2, 40); put(c, 0, 42);
+  P.hp = 40; P.hurtT = 0;                                 // hurt just now, so health does not come back by itself
+  slamHere();
+  const healed = P.hp >= 40 + 17 && P.hp <= 40 + 19;      // 6 for each of the three
+  asElement('thunder');
+  const f = dummies.find(d => d.type === 'fighter' && !d.gang);
+  put(f, 2, 40); f.stunT = 0;
+  slamHere();
+  const stunned = f.stunT > 1;
+  putBack(a, b, c, f);
+  return healed && stunned;
+});
+check('element: Thunder Rising Slash calls a bolt down a moment later', () => {
+  asElement('thunder');
+  const d = put(basics()[0], 0, 38.5);                    // just in front
+  press('KeyF', 3);
+  const afterCut = d.hp;
+  if (SB.pendingCount() !== 1 || afterCut === d.maxHp) return false;
+  run(40);
+  const ok = SB.pendingCount() === 0 && d.hp < afterCut - 20;
+  putBack(d);
+  return ok;
+});
+check('element: a respawn puts the fires out', () => {
+  asElement('flame'); slamHere();
+  if (SB.zoneCount() !== 1) return false;
+  SB.respawnPlayer(); run(2);
+  return SB.zoneCount() === 0 && SB.pendingCount() === 0;
+});
 // the elemental dash: under a sword style the body turns into the element for the dash and comes back smoothly
 const dashForm = SB.dashForm, rootScale = () => SB.player.root.scale.x;
 // Stand in open ground and dash forwards under a style (null = none). Returns after the given number of frames.

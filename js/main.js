@@ -33,6 +33,7 @@ import { styleUnlocked } from './progress.js';
 import { cutinActive, playCutin } from './cutin.js';
 import { playerMat, player } from './player.js';
 import { quality, applyQuality, updateQuality } from './quality.js';
+import { POWERS, zoneCount, pendingCount, skillAlt, blinkPower } from './elements.js';
 import { QUESTS, story, initStory, questState, acceptQuest, turnInQuest, questEvent, questLine, resetStory } from './quests.js';
 import { MOUNTS, mount, initMounts, toggleMount, animateMount, mountFor } from './mounts.js';
 import { form, soft, bright, bolts, updateDashForm, formScale } from './dashfx.js';
@@ -85,6 +86,7 @@ if (DEBUG !== null) {
     get T() { return T; }, get CL() { return CL; } };
   Object.assign(window.SB, { MOUNTS, mount, toggleMount, mountFor });
   Object.assign(window.SB, { dashForm: form, dashSoft: soft, dashBright: bright, dashBolts: bolts, formScale });
+  Object.assign(window.SB, { POWERS, zoneCount, pendingCount, skillAlt, blinkPower });
   // &quality=high (with ?debug) switches the graphics setting for this visit, for screenshots.
   const wantQuality = new URLSearchParams(location.search).get('quality');
   if (wantQuality) applyQuality(wantQuality);

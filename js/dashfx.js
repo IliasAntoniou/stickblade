@@ -1,5 +1,5 @@
 // dashfx.js: dashing under a sword style turns the player into that element for the length of the dash.
-//   Flame = a rush of smoke and embers,  Thunder = a bolt of lightning,  Water = a stream of water.
+//   Flame = a corkscrew of fire and smoke,  Thunder = a zigzag bolt of lightning,  Water = a surging wave with a wake.
 // With no style the dash keeps its plain afterimages (update.js).
 // The change is never a cut. form.amount runs from 0 (the body) to 1 (all element): the body shrinks into the
 // middle of the effect as the dash starts and grows back out of it afterwards, while the element is thickest at
@@ -21,14 +21,14 @@ const SMALLEST = 0.06;         // the size the body shrinks to at the heart of t
 const CHEST = 1.0;             // height above the feet of the point the body shrinks into and the effect comes from
 
 // amount = 0 the body, 1 all element. kind = the entry of FORMS in use (kept while the body re-forms, even if the
-// style ends meanwhile). dashing = a dash with a form was running last frame.
-export const form = { amount: 0, kind: null, dashing: false };
+// style ends meanwhile). dashing = a dash with a form was running last frame. time = seconds since that dash began.
+export const form = { amount: 0, kind: null, dashing: false, time: 0 };
 
 // ---------- particle clouds ----------
 // Every particle of a cloud is drawn in one go (one draw call for the whole cloud, however many there are).
 // Two clouds: `soft` is drawn normally, so dark smoke and solid-looking water are possible; `bright` adds its
 // colour to what is behind it, which reads as light (embers, sparks, glints).
-const CLOUD_SIZE = 260;
+const CLOUD_SIZE = 420;
 function makeCloud(blending) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(CLOUD_SIZE * 3), 3));
@@ -49,6 +49,8 @@ function makeCloud(blending) {
 }
 export const soft = makeCloud(THREE.NormalBlending);
 export const bright = makeCloud(THREE.AdditiveBlending);
+bright.points.renderOrder = 2;    // light is drawn after smoke, so smoke never blots out the fire inside it
+soft.points.renderOrder = 1;
 
 const rand = spread => (Math.random() - 0.5) * 2 * spread;
 // Add one particle to a cloud. at = where, (vx, vy, vz) = its speed, size = how big (world units), grow = how fast
@@ -121,27 +123,48 @@ function updateBolts(dt) {
 
 // ---------- the three forms ----------
 // Colours are [red, green, blue], each 0 to 1.
-// (Smoke has to be given as almost black to come out dark grey: these numbers are brightened on the way to the screen.)
-const SMOKE = [0.035, 0.03, 0.035], HOT = [0.55, 0.16, 0.03], EMBER = [1, 0.5, 0.12], SPARK = [1, 0.95, 0.55], WATER = [0.05, 0.22, 0.75], GLINT = [0.7, 0.92, 1];
+// (These numbers are brightened on the way to the screen: smoke has to be given as almost black to come out dark
+// grey, and orange needs far less green than it looks like it should.)
+const SMOKE = [0.035, 0.03, 0.035], HOT = [1, 0.13, 0.01], EMBER = [1, 0.2, 0.02], CORE = [1, 0.5, 0.12], SPARK = [1, 0.95, 0.55], WATER = [0.05, 0.22, 0.75], GLINT = [0.7, 0.92, 1];
 const _at = new V3(), _to = new V3(), _last = new V3();
+// _side and _up point across the line of the dash (to its right, and upwards from it): the corkscrew and the
+// wave are drawn with them. strand flips between 0 and 1 so effects with two sides take turns.
+const _side = new V3(), _up = new V3();
+let strand = 0;
+const FIRE_TWIST = 85;      // how fast the corkscrew of fire turns, radians per second (about two full turns per dash)
+const FIRE_WIDTH = 0.62;    // how far from the line of the dash its two ropes are
+const WAVE_BEAT = 62;       // how fast the water rises and dips, radians per second (about one and a half waves per dash)
+const WAVE_HEIGHT = 0.6;    // how far above and below the line of the dash it goes
 // Each form: glow = colour of the flash at each end, rate = how many times a second `stream` runs during the dash,
-//   stream(at, dir)  = what pours off the player while dashing (at = the chest, dir = the way the dash is going)
+//   stream(at, dir, t) = what pours off the player while dashing (at = the chest, dir = the way the dash is
+//                      going, t = seconds since it began). Each element moves in its own way: fire winds in a
+//                      corkscrew, lightning zigzags, water surges like a wave
 //   gather(at)       = one wisp of the element being drawn back into the body as it re-forms
 const FORMS = {
   flame: {
-    glow: 0xff7a1f, rate: 230,
-    stream(at, dir) {
-      // a thick puff of dark smoke that swells and drifts upwards, left behind along the path
-      _to.set(at.x + rand(0.35), at.y + rand(0.45), at.z + rand(0.35));
-      emit(soft, _to, -dir.x * 2 + rand(1), 0.7 + rand(0.6), -dir.z * 2 + rand(1), 1.3 + Math.random() * 0.7, 2.4, 0.55 + Math.random() * 0.35, SMOKE, 1, -0.9, 2);
-      // a short-lived glow of heat in the middle of it, where the fire still is
-      if (Math.random() < 0.3) emit(bright, _to, -dir.x * 2 + rand(0.6), rand(0.6), -dir.z * 2 + rand(0.6), 0.9, 0.6, 0.16, HOT, 0.8, 0, 2);
-      // and embers thrown out of it
-      if (Math.random() < 0.5) emit(bright, _to, rand(3.5), rand(3.5) + 1, rand(3.5), 0.34, -0.4, 0.35 + Math.random() * 0.3, EMBER, 1, 3, 1);
+    glow: 0xff7a1f, rate: 260,
+    // A corkscrew: two ropes of fire wind round the line of the dash, opposite each other, each dragging smoke
+    // that keeps turning after it is left behind. Embers are flung outwards off the spin.
+    stream(at, dir, t) {
+      strand = 1 - strand;
+      const angle = t * FIRE_TWIST + strand * Math.PI;
+      const cos = Math.cos(angle), sin = Math.sin(angle);
+      // a point on the corkscrew, and the way the corkscrew is turning there
+      _to.copy(at).addScaledVector(_side, cos * FIRE_WIDTH).addScaledVector(_up, sin * FIRE_WIDTH);
+      const turnX = (-sin * _side.x + cos * _up.x) * 5, turnY = (-sin * _side.y + cos * _up.y) * 5, turnZ = (-sin * _side.z + cos * _up.z) * 5;
+      // the rope itself: bright fire that dies quickly
+      emit(bright, _to, turnX * 0.5, turnY * 0.5, turnZ * 0.5, 1.0, -1.4, 0.26 + Math.random() * 0.1, HOT, 1, 0, 1);
+      emit(bright, _to, turnX * 0.3, turnY * 0.3, turnZ * 0.3, 0.5, -0.8, 0.2, CORE, 1, 0, 1);
+      // the smoke it drags: carries on turning, swelling and rising
+      emit(soft, _to, turnX + rand(0.5), turnY + 0.6, turnZ + rand(0.5), 0.8 + Math.random() * 0.4, 2.0, 0.45 + Math.random() * 0.35, SMOKE, 0.8, -1.1, 2.2);
+      // embers thrown straight outwards
+      if (Math.random() < 0.35) emit(bright, _to, (cos * _side.x + sin * _up.x) * 7 + rand(1), (cos * _side.y + sin * _up.y) * 7 + 1, (cos * _side.z + sin * _up.z) * 7 + rand(1), 0.3, -0.4, 0.35 + Math.random() * 0.25, EMBER, 1, 4, 1);
     },
     gather(at) {
-      _to.set(at.x + rand(0.9), at.y + rand(0.9), at.z + rand(0.9));
-      emit(soft, _to, (at.x - _to.x) * 4, (at.y - _to.y) * 4 + 0.5, (at.z - _to.z) * 4, 1.0, 0.8, 0.3, SMOKE, 0.9, -0.5, 1);
+      // smoke spiralling back in: pulled towards the body and swept round it at the same time
+      _to.set(at.x + rand(1), at.y + rand(0.9), at.z + rand(1));
+      const inX = at.x - _to.x, inZ = at.z - _to.z;
+      emit(soft, _to, inX * 4 - inZ * 5, (at.y - _to.y) * 4 + 0.5, inZ * 4 + inX * 5, 1.0, 0.8, 0.3, SMOKE, 0.9, -0.5, 1);
     },
   },
   thunder: {
@@ -165,12 +188,23 @@ const FORMS = {
     },
   },
   water: {
-    glow: 0x2f8fff, rate: 240,
-    stream(at, dir) {
-      // a rope of water: blobs left along the path that sag and fall, with bright drops flung off it
-      _to.set(at.x + rand(0.28), at.y + rand(0.38), at.z + rand(0.28));
-      emit(soft, _to, -dir.x * 1.5 + rand(0.8), rand(0.8), -dir.z * 1.5 + rand(0.8), 0.6 + Math.random() * 0.35, 0.4, 0.38 + Math.random() * 0.2, WATER, 1, 7, 1);
-      if (Math.random() < 0.5) emit(bright, _to, rand(2.5), 1.5 + rand(2), rand(2.5), 0.2, -0.2, 0.3 + Math.random() * 0.15, GLINT, 0.9, 10, 0.5);
+    glow: 0x2f8fff, rate: 280,
+    // A surge: the stream leaps and dips like a wave running along the line of the dash, throwing spray off each
+    // crest, while a wake is thrown out low to both sides like the bow wave of a boat.
+    stream(at, dir, t) {
+      const swell = Math.sin(t * WAVE_BEAT);
+      // the body of the wave
+      _to.copy(at).addScaledVector(_up, swell * WAVE_HEIGHT);
+      _to.x += rand(0.22); _to.y += rand(0.25); _to.z += rand(0.22);
+      emit(soft, _to, -dir.x * 1.5, Math.cos(t * WAVE_BEAT) * 3, -dir.z * 1.5, 0.65 + Math.random() * 0.35, 0.4, 0.4 + Math.random() * 0.2, WATER, 1, 8, 1);
+      // spray off the top of each crest
+      if (swell > 0.6) emit(bright, _to, rand(2), 3.5 + rand(1.5), rand(2), 0.22, -0.2, 0.35 + Math.random() * 0.15, GLINT, 0.95, 11, 0.5);
+      // the wake: thrown out sideways from low down, one side then the other, arcing up and falling back
+      strand = 1 - strand;
+      const out = strand ? 1 : -1;
+      _to.copy(at).addScaledVector(_up, -0.75).addScaledVector(_side, out * 0.3);
+      emit(soft, _to, _side.x * out * 5.5 - dir.x * 2, 3.2 + rand(0.8), _side.z * out * 5.5 - dir.z * 2, 0.5, 0.3, 0.42, WATER, 0.9, 13, 0.6);
+      if (Math.random() < 0.4) emit(bright, _to, _side.x * out * 6.5, 4 + rand(1), _side.z * out * 6.5, 0.16, -0.1, 0.4, GLINT, 0.9, 13, 0.5);
     },
     gather(at) {
       // drops rising back up into the body
@@ -201,6 +235,7 @@ export function updateDashForm(dt) {
     form.kind = FORMS[style.cur.id];
     spawnGlow(_at, form.kind.glow, 2.4, 0.2);
     _last.copy(_at);
+    form.time = 0;
     streamOwed = 3;    // a little of the element straight away, so the body is covered as it shrinks
   }
   if (!dashing && form.dashing) {
@@ -209,12 +244,23 @@ export function updateDashForm(dt) {
     if (form.kind === FORMS.water && P.grounded) spawnRing(_to.set(P.pos.x, P.pos.y + 0.05, P.pos.z), 0.3, 2.4, 0.35, 0x2f8fff);
   }
   form.dashing = dashing;
+  if (dashing) form.time += dt;
   form.amount = dashing ? Math.min(1, form.amount + dt / DISSOLVE_TIME) : Math.max(0, form.amount - dt / REFORM_TIME);
   if (form.kind) {
     if (dashing) {
       // dt-based, so the stream is as thick at 30 frames a second as at 144
+      // across the dash: to its right, and up from it (for a dash straight up or down, any sideways will do)
+      _side.set(P.dashDir.z, 0, -P.dashDir.x);
+      if (_side.lengthSq() < 0.01) _side.set(1, 0, 0);
+      _side.normalize();
+      _up.crossVectors(P.dashDir, _side).normalize();
+      if (_up.y < 0) _up.negate();
       streamOwed += form.kind.rate * dt;
-      while (streamOwed >= 1) { streamOwed -= 1; form.kind.stream(_at, P.dashDir); }
+      while (streamOwed >= 1) {
+        streamOwed -= 1;
+        // spread this frame's share along the frame's time, so fast shapes are drawn smoothly, not in steps
+        form.kind.stream(_at, P.dashDir, form.time - streamOwed / form.kind.rate);
+      }
     } else if (form.amount > 0) {
       // re-forming: the element is drawn back in, less and less of it as the body returns
       gatherOwed += 90 * form.amount * dt;

@@ -63,6 +63,11 @@ Where everything is, what the short names mean, and how to add things. If this f
 | The grass on the ground: its colours | `grassTex` and the tint on the `ground` line in `js/world.js` |
 | The training hall's tiled floor | `tileTex` and `makeFloor()` in `js/world.js`, used from `js/dojo.js` |
 | A sword style's colour, how long it lasts, how strong its effect is (burn damage, extra reach) | `STYLES` and `STYLE_TIME` in `js/styles.js` |
+| What a sword style does to each skill, and every number behind it (explosion size, stun times, healing, how long fire burns) | `POWERS` in `js/elements.js` |
+| What being soaked does to an enemy | `SOAK` in `js/elements.js` |
+| What a skill is called on the skill bar under a style | `names` in `POWERS` in `js/elements.js` |
+| The patches of fire left on the ground | `addZone()` and `updateElements()` in `js/elements.js` |
+| How each element moves during a dash (the corkscrew, the wave) | `FIRE_TWIST`, `FIRE_WIDTH`, `WAVE_BEAT`, `WAVE_HEIGHT` and each `stream` in `FORMS` in `js/dashfx.js` |
 | Where the pool and the fire stand in the arena | The two `addSource()` lines at the bottom of `js/styles.js` |
 | How a style is taken (how close a slam has to land; how far away a fire can be locked on to; how wide a storm is) | `slamSources()`, `aimedFire()`, `FIRE_LOCK_RANGE`, `stormAt()` and `STORM_RADIUS` in `js/styles.js` |
 | Thunder's jump from one enemy to the next (share of damage, range) | `chainLightning()` and `chain`, `chainRange` in `STYLES.thunder` in `js/styles.js` |
@@ -150,6 +155,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/dojo.js` | The training hall: teleporting there, building and clearing each trial's layout |
 | `js/styles.js` | Sword styles (Water, Flame, Thunder), the pools, fires and storms they are taken from, and the scene of taking one |
 | `js/cutin.js` | The close-up of the eyes that cuts across the screen when a style is taken |
+| `js/elements.js` | What each sword style does to the four skills: Flame destroys, Thunder chains and stuns, Water controls and heals |
 | `js/dashfx.js` | The elemental dash: under a sword style the player becomes smoke, lightning or water for the dash |
 | `js/sky.js` | The dusk sky: gradient dome, sun, stars |
 | `js/quality.js` | The Low / High graphics setting |
@@ -210,6 +216,10 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `P.splat` | True while the player is stuck flat against a rock after Master Sen's throw |
 | `P.sink` | How far the body is drawn below where it stands, for going under the water. 0 the rest of the time |
 | `reach()` | How much further sword attacks reach under the current style (1 = normal) |
+| power, `POWERS` | What a sword style changes about the skills. `power()` gives the entry for the style in use, or null with a plain sword |
+| zone | A round patch of fire on the ground that sets burning whatever stands in it. Left by Flame's Cyclone and Meteor Slam |
+| soaked, `d.soakT` | Seconds an enemy stays soaked (Water's Blink Strike): it takes more damage and a fighter is slowed |
+| share | A power's number given as a part of the skill's own (0.6 = 60%), so it grows with the skill's rank |
 | dash form, `form.amount` | The player turned into their style's element during a dash. 0 = the body, 1 = all element; it rises fast when a dash starts and falls more slowly after |
 | particle cloud | Many small soft dots drawn in one draw call. `soft` (drawn normally: smoke, water) and `bright` (added as light: embers, sparks) in `js/dashfx.js` |
 | `slashColor()` | The colour sword effects should use: the style's, or the class's when there is none |
@@ -270,6 +280,7 @@ Water, Flame and Thunder in `js/styles.js` are the worked examples.
 4. Give it a source: a new kind in `addSource()`, a way to take it (like `slamSources()`, the lock-on used for fire, or `stormAt()` called from Cyclone) that calls `startTake()`, a line in `sourceHint()`, and one in the arena.
    Give its suit a colour: `glow`, `core`, `glowHex`, `eyes` and `spark`, and an entry in `mats` in `attachOutfit()`.
 5. Add its trial to the class's `trials` with `style: '<id>'` and `arena.sources`. Passing it unlocks the style.
+   Give it a job: an entry in `POWERS` in `js/elements.js` (a role, a name for each skill, its numbers), and a branch for it in each of the hook functions there (`blinkPower()`, `spinTick()`, `slamPower()`, `slamLanded()`, `risingPower()`, `risingHit()`). Give its dash a look: an entry in `FORMS` in `js/dashfx.js`.
 6. Add checks to the style part of `tests/smoke.js`, and a column to Part 2 of `docs/ABILITIES.md`.
 
 ### Add a task to the story
@@ -341,6 +352,11 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Poses are targets, not positions.** `animatePlayer()` sets where each joint should go (`tp`); springs move the real pose there. To make something happen instantly, set `pose` as well as `tp`.
 - **The player's size belongs to the dash form.** `animatePlayer()` sets `player.root.scale` from `formScale()` every frame, so setting that scale anywhere else has no effect.
 - **Particle clouds have a fixed size.** Each holds `CLOUD_SIZE` particles and reuses the oldest. Emitting far more per second than that lasts makes the trail cut off early.
+- **A skill asks the element, the element never runs the skill.** The four skills stay in `js/classes/blade.js` and `js/update.js` and call small functions in `js/elements.js` for what the style changes. With a plain sword every one of those returns "no change", so the skills behave exactly as before.
+- **Read the style before a slam lands.** Landing in a pool changes the style during the blast, so the slam case in `update()` takes `power()` first and passes it to `slamLanded()`.
+- **Fire on the ground outlives the style, not a respawn.** `clearElements()` runs on every respawn (and so at the start of a trial); the style running out does not put fires out.
+- **Call `setHitSrc()` for each enemy in a loop.** A hit can set off an element's effect that deals damage of its own and changes the source.
+- **Colours for particles are not what they look like.** They are brightened on the way to the screen: orange needs very little green, dark smoke is almost black.
 - **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.
 - **`dt` or `rdt`.** Gameplay uses `dt` so it slows down during hitstop. Camera and on-screen display use `rdt`.
 - **Only boxes.** Collision assumes every solid is an upright box (however rocky it is drawn). A slope or rotated wall will not collide correctly.

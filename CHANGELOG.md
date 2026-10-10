@@ -2,6 +2,19 @@
 
 Newest first. One entry per merged feature: what changed, where, how to check it, and the git tag to go back to.
 
+## v0.12-elements: each element is its own power
+
+- **What:** a sword style no longer just recolours the sword. Each element has a job, and all four skills do something different under it. The skill bar shows each skill's new name in gold while the style is on.
+  - **Flame, destruction:** Blink Strike explodes where you arrive. Cyclone leaves a trail of fire. Meteor Slam leaves a burning crater. Rising Slash is a wide pillar of fire that hits all around. Fire on the ground sets burning whatever stands in it.
+  - **Thunder, speed and stuns:** Blink Strike jumps on to two more enemies. Cyclone is faster, can be steered, and stuns. Meteor Slam stuns everything it hits. Rising Slash calls a bolt down on each enemy it launched.
+  - **Water, control and survival:** Blink Strike soaks the target (it takes more damage and is slowed). Cyclone is a whirlpool that drags enemies in. Meteor Slam is a wide wave that throws enemies back and heals you. Rising Slash is a geyser that holds enemies in the air and heals you.
+- **The fire and water dashes move:** fire is now a corkscrew, two ropes of flame winding round your path with smoke that keeps turning; water is a wave that leaps and dips, with spray off each crest and a wake thrown out to both sides. Lightning is unchanged.
+- **Unchanged:** with a plain sword every skill is exactly as it was, so the skill trials are not affected.
+- **Load:** fire on the ground is up to 16 flat patches, one draw call each while burning. Nothing is added when no element is in use.
+- **Where:** new `js/elements.js` (every number is in `POWERS`); the skills call into it from `bmBlink()` and `bmRising()` in `js/classes/blade.js` and from the `cyclone` and `slamDown` cases in `js/update.js`; soaking in `js/dummies.js`; `groundImpact()` in `js/player.js` takes a knockback; the dash motion in `FORMS` in `js/dashfx.js`.
+- **Not tuned yet:** every number in `POWERS` is a first guess, and so is how strong the elements are against each other.
+- **Check:** `bash tests/smoke.sh` (one check per power, plus that a plain sword leaves no fire and a respawn puts fires out). To look at the dashes: `?debug=pose:dash&style=flame` and `&style=water`.
+
 ## v0.11-dash: the dash turns you into your element
 
 - **What:** dashing under a sword style no longer leaves afterimages. You become the element for the length of the dash. Flame: a thick rush of dark smoke with a glow of heat in it and embers flying off. Thunder: a jagged bolt of lightning along your path, with thin branches and sparks. Water: a stream of water that sags and falls, with bright drops flung off and a ring where you land. With no style the dash looks as it did.

@@ -99,7 +99,11 @@ Long spear. Everything unlocked.
 
 # Part 2: Sword styles
 
-A style is taken from a place in the world and lasts 20 seconds. It changes the slash's colour and painted look, puts the character in a suit of dark armour glowing in that element's colour, and adds one effect. The normal moves stay the same.
+A style is taken from a place in the world and lasts 20 seconds. It changes the slash's colour and painted look, puts the character in a suit of dark armour glowing in that element's colour, adds an effect to every hit, and changes what all four skills do. Each element has a job:
+
+- **Flame is destruction.** The most damage, spread over an area and over time. It leaves fire behind that keeps burning. Best against groups.
+- **Thunder is speed and stuns.** It jumps from enemy to enemy and freezes them for a moment. Best for shutting down dangerous enemies.
+- **Water is control and survival.** It drags enemies in, shoves them away, weakens them and heals you. Best when you are surrounded or hurt.
 
 Under any style the dash (Shift) turns you into its element for as long as it lasts. Your body shrinks into the heart of the effect as the dash starts and grows back out of it over about a quarter of a second afterwards, with the last of the element drawn back in. Only the look changes: the dash goes as far and as fast as ever, and you still cannot be hit during it.
 
@@ -116,13 +120,26 @@ Rules for all styles:
 | **The scene** | You go under the water; a close-up shows your eyes closed, a blue slash sweeps across, and they snap open blazing blue; you burst back out | You stand burning in the flames; the same close-up with an orange slash and orange eyes; you step out | You spin in the middle of the storm with the sword held up while bolt after bolt comes down on you; the same close-up with a yellow slash and yellow eyes |
 | **Slash** | Blue, with white foam along the edge | Orange, with tongues of fire along the edge | Yellow, with a jagged line of lightning along the edge and another through the middle |
 | **Hair** | Long hair of running water down the back. It sways, streams out behind when you run and lifts when you fall | A head of fire: tongues of flame standing up and back, each flickering | Sharp yellow spikes standing straight out from the head, twitching, with small white arcs jumping between them |
-| **Dash** | You become a stream of water: blue blobs that sag and fall, bright drops flung off, a ring where you land | You become smoke: a thick dark rush with a glow of heat inside and embers thrown out | You become lightning: a jagged bolt along your path with thin branches and sparks |
+| **Dash** | You become a surging wave: the stream leaps and dips along your path, spray flies off each crest, a wake is thrown out low to both sides, and a ring marks where you land | You become a corkscrew of fire: two ropes of flame wind round your path dragging dark smoke that keeps turning, with embers flung outwards | You become lightning: a jagged bolt along your path with thin branches and sparks |
 | **Suit** | Dark armour split by glowing blue cracks; pale blue eyes; thin blue wisps flowing along the sword; blue sparks | The same armour split by glowing lava-orange cracks; gold eyes; thin wisps of fire flowing along the sword; orange sparks | The same armour split by glowing yellow cracks; pale yellow eyes; thin yellow wisps along the sword; yellow sparks |
 | **Effect on every hit** | Takes 0.12 s off all your cooldowns | Sets the target burning: 14 damage a second for 4 s | 40% of the damage jumps along a bolt to the nearest other enemy within 6. A jump does not jump again |
 | **Other change** | Sword attacks, Cyclone and Meteor Slam reach 20% further | None | You run 15% faster |
 | **Trial to unlock** | Take Water, then hit 4 dummies with one sword swing (60 s) | Take Flame, then have 3 dummies burning at once (60 s) | Take Thunder, then make lightning jump between enemies 6 times (60 s) |
 | **Where it is** | Left of the start in the arena | Right of the start in the arena | Behind the start in the arena, under the dark cloud |
 | **Before it is unlocked** | The pool is still and grey | The fire is out | A thin grey cloud over a scorched circle, and no lightning |
+
+### What each skill becomes
+
+While a style is on, the skill bar shows the skill's new name in gold. Numbers given as a percentage are of the skill's own number, so they grow with its rank.
+
+| Skill | Flame | Thunder | Water |
+|---|---|---|---|
+| **Blink Strike** | **Fire Burst.** An explosion where you arrive: radius 4.2, 60% of the strike's damage, and everything it reaches is set burning | **Chain Blink.** After the first target you jump on to up to 2 more (each within 10 of the last), hitting each for 70% and stunning it for 0.6 s. You end up behind the last one | **Drenching Strike.** The target is soaked for 5 s: it takes 30% more damage from everything, and a brute moves and readies its attacks at half speed |
+| **Cyclone** | **Fire Tornado.** Leaves a trail of fire along its path. Each patch is 1.7 wide, burns for 4 s and sets whatever stands in it burning (14 a second) | **Storm Spin.** Faster (30, where the plain one is 22), can be steered with the movement keys while it spins, and every hit stuns for 0.3 s | **Whirlpool.** Drags in enemies on the ground from 2.4 times the spin's own reach |
+| **Meteor Slam** | **Burning Crater.** Leaves a crater of fire 60% the size of the blast for 6 s; whatever stands in it burns (24 a second) | **Thunderclap.** A bolt comes down on everything in the blast and stuns it for 1.5 s | **Tidal Slam.** A wave: the blast is 30% wider, throws enemies far further (knockback 24, where the plain one is 9), and heals you 6 for each enemy hit, up to 30 |
+| **Rising Slash** | **Pillar of Fire.** 40% wider, 50% more damage, and hits all around you | **Skybolt.** 0.4 s later a bolt strikes each enemy you launched for 30 more and holds it in the air for 0.8 s | **Geyser.** 30% wider, hits all around you, holds the enemies it lifts in the air for 1.2 s, and heals you 4 for each |
+
+Fire left on the ground stays when the style runs out, and is put out when you respawn. Grapple and the basic sword combo are not changed by the element (the combo still gets the style's effect on every hit).
 
 ---
 

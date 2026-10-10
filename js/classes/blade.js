@@ -3,6 +3,7 @@
 // and gets its pose in anim.js.
 // This is the first class with progression: Q, E and R start locked and every skill has three ranks, earned through
 // the trials listed at the bottom (progress.js runs them). The numbers for each rank are in the class table.
+// Under a sword style each skill does something more or different: that part is in elements.js.
 
 import { _a, _b, _c, _fx } from '../util.js';
 import { solidMeshes } from '../world.js';
@@ -15,6 +16,7 @@ import { inDir, hasIn } from '../update.js';
 import { style, slashColor, reach, startTake, stormAt } from '../styles.js';
 import { dojo } from '../dojo.js';
 import { strikeMaster } from '../master.js';
+import { skillAlt, blinkPower, risingPower, risingCast, risingHit } from '../elements.js';
 
 // ---------- Blademaster ----------
 // RMB: pull towards the locked dummy, or the wall under the crosshair.
@@ -52,6 +54,7 @@ export function bmBlink() {
     facing(_b);
     setHitSrc('q');
     hitDummy(d, S.dmg, _b.x * 4, _b.z * 4, 7.5, true, 0.1);
+    blinkPower(d, S);    // the sword style's part: an explosion, a chain of jumps, or a soaking (elements.js)
     if (S.refund && d.dead) P.cd.q = 0;    // rank III: a knockout gives the skill straight back
   } else {
     camDir(_b);
@@ -97,13 +100,19 @@ export function bmRising() {
   P.yaw = P.yawT = camFacingYaw(); facing(_a);
   setState('rising'); P.vel.y = 16; P.vel.x *= 0.4; P.vel.z *= 0.4; P.airJumps = P.airJumpsMax;
   const fx = _a.x, fz = _a.z;
-  setHitSrc('f');
-  strikeMaster(P.pos.x, P.pos.y, P.pos.z, S.rad);
+  // a sword style can make it wider, stronger and all-round (a pillar of fire, a geyser): see elements.js
+  const element = risingPower();
+  const rad = S.rad * element.rad;
+  risingCast(rad);
+  strikeMaster(P.pos.x, P.pos.y, P.pos.z, rad);
   for (const d of dummies) {
     if (d.dead) continue;
     const dx = d.pos.x - P.pos.x, dz = d.pos.z - P.pos.z, dist = Math.hypot(dx, dz), dy = d.pos.y - P.pos.y;
     const inFront = (dx * fx + dz * fz) > -0.3;    // rank III hits all around
-    if (dist < S.rad && dy > -1.5 && dy < 2.2 && (S.around || inFront)) hitDummy(d, S.dmg, fx * 1.5, fz * 1.5, 17.5, true);
+    if (dist < rad && dy > -1.5 && dy < 2.2 && (S.around || element.around || inFront)) {
+      setHitSrc('f');
+      if (hitDummy(d, S.dmg * element.dmg, fx * 1.5, fz * 1.5, 17.5, true)) risingHit(d);
+    }
   }
 }
 
@@ -128,7 +137,7 @@ CLASSES.blade = {
   skills: {
     m2: { n: 'Grapple', cd: 0.5, fn: bmGrapple },
     q: {
-      n: 'Blink Strike', fn: bmBlink, start: 0,
+      n: 'Blink Strike', fn: bmBlink, start: 0, alt: () => skillAlt('q'),
       lv: [
         { cd: 4, dmg: 34, refund: false },
         { cd: 3.5, dmg: 44, refund: false },
@@ -137,7 +146,7 @@ CLASSES.blade = {
       perks: ['Teleport behind a target and strike', 'More damage, shorter cooldown', 'A knockout gives the skill straight back'],
     },
     e: {
-      n: 'Cyclone', fn: bmCyclone, start: 0,
+      n: 'Cyclone', fn: bmCyclone, start: 0, alt: () => skillAlt('e'),
       // dmg = per hit (one hit every 0.075 s), rad = reach, dur = how long the spin lasts (s)
       lv: [
         { cd: 5, dmg: 8, rad: 2.9, dur: 0.45 },
@@ -147,7 +156,7 @@ CLASSES.blade = {
       perks: ['Spinning dash that hits everything it passes', 'More damage, wider reach', 'The spin lasts longer and travels further'],
     },
     r: {
-      n: 'Meteor Slam', fn: bmSlam, start: 0,
+      n: 'Meteor Slam', fn: bmSlam, start: 0, alt: () => skillAlt('r'),
       // rad = blast radius, stun = seconds fighters are stunned
       lv: [
         { cd: 6, dmg: 55, rad: 7.5, stun: 0 },
@@ -157,7 +166,7 @@ CLASSES.blade = {
       perks: ['Dive down and blast everything around', 'More damage, bigger blast', 'The blast stuns fighters'],
     },
     f: {
-      n: 'Rising Slash', fn: bmRising, start: 1,
+      n: 'Rising Slash', fn: bmRising, start: 1, alt: () => skillAlt('f'),
       // around = hits behind you as well
       lv: [
         { cd: 3, dmg: 20, rad: 3.4, around: false },

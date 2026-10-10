@@ -18,6 +18,7 @@ import { reach, slashColor, clearStyle, slamSources } from './styles.js';
 import { strikeMaster } from './master.js';
 import { questEvent } from './quests.js';
 import { stowMount } from './mounts.js';
+import { clearElements } from './elements.js';
 import { inDir, hasIn, inX, inZ, hsp } from './update.js';
 
 // ================= player =================
@@ -270,7 +271,7 @@ export function teleTrail(from, to, n = 6) {
   for (let i = 1; i <= n; i++) { player.root.position.lerpVectors(from, to, i / (n + 1)); spawnGhost(player, CL.color, player.root.position, 0.35); }
 }
 // Shared landing blast for Meteor Slam and Dragoon Dive. stun = seconds everything in the blast is stunned (0 = none).
-export function groundImpact(rad, dmg, color, stun = 0) {
+export function groundImpact(rad, dmg, color, stun = 0, knock = 9) {
   rad *= reach();
   color = slashColor();
   _fx.copy(P.pos).setY(P.pos.y + 0.05);
@@ -278,7 +279,7 @@ export function groundImpact(rad, dmg, color, stun = 0) {
   spawnSwirl(_fx.setY(P.pos.y + 0.12), rad * 0.5, color, 0.5, 2.5, 1);    // a painted wave rolling outwards
   burst(_fx.setY(P.pos.y + 0.3), 18, 12); shake(0.7); addHitstop(0.06);
   setHitSrc('r');
-  hitArea(P.pos.x, P.pos.y, P.pos.z, rad, dmg, 9, 13, true, 0.07, true, 0.75);
+  hitArea(P.pos.x, P.pos.y, P.pos.z, rad, dmg, knock, 13, true, 0.07, true, 0.75);
   if (stun > 0) {
     for (const d of dummies) {
       if (!d.dead && Math.hypot(d.pos.x - P.pos.x, d.pos.z - P.pos.z) < rad) d.stun(stun);
@@ -294,5 +295,6 @@ export function cleanupClassObjects() {
   if (P.jav) { killProj(P.jav); P.jav = null; }
   P.smokeT = 0; P.dmgMult = 1; P.floatT = 0; P.blocking = false;
   clearStyle();    // a sword style does not survive a respawn, a teleport, a class change or the start of a trial
+  clearElements(); // nor does fire left on the ground, or a bolt still on its way
   if (CL) setWeapon(player, CL.weapon);
 }

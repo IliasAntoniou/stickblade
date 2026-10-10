@@ -17,6 +17,7 @@ import { onStyleHit } from './styles.js';
 import { strikeMaster } from './master.js';
 import { dressDummy } from './skins.js';
 import { questEvent } from './quests.js';
+import { SOAK } from './elements.js';
 import { tp, hurtPlayer } from './player.js';
 import { update } from './update.js';
 
@@ -61,6 +62,8 @@ export class Dummy {
     this.floatT = 0; this.stunT = 0; this.pinned = false; this.engaged = false;
     // Burning (Flame style): burnT = seconds left, burnDps = damage per second, burnTick = time to the next tick.
     this.burnT = 0; this.burnDps = 0; this.burnTick = 0;
+    // Soaked (Water's Blink Strike, elements.js): seconds left. A soaked enemy takes more damage and a fighter is slowed.
+    this.soakT = 0;
     if (type === 'shield') {
       const sh = new THREE.Mesh(boxGeo, lam(0x5d6b7a)); sh.scale.set(1.15, 1.5, 0.12); sh.position.set(0, 1.1, 0.45);
       sh.add(new THREE.LineSegments(edgeGeo, edgeMat)); this.sm.root.add(sh);
@@ -141,7 +144,7 @@ export class Dummy {
     if (this.gang) return;    // a gang member never comes back or heals; the story spawns a fresh group if it needs one
     this.dead = false; this.hp = this.maxHp; this.vel.set(0, 0, 0);
     if (this.type === 'flying') this.path(this.pos); else this.pos.copy(this.anchor);
-    this.sinceHit = 99; this.tx = this.tz = this.tvx = this.tvz = 0; this.spin = 0; this.floatT = 0; this.stunT = 0; this.burnT = 0; this.cancelAtk();
+    this.sinceHit = 99; this.tx = this.tz = this.tvx = this.tvz = 0; this.spin = 0; this.floatT = 0; this.stunT = 0; this.burnT = 0; this.soakT = 0; this.cancelAtk();
     if (poof) spawnRing(_dv.copy(this.pos).setY(this.pos.y + 0.05), 0.2, 2.2, 0.35, this.color);
   }
   // Once per frame: movement, gravity, drifting back to its spot, healing, health bar, shadow.
@@ -158,6 +161,7 @@ export class Dummy {
       }
     } else {
       this.sinceHit += dt; this.stunT = Math.max(0, this.stunT - dt);
+      this.soakT = Math.max(0, this.soakT - dt);
       if (this.burnT > 0) {
         // Burning: a small hit of damage twice a second. Quiet on purpose: no hitstop, shake or combo.
         this.burnT -= dt;
@@ -210,7 +214,8 @@ export class Dummy {
     this.tvz += (-90 * this.tz - 9 * this.tvz) * dt; this.tz = clamp(this.tz + this.tvz * dt, -1.3, 1.3);
     this.flash = Math.max(0, this.flash - dt * 7);
     const fire = this.burnT > 0 && !this.dead ? 0.45 + Math.sin(T * 18) * 0.15 : 0;    // a burning dummy glows and flickers orange
-    this.mat.emissive.setRGB(this.flash * 0.9 + this.rage * 0.9 + fire, this.flash * 0.9 + fire * 0.3, this.flash * 0.9);
+    const wet = this.soakT > 0 && !this.dead ? 0.5 : 0;    // a soaked enemy is tinted blue
+    this.mat.emissive.setRGB(this.flash * 0.9 + this.rage * 0.9 + fire, this.flash * 0.9 + fire * 0.3 + wet * 0.3, this.flash * 0.9 + wet);
     this.sm.root.position.copy(this.pos); this.sm.root.rotation.y = this.yaw;
     if (ty === 'fighter') {
       applyPose(this.sm, this.pose);
@@ -241,7 +246,8 @@ export class Dummy {
     // arena, at any height, and has no home to stay near.
     const inSight = this.gang ? dist < GANG_SIGHT : dist < 14 && Math.abs(dy) < 4 && leash < 18;
     const canSee = TUNE.fightersAttack && P.smokeT <= 0 && !dlg.open && chal.phase !== 'count' && inSight;
-    this.aiCd -= dt; this.rage = 0;
+    const pace = this.soakT > 0 ? SOAK.slow : 1;    // soaked: slower to walk and slower to ready an attack
+    this.aiCd -= dt * pace; this.rage = 0;
     let tp = F_IDLE;
     if (this.stunT > 0 || !this.grounded || this.floatT > 0) {
       if (this.ai !== 'idle') this.cancelAtk();
@@ -257,7 +263,7 @@ export class Dummy {
         }
         if (this.ai === 'idle' && dist > 2.6 && this.sinceHit > 0.4) {
           const ox = this.pos.x, oz = this.pos.z;
-          const stride = (this.gang ? GANG_SPEED : 3.4) * dt;
+          const stride = (this.gang ? GANG_SPEED : 3.4) * pace * dt;
           this.pos.x += dx / dist * stride; this.pos.z += dz / dist * stride;
           if (dummyBlocked(this.pos)) {
             this.pos.x = ox; this.pos.z = oz;
@@ -353,7 +359,7 @@ export function hitDummy(d, dmg, kx, kz, up, heavy = false, stop = null, src = P
   kx *= TUNE.kbMult;
   kz *= TUNE.kbMult;
   up *= TUNE.kbMult;
-  dmg = Math.round(dmg * TUNE.dmgMult * (0.9 + Math.random() * 0.2));
+  dmg = Math.round(dmg * TUNE.dmgMult * (0.9 + Math.random() * 0.2) * (d.soakT > 0 ? SOAK.dmg : 1));
   let label = null;
   if (P.dmgMult > 1) { dmg *= P.dmgMult; P.dmgMult = 1; P.smokeT = Math.min(P.smokeT, 0.01); label = 'AMBUSH'; heavy = true; }
   d.vel.x += kx; d.vel.z += kz; if (up > 0) d.vel.y = Math.max(d.vel.y, up);
