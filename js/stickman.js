@@ -93,3 +93,30 @@ export function copyPose(src, dst) {
   const n = src.nodes, d = dst.nodes;
   for (let i = 0; i < n.length; i++) { d[i].position.copy(n[i].position); d[i].quaternion.copy(n[i].quaternion); d[i].scale.copy(n[i].scale); d[i].visible = n[i].visible; }
 }
+
+// Rim light: brighten the parts of a character that face sideways to the camera, so its outline stays visible against
+// a dark scene. Done by adding a few lines to the material's own shader, so it costs no extra objects or draw calls.
+// mat must be a MeshLambertMaterial. The brighter the colour, the stronger the rim.
+const RIM_COLOR = new THREE.Color(0xc4d2ff).multiplyScalar(0.4);
+export function addRim(mat) {
+  mat.onBeforeCompile = shader => {
+    shader.uniforms.rimColor = { value: RIM_COLOR };
+    // vertex shader: pass on the direction from this point to the camera
+    shader.vertexShader = 'varying vec3 vRimView;\n' + shader.vertexShader
+      .replace('#include <project_vertex>', '#include <project_vertex>\n\tvRimView = -mvPosition.xyz;');
+    // pixel shader: the more a surface is turned away from the camera, the more rim colour it gets
+    shader.fragmentShader = 'varying vec3 vRimView;\nuniform vec3 rimColor;\n' + shader.fragmentShader
+      .replace('#include <opaque_fragment>',
+        'float rimAmount = pow(1.0 - clamp(dot(normalize(normal), normalize(vRimView)), 0.0, 1.0), 2.0);\n'
+        + '\toutgoingLight += rimColor * rimAmount;\n\t#include <opaque_fragment>');
+  };
+  // Tells three.js that materials with a rim share one compiled shader, separate from plain ones.
+  mat.customProgramCacheKey = () => 'rim';
+  return mat;
+}
+// Let every part of a stickman cast a real shadow. Only matters on High quality.
+export function castShadows(sm) {
+  sm.root.traverse(o => {
+    if (o.isMesh) o.castShadow = true;
+  });
+}

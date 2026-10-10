@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { V3, pick, $, save } from './util.js';
 import { scene } from './core.js';
 import { boxGeo, lam, ground, makeShadow, placeShadow } from './world.js';
-import { makeStickman, BASE, applyPose } from './stickman.js';
+import { makeStickman, BASE, applyPose, addRim, castShadows } from './stickman.js';
 import { ringGeo } from './fx.js';
 import { P, CL, dlg, chal, CLASSES } from './state.js';
 import { LOCKED, setState, parry } from './player.js';
@@ -16,9 +16,10 @@ import { dojo, enterDojo, leaveDojo } from './dojo.js';
 
 // ================= master NPC + dialog =================
 export const master = (() => {
-  const mat = new THREE.MeshLambertMaterial({ color: 0x5a3e2b });
+  const mat = addRim(new THREE.MeshLambertMaterial({ color: 0xc09a6b }));
   const sm = makeStickman(mat, null, false);
-  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.46, 0.24, 16), lam(0xd9b26a)); hat.position.y = 0.2; sm.head.add(hat);
+  castShadows(sm);
+  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.46, 0.24, 16), new THREE.MeshLambertMaterial({ color: 0xd9b26a }));    // not lam(): that is for boxes only hat.position.y = 0.2; sm.head.add(hat);
   const staff = new THREE.Mesh(boxGeo, lam(0x8a5a2b)); staff.scale.set(0.06, 2.0, 0.06); staff.position.set(0.5, 1.0, 0.25); sm.root.add(staff);
   const mark = new THREE.Mesh(new THREE.OctahedronGeometry(0.2), new THREE.MeshBasicMaterial({ color: 0xffd23f })); sm.root.add(mark);
   const mat2 = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));

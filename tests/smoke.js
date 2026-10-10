@@ -170,6 +170,22 @@ check('tuning panel', () => {
   return SB.CL.atk[0].dmg === 12 && SB.CL.skills.m2.cd === 0.5 && TUNE.runMult === 1 && !panel.querySelector('.tr.chg');
 });
 
+// graphics: the quality switch works both ways, and Low stays cheap to draw
+check('quality: switch to High and back', () => {
+  reset();
+  SB.applyQuality('high'); run(5); SB.renderer.render(SB.scene, SB.camera);
+  const high = SB.quality.level === 'high' && SB.renderer.shadowMap.enabled === true;
+  SB.applyQuality('low'); run(5); SB.renderer.render(SB.scene, SB.camera);
+  return high && SB.quality.level === 'low' && SB.renderer.shadowMap.enabled === false && document.getElementById('quality').value === 'low';
+});
+// Draw calls for one frame from the start point. 319 before the dusk look, 322 after it. The limit leaves a little
+// room; if this fails, something made the cheap setting more expensive. Either undo that or raise the limit on purpose.
+check('quality: Low stays within its draw budget', () => {
+  reset(); SB.respawnPlayer(); run(30);
+  SB.renderer.render(SB.scene, SB.camera);
+  return SB.renderer.info.render.calls <= 335;
+});
+
 // progression (Blademaster): locked skills, the training hall, trials, ranks, and the closed back doors
 const rankOf = SB.rankOf, dojo = SB.dojo, DOJO = SB.DOJO;
 const trial = id => SB.CLASSES.blade.trials.find(t => t.id === id);

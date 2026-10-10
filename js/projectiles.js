@@ -9,8 +9,8 @@ import { SG } from './stickman.js';
 import { dummies, hitDummy } from './dummies.js';
 
 // ================= projectiles =================
-export const projMat = new THREE.MeshLambertMaterial({ color: 0x1b1d22 });
-export const projAccent = new THREE.MeshBasicMaterial({ color: 0xffffff });
+export const projMat = new THREE.MeshLambertMaterial({ color: 0xdfe4ee });
+export const projAccent = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
 export const projs = [];
 for (let i = 0; i < 16; i++) {
   const g = new THREE.Group();

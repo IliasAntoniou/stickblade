@@ -2,6 +2,14 @@
 
 Newest first. One entry per merged feature: what changed, where, how to check it, and the git tag to go back to.
 
+## v0.5-look: dusk look with glow, Low / High graphics
+
+- **What:** The game now takes place at dusk. A gradient sky with a low sun and stars, warm sunlight against cool shadow, tiled floors, boxes that darken toward the base, a pale player with a glowing weapon, an outline light on every character, and effects (slash arcs, rings, sparks, afterimages) that glow. Impacts and slashes flash a soft halo. The training hall has its own warm wood palette. On-screen text switched to light colours.
+- **Graphics setting:** the pause screen has Graphics: Low or High, remembered between sessions. Low is the default and costs the same as before. High adds real shadows from the sun and a sharper picture, for stronger machines.
+- **Load on Low:** one frame in the arena went from 319 to 322 draw calls and from about 13,000 to about 14,200 triangles (the sky dome); the hall from 180 to 184. Real frame rate has to be read on a real machine: the FPS counter is top left.
+- **Where:** new `js/sky.js` and `js/quality.js`; lighting, palette and tone mapping in `js/core.js`; box shading, colours and floors in `js/world.js`; glow in `js/fx.js`; `addRim()` and `castShadows()` in `js/stickman.js`; character colours in `player.js`, `dummies.js`, `master.js`; text colours in `index.html`. New `tests/drawcost.sh`.
+- **Check:** `bash tests/smoke.sh` (now switches quality both ways and fails if Low goes over its draw budget); `bash tests/drawcost.sh` prints the cost of a frame; `?debug` shows Draws and Tris top left; `?debug&quality=high` previews High.
+
 ## v0.4-blademaster: skills are earned (Blademaster only)
 
 - **What:** The Blademaster now starts with the basic attack, Grapple and Rising Slash. Blink Strike, Cyclone and Meteor Slam are locked and each is learned by passing a trial from Master Sen ("Train my skills"). Every skill then has rank II and rank III, each earned by a harder trial that has to be done with that skill. Rank II gives better numbers; rank III changes how the skill works (Blink Strike: a knockout gives it straight back; Cyclone: lasts longer; Meteor Slam: stuns fighters; Rising Slash: hits all around). The skill bar shows LOCKED or one diamond per rank. The other three classes are unchanged.

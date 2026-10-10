@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { V3, TAU, clamp, damp, angDiff, angDamp, _hv, _dv } from './util.js';
 import { scene, camera } from './core.js';
 import { solids, boxGeo, edgeGeo, edgeMat, lam, groundAt, makeShadow, placeShadow } from './world.js';
-import { makeStickman, POSE_KEYS, DUMMY_POSE, F_IDLE, F_SLAM, F_LWIND, F_LUNGE, F_STUN, applyPose } from './stickman.js';
+import { addRim, castShadows, makeStickman, POSE_KEYS, DUMMY_POSE, F_IDLE, F_SLAM, F_LWIND, F_LUNGE, F_STUN, applyPose } from './stickman.js';
 import { ringGeo, spawnRing, burst, spawnText, shake, addHitstop } from './fx.js';
 import { T, P, dlg, chal, TUNE, hitSrc, addHit } from './state.js';
 import { hitAllowed, onHit } from './progress.js';
@@ -23,7 +23,7 @@ export const DTYPE = {
   basic: { color: 0xd8573c, hp: 600 },
   shield: { color: 0x8796a8, hp: 700 },
   flying: { color: 0x2fa4d9, hp: 400 },
-  fighter: { color: 0x7b52e0, hp: 900 },
+  fighter: { color: 0xa070ff, hp: 900 },
 };
 // True if a dummy standing at p would be inside a wall.
 export function dummyBlocked(p) {
@@ -34,8 +34,9 @@ export function dummyBlocked(p) {
 export class Dummy {
   constructor(type, x, y, z, o = {}) {
     this.type = type; const D = DTYPE[type];
-    this.mat = new THREE.MeshLambertMaterial({ color: D.color, emissive: 0x000000 });
+    this.mat = addRim(new THREE.MeshLambertMaterial({ color: D.color, emissive: 0x000000 }));
     this.sm = makeStickman(this.mat, null, false); scene.add(this.sm.root);
+    castShadows(this.sm);
     this.pose = { ...(type === 'fighter' ? F_IDLE : DUMMY_POSE) }; applyPose(this.sm, this.pose);
     this.base = new V3(x, y, z); this.anchor = this.base.clone();
     this.patrol = o.patrol || 0; this.radius = o.radius || 0; this.phase = Math.random() * TAU;
@@ -55,8 +56,8 @@ export class Dummy {
     }
     if (type === 'fighter') {
       this.ai = 'idle'; this.aiT = 0; this.aiCd = 1; this.lungeDir = new V3(); this.lungeHit = false;
-      this.warnRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xff2244, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));
-      this.warnLine = new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial({ color: 0xff2244, transparent: true, opacity: 0.4, depthWrite: false }));
+      this.warnRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xff2244, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }));
+      this.warnLine = new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial({ color: 0xff2244, transparent: true, opacity: 0.4, depthWrite: false, toneMapped: false }));
       this.warnRing.visible = this.warnLine.visible = false; scene.add(this.warnRing); scene.add(this.warnLine);
     }
     this.bar = new THREE.Group();

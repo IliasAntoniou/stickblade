@@ -6,8 +6,8 @@ import * as THREE from 'three';
 import { V3, clamp, _a, _b, _c, _fx, _hp } from './util.js';
 import { scene } from './core.js';
 import { solids, area, makeShadow } from './world.js';
-import { makeStickman, setWeapon, BASE } from './stickman.js';
-import { spawnArc, ringGeo, spawnRing, burst, spawnGhost, beamGeo, spawnBeam, spawnText, centerMsg, shake, addHitstop, flashHurt } from './fx.js';
+import { makeStickman, setWeapon, BASE, addRim, castShadows } from './stickman.js';
+import { glowTex, spawnArc, ringGeo, spawnRing, burst, spawnGhost, beamGeo, spawnBeam, spawnText, centerMsg, shake, addHitstop, flashHurt } from './fx.js';
 import { T, P, CL, dlg, chal, SPAWN, combo, TUNE, setHitSrc } from './state.js';
 import { dummies, hitDummy, hitArea } from './dummies.js';
 import { killProj } from './projectiles.js';
@@ -17,9 +17,16 @@ import { endChallenge } from './challenges.js';
 import { inDir, hasIn, inX, inZ, hsp } from './update.js';
 
 // ================= player =================
-export const playerMat = new THREE.MeshLambertMaterial({ color: 0x1b1d22, emissive: 0x000000, transparent: true });
-export const bladeMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true });
+// A pale body so the player stands out against the dusk; the weapon is pure unlit colour so it looks like it glows.
+export const playerMat = addRim(new THREE.MeshLambertMaterial({ color: 0xeef1f8, emissive: 0x000000, transparent: true }));
+export const bladeMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, toneMapped: false });
 export const player = makeStickman(playerMat, bladeMat, true); scene.add(player.root);
+castShadows(player);
+// A soft halo that rides on the weapon hand: fake bloom, one extra draw call. setClass tints it to the class colour.
+export const bladeGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0x00e5ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.55, toneMapped: false }));
+bladeGlow.position.set(0, 0, 0.55);
+bladeGlow.scale.setScalar(1.5);
+player.wrist.add(bladeGlow);
 export const playerShadow = makeShadow();
 // ninja shadow clone
 export const cloneMat = new THREE.MeshBasicMaterial({ color: 0x4b2a80, transparent: true, opacity: 0.75 });
@@ -107,7 +114,7 @@ export function integrate(dt) {
 }
 
 // grapple rope
-export const ropeMesh = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: 0x111111 }));
+export const ropeMesh = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: 0xdfe4ee }));
 ropeMesh.visible = false; scene.add(ropeMesh);
 export const hookMesh = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), new THREE.MeshBasicMaterial({ color: 0x00e5ff }));
 hookMesh.visible = false; scene.add(hookMesh);
