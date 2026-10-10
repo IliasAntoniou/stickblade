@@ -2,6 +2,17 @@
 
 Newest first. One entry per merged feature: what changed, where, how to check it, and the git tag to go back to.
 
+## v0.10-mounts: X calls a mount (Rewind is gone), and the camera starts zoomed out
+
+- **Mounts:** X no longer rewinds. It calls something to ride, and X again gets off. With no sword style it is a car; with Flame a fire horse; with Thunder a lightning lion; with Water a war elephant. The mount changes under you if the style changes or runs out. Every class can ride (the other classes always get the car, since only the sword takes styles).
+- **Riding:** the movement keys steer and Space jumps. Each mount handles differently: the horse is the fastest, the lion turns tightest and jumps highest, the elephant is slow but hits hardest. Running into enemies hits them and throws them aside. Attacking, a skill, a dash, being hit or being defeated takes you off.
+- **Rewind removed:** the X ability, its cooldown and the position history behind it are gone. Slide (C) is unchanged.
+- **Camera:** the game now starts fully zoomed out. The mouse wheel still zooms in.
+- **Load on Low:** zoomed out, more of the arena is in view: about 380 draw calls where it was 340. The smoke test's draw budget was raised from 375 to 410 on purpose for this. A mount adds about 7 more while it is being ridden.
+- **Where:** new `js/mounts.js` (`MOUNTS`, the four `build...()` functions, `updateMounted()`, `animateMount()`); the X key and the `mounted` case in `js/update.js`; `setState()` in `js/player.js` puts the mount away; the riding pose in `animatePlayer()` in `js/anim.js`; the X slot in `js/hud.js`; `CAM_FAR` in `js/camera.js`.
+- **Not tuned yet:** every mount's speed, turning, jump and damage is a first guess, and the models are simple shapes.
+- **Check:** `bash tests/smoke.sh`. To look: `?debug=pose:mount`, `?debug=pose:mount&style=flame&ride=1`, `&style=thunder`, `&style=water`.
+
 ## v0.8-world: grass, rocks, element hair, enemy looks, Sen's throw, and the Thunder style
 
 - **Grass:** the arena floor is painted grass, flat on the ground. (A first version also had tufts standing up out of it; those were removed.) The training hall keeps its tiled floor.

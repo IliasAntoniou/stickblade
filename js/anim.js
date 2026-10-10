@@ -9,6 +9,7 @@ import { T, P, CL } from './state.js';
 import { playerMat, bladeMat, bladeGlow, player, playerShadow, cloneMat, cloneSm, FLIP_T, pose, tp, ropeMesh, hookMesh } from './player.js';
 import { camPitch } from './camera.js';
 import { slashColor, reach as styleReach } from './styles.js';
+import { mountSit } from './mounts.js';
 
 // ================= player animation =================
 // How the body moves between poses. Every joint is on a SPRING: it is pulled towards its target, picks up speed,
@@ -69,7 +70,19 @@ export function animatePlayer(dt) {
     return s;
   };
 
-  if (st === 'slide') {
+  if (st === 'mounted') {
+    // Riding. Astride an animal: legs either side, one hand forward on the reins. Seated in the car: legs out in
+    // front, both hands on the wheel. A sword is carried upright in the right hand either way.
+    if (mountSit() === 'seated') {
+      Object.assign(tp, { spineX: -0.12, hipLX: -1.45, hipLZ: 0.1, kneeL: 0.35, hipRX: -1.45, hipRZ: -0.1, kneeR: 0.35,
+        shLX: -1.15, shLZ: -0.1, elL: -0.5, shRX: -1.15, shRZ: 0.1, elR: -0.5 });
+    } else {
+      Object.assign(tp, { spineX: 0.1 + clamp(hs / 60, 0, 0.3), hipLX: -0.95, hipLZ: 0.5, kneeL: 1.25, hipRX: -0.95, hipRZ: -0.5, kneeR: 1.25,
+        shLX: -1.0, shLZ: 0.05, elL: -0.75, shRX: -0.7, shRZ: -0.45, elR: -1.0 });
+    }
+    tp.wrist = bladeAim(tp, -1.25);
+    spearUp = false;
+  } else if (st === 'slide') {
     Object.assign(tp, { bodyY: 0.45, bodyPitch: -0.65, spineX: 0.45, hipLX: -1.0, kneeL: 0.1, hipLZ: 0.1, hipRX: -0.1, kneeR: 1.9,
       shLX: 0.5, shLZ: 0.9, elL: 0, shRX: -0.5, shRZ: -0.4, elR: -0.4, wrist: 0.8 }); spearUp = false;
   } else if (st === 'dash') {
@@ -257,6 +270,7 @@ export function animatePlayer(dt) {
   }
   player.root.position.copy(P.pos);
   player.root.position.y -= P.sink;    // going under the water of a pool; 0 the rest of the time
+  player.root.position.y += P.seat;    // sitting on a mount; 0 the rest of the time
   playerShadow.visible = P.sink < 0.3;
   player.root.rotation.y = P.yaw;
   applyPose(player, pose, xp, xs);

@@ -13,7 +13,9 @@ import { player } from './player.js';
 import { aimedFire } from './styles.js';
 
 // camera helpers
-export let camYaw = 0, camPitch = -0.12, camDist = 5.4;
+// CAM_NEAR, CAM_FAR = how close and how far the mouse wheel can zoom. The game starts fully zoomed out.
+export const CAM_NEAR = 2.5, CAM_FAR = 10;
+export let camYaw = 0, camPitch = -0.12, camDist = CAM_FAR;
 export const camPivot = new V3(0, 1.55, 14);
 export let camH = 1.55, fov = 72;
 // Direction helpers. camDir = where the camera looks. camFwdH, camRight = forward and right along the ground
@@ -40,7 +42,7 @@ export function handPos(out) { return player.handR.getWorldPosition(out); }
 // Once per frame: follow the player, pull in if a wall is in the way, apply shake, widen the view with speed,
 // then work out what the crosshair is on (aimHit, aimRaw) and which dummy is nearest to it (lockTarget).
 export function updateCamera(rdt) {
-  camH = damp(camH, P.state === 'slide' ? 1.0 : 1.55, 10, rdt);
+  camH = damp(camH, (P.state === 'slide' ? 1.0 : 1.55) + P.seat, 10, rdt);    // P.seat lifts the view when riding a mount
   _a.set(P.pos.x, P.pos.y + camH, P.pos.z);
   camPivot.x = damp(camPivot.x, _a.x, 20, rdt); camPivot.z = damp(camPivot.z, _a.z, 20, rdt); camPivot.y = damp(camPivot.y, _a.y, 14, rdt);
   if (camPivot.distanceTo(_a) > 8) camPivot.copy(_a);
@@ -57,7 +59,12 @@ export function updateCamera(rdt) {
     decayShake(rdt);
   }
   camera.lookAt(_e.copy(_d).addScaledVector(_b, 10));
-  const spd = (P.state === 'dash' || P.state === 'dragonKick') ? 30 : Math.hypot(P.vel.x, P.vel.z);
+  // How fast the player is going, for widening the view. A mount is much faster than running, so only part of
+  // its speed counts, or the view would be at its widest the whole ride.
+  const moving = Math.hypot(P.vel.x, P.vel.z);
+  let spd = moving;
+  if (P.state === 'dash' || P.state === 'dragonKick') spd = 30;
+  else if (P.state === 'mounted') spd = 9.5 + moving * 0.35;
   fov = damp(fov, 72 + clamp((spd - 9.5) * 0.7, 0, 16), 6, rdt);
   camera.fov = fov; camera.updateProjectionMatrix();
 

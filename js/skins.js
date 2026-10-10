@@ -11,8 +11,8 @@
 
 import * as THREE from 'three';
 
-// Join several shapes into one. Each entry is [shape, x, y, z, turnX, turnY, turnZ, scale].
-function joined(parts) {
+// Join several shapes into one. Each entry is [shape, x, y, z, turnX, turnY, turnZ, scale]. Also used by mounts.js.
+export function joined(parts) {
   const pos = [], nor = [];
   const place = new THREE.Object3D();
   for (const [shape, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, scale = 1] of parts) {

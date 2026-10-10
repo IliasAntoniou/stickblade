@@ -10,7 +10,7 @@ import { skillReady } from './progress.js';
 import { reach, styleSpeed, updateTake } from './styles.js';
 import { dummies, hitDummy } from './dummies.js';
 import { updateProjs } from './projectiles.js';
-import { playerMat, player, diveMark, FLIP_T, LOCKED, integrate, setState, startAttack, attackHits, attackVfx, startDash, startSlide, doRewind, groundImpact } from './player.js';
+import { playerMat, player, diveMark, FLIP_T, LOCKED, integrate, setState, startAttack, attackHits, attackVfx, startDash, startSlide, groundImpact } from './player.js';
 import { camPitch, camFwdH, camRight, facing, camFacingYaw } from './camera.js';
 import { removeClone, throwKunai } from './classes/ninja.js';
 import { mkPalmRelease } from './classes/monk.js';
@@ -18,6 +18,7 @@ import { diveTarget } from './classes/lancer.js';
 import { master, openDlg, closeDlg, updateMaster, updateGrab, strikeMaster } from './master.js';
 import { endChallenge, updateChallenge } from './challenges.js';
 import { keys, pressed, mouseL, mouseR } from './input.js';
+import { toggleMount, updateMounted } from './mounts.js';
 
 // This frame's input. inDir = the direction the movement keys point, in the world. hasIn = a movement key is held.
 // inX, inZ = raw -1..1. hsp = horizontal speed. inputOn = false during a dialog or countdown.
@@ -68,7 +69,7 @@ export function update(dt) {
     if (pressed.has('KeyR') && P.cd.r <= 0 && P.state !== 'charge' && skillReady('r')) S.r.fn();
     if (pressed.has('KeyF') && P.cd.f <= 0 && skillReady('f')) S.f.fn();
     if (pressed.has('M2') && P.cd.m2 <= 0 && S.m2.fn && skillReady('m2')) S.m2.fn();
-    if (pressed.has('KeyX') && P.cd.x <= 0 && P.history.length > 4) doRewind();
+    if (pressed.has('KeyX') && P.cd.x <= 0) toggleMount();    // get on or off the mount (mounts.js)
     if (pressed.has('M0') && P.state !== 'cyclone' && P.state !== 'kicks' && P.state !== 'sweep' && P.state !== 'pcharge' && P.state !== 'dragonKick') {
       if (P.state === 'charge') setState('normal');
       if (P.atk.on) { if (P.atk.t > 0.06) P.atk.queued = true; } else startAttack();
@@ -129,6 +130,11 @@ export function update(dt) {
     case 'ignite':
     case 'storm': {
       updateTake();
+      break;
+    }
+    // riding a mount (mounts.js)
+    case 'mounted': {
+      updateMounted(dt);
       break;
     }
     // held up by the neck by Master Sen, then slammed (master.js)
@@ -331,9 +337,6 @@ export function update(dt) {
   P.yaw = angDamp(P.yaw, P.yawT, 14, dt);
 
   integrate(dt);
-
-  P.histT -= dt;
-  if (P.histT <= 0) { P.histT = 0.05; P.history.push(P.pos.clone()); if (P.history.length > 40) P.history.shift(); }
 
   for (const d of dummies) d.update(dt);
   updateProjs(dt);
