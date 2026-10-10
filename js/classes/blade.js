@@ -12,7 +12,7 @@ import { dummies, hitDummy } from '../dummies.js';
 import { depenetrate, ropeMesh, hookMesh, setState, startAttack, teleTrail } from '../player.js';
 import { camDir, camFwdH, facing, camFacingYaw, lockTarget, aimHit, raycaster, setCamYaw } from '../camera.js';
 import { inDir, hasIn } from '../update.js';
-import { style, slashColor, reach } from '../styles.js';
+import { style, slashColor, reach, blinkSource, startTake } from '../styles.js';
 import { dojo } from '../dojo.js';
 
 // ---------- Blademaster ----------
@@ -27,10 +27,17 @@ export function bmGrapple() {
   if (P.grounded) P.vel.y = Math.max(P.vel.y, 6);
 }
 // Q: teleport behind the locked dummy and strike. With no target, blink 14 units forward.
+// Aimed at a lit fire, it blinks into the flames instead, which is how the Flame style is taken (styles.js).
 export function bmBlink() {
   const S = CL.skills.q;
   P.cd.q = S.cd;
   _a.copy(P.pos);
+  const fire = blinkSource(P.pos, camDir(_b), 14);
+  if (fire) {
+    teleTrail(_a, fire.pos, 5);
+    startTake(fire);
+    return;
+  }
   if (lockTarget) {
     const d = lockTarget;
     _c.set(d.pos.x - Math.sin(d.yaw) * 1.4, d.pos.y, d.pos.z - Math.cos(d.yaw) * 1.4); // behind the target
@@ -215,7 +222,7 @@ CLASSES.blade.trials = [
     onHit: mostInOneWaterSwing,
     // four dummies in a row, a little too wide for a plain swing: only Water's longer reach catches all of them
     arena: { sources: [['water', 0, 9]], spawn: [['basic', -2.55, 0, -2.9], ['basic', -0.85, 0, -2.9], ['basic', 0.85, 0, -2.9], ['basic', 2.55, 0, -2.9]] } },
-  { id: 'blade-flame', style: 'flame', name: 'Trial: Flame style', desc: 'Strike the brazier to take Flame, then have 3 dummies burning at the same time', time: 60, goal: 3,
+  { id: 'blade-flame', style: 'flame', needs: { q: 1 }, name: 'Trial: Flame style', desc: 'Blink Strike into the fire to take Flame, then have 3 dummies burning at the same time', time: 60, goal: 3,
     tick(st) { st.n = dojo.spawned.filter(d => d.burnT > 0 && !d.dead).length; },
     // spread out, so all three have to be reached before the first stops burning
     arena: { sources: [['flame', 0, 12]], spawn: [['basic', -7, 0, -3], ['basic', 0, 0, -8], ['basic', 7, 0, -3]] } },

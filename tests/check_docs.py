@@ -2,6 +2,7 @@
 
 1. Every file under js/ starts with a header comment naming itself.
 2. Every file path and function() that docs/CODE_MAP.md mentions exists.
+   Every skill and sword style in the game is listed in docs/ABILITIES.md.
 3. With a git ref (for example main): the code under js/ is identical to that ref once comments and blank
    lines are removed. Use this to prove a comments-only change touched no code.
 """
@@ -30,6 +31,18 @@ for token in sorted(set(re.findall(r'`([^`\n]+)`', doc))):
         name = re.escape(token[:-2])
         if not re.search(r'(function\s+%s\s*\(|^\s*%s\s*\([^)]*\)\s*\{|(const|let)\s+%s\s*=)' % (name, name, name), all_code, re.M):
             problems.append('CODE_MAP.md mentions a missing function: ' + token)
+
+
+# every skill (n: 'Name' in a class file) and every sword style (name: 'Name' in styles.js) must be in ABILITIES.md
+abilities = open('docs/ABILITIES.md', encoding='utf-8').read()
+for p, text in source.items():
+    if p.startswith('js/classes/'):
+        for name in re.findall(r"\bn: '([^']+)'", text):
+            if name not in abilities:
+                problems.append('ABILITIES.md is missing the skill: %s (%s)' % (name, p))
+for name in re.findall(r"\bname: '([^']+)'", source['js/styles.js']):
+    if name not in abilities:
+        problems.append('ABILITIES.md is missing the sword style: ' + name)
 
 
 def code_only(text):

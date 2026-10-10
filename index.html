@@ -62,6 +62,20 @@
   #center small{font-size:22px;display:block}
   #toast{position:fixed;left:50%;top:20%;transform:translateX(-50%);background:rgba(20,23,28,.88);color:#fff;padding:10px 18px;border-radius:10px;font-size:15px;opacity:0;transition:opacity .3s;pointer-events:none;max-width:80vw;text-align:center}
   #toast b{color:#ffd23f}
+  #cutin{position:fixed;left:0;right:0;top:50%;height:34vh;transform:translateY(-50%) scaleY(0);transition:transform .13s ease-out;z-index:18;pointer-events:none;overflow:hidden;background:linear-gradient(#a8a096,#efe9df 32%,#efe9df 68%,#a8a096);border-top:5px solid var(--style,#fff);border-bottom:5px solid var(--style,#fff);box-shadow:0 0 50px rgba(0,0,0,.75)}
+  #cutin.on{transform:translateY(-50%) scaleY(1)}
+  #cutin::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgba(0,0,0,.06) 0 2px,transparent 2px 11px)}
+  #cutin svg{position:relative;width:100%;height:100%;display:block}
+  #cutin .white{fill:#fbf9f4}
+  #cutin .iris{fill:#8d93a3;transition:fill .3s ease-out}
+  #cutin.lit .iris{fill:var(--style);filter:drop-shadow(0 0 16px var(--style))}
+  #cutin .pupil{fill:#0b0d16}
+  #cutin .shine{fill:#fff}
+  #cutin .lid{fill:none;stroke:#14121a;stroke-width:17;stroke-linecap:round}
+  #cutin .brow{fill:none;stroke:#14121a;stroke-width:26;stroke-linecap:round}
+  #cutin .flare{position:absolute;inset:0;background:var(--style);opacity:0}
+  #cutin.lit .flare{animation:cutflare .55s ease-out}
+  @keyframes cutflare{0%{opacity:.8}100%{opacity:0}}
   #flash{position:fixed;inset:0;pointer-events:none;background:#fff;opacity:0;z-index:15}
   #hurt{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(255,0,0,0) 55%,rgba(220,20,40,.6) 100%);opacity:0}
   #dmg{position:fixed;inset:0;pointer-events:none;overflow:hidden}

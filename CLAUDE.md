@@ -4,7 +4,7 @@ Browser game (three.js, native ES modules, no build step, no dependencies). The 
 
 Run locally with `python serve.py` from this folder, then open `http://localhost:8000/`. Use `serve.py`, not `python -m http.server`: it disables browser caching, and without that stale files get run after edits. `play.bat` does both (the user has a Desktop shortcut to it). Add `?debug` to run the simulation without pointer lock and expose `window.SB` for testing.
 
-Read `docs/CODE_MAP.md` first: it says where everything is, what the short names mean, and how to add a class, skill, dummy type or challenge.
+Read `docs/CODE_MAP.md` first: it says where everything is, what the short names mean, and how to add a class, skill, dummy type or challenge. `docs/ABILITIES.md` is the user's running list of every ability and sword style and what each does.
 
 ## How code is written here
 
@@ -15,7 +15,7 @@ The user is vibe coding: the AI writes most of the code and the user directs. Th
 - **Every function gets a short comment** saying what it does and when it runs, unless its name already says everything.
 - **Comments explain why,** not what: tuning numbers (with units), non-obvious tricks, traps, what breaks if this changes. Do not restate what a line plainly does.
 - **New and touched code:** one statement per line and descriptive names. Existing short names (`P`, `CL`, `T`, `_a`) stay, and every short name must be in the glossary in `docs/CODE_MAP.md`.
-- **In the same change as the code,** update: the comments, `docs/CODE_MAP.md`, `CHANGELOG.md`, and `tests/smoke.js` when a class, dummy type, challenge or map is added. Never leave these for later.
+- **In the same change as the code,** update: the comments, `docs/CODE_MAP.md`, `CHANGELOG.md`, `docs/ABILITIES.md` whenever an ability, a rank, a trial or a sword style is added or its numbers change, and `tests/smoke.js` when a class, dummy type, challenge or map is added. Never leave these for later.
 - **When reporting a change to the user,** say which files and functions were touched and how to check it works.
 
 ## Checks before any merge
@@ -23,7 +23,7 @@ The user is vibe coding: the AI writes most of the code and the user directs. Th
 With the server running:
 
 1. `bash tests/smoke.sh` prints `SMOKE PASS` (headless Chrome; the same test runs in a normal browser at `http://localhost:8000/?debug=smoke`).
-2. `python tests/check_docs.py` prints `DOCS OK` (every file has a header; everything `docs/CODE_MAP.md` points at exists).
+2. `python tests/check_docs.py` prints `DOCS OK` (every file has a header; everything `docs/CODE_MAP.md` points at exists; every skill and sword style is in `docs/ABILITIES.md`).
 3. The user has playtested and said it is good.
 
 After the merge, tag the version (`v0.N-<name>`), push the tag, and name the tag in the `CHANGELOG.md` entry. Tags are the restore points.

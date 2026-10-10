@@ -21,6 +21,8 @@ const STORE_KEY = 'stickblade.progress.v1';
 // The smoke test starts from nothing and never writes, so running it cannot touch real progress.
 const SMOKE = new URLSearchParams(location.search).get('debug') === 'smoke';
 export const ROMAN = ['', 'I', 'II', 'III'];
+// Testing only (tests/poses.js with &lit=1): show every pool and fire as unlocked, without touching the save.
+const SHOW_LIT = new URLSearchParams(location.search).get('lit') === '1' && new URLSearchParams(location.search).has('debug');
 export const MAX_RANK = 3;
 const KEY_NAME = { m2: 'the right mouse button', q: 'Q', e: 'E', r: 'R', f: 'F' };
 
@@ -50,6 +52,7 @@ export function rankOf(slot, cls = CL) {
 
 // Has a sword style been unlocked? It also counts as unlocked while its own trial is running, so the trial can teach it.
 export function styleUnlocked(id) {
+  if (SHOW_LIT) return true;
   if (prog._styles && prog._styles[id]) return true;
   const t = chal.cur;
   return !!(t && t.trial && t.style === id);

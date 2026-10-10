@@ -1,5 +1,7 @@
 # Stickblade code map
 
+For what every ability and sword style does, see `docs/ABILITIES.md`.
+
 Where everything is, what the short names mean, and how to add things. If this file and the code disagree, the code is right and this file needs fixing.
 
 ## Where is it?
@@ -39,8 +41,12 @@ Where everything is, what the short names mean, and how to add things. If this f
 | The lighting (sun colour, direction, strength; the soft light from the sky) | `sun`, `SUN_OFFSET` and `hemi` in `js/core.js` |
 | Box colours, the floor tiles, how dark boxes get at the base | `COL`, `tileTex`, `makeFloor()` and the shading block under `boxGeo` in `js/world.js` |
 | A sword style's colour, how long it lasts, how strong its effect is (burn damage, extra reach) | `STYLES` and `STYLE_TIME` in `js/styles.js` |
-| Where the pool and the brazier stand in the arena | The two `addSource()` lines at the bottom of `js/styles.js` |
-| How a style is taken (how close a swing or a slam has to be) | `strikeSources()` and `slamSources()` in `js/styles.js` |
+| Where the pool and the fire stand in the arena | The two `addSource()` lines at the bottom of `js/styles.js` |
+| How a style is taken (how close a slam has to land, how well a blink has to be aimed) | `slamSources()` and `blinkSource()` in `js/styles.js` |
+| The scene when a style is taken (going under the water, standing in the fire, how long it lasts) | `startTake()`, `updateTake()` and the `TAKE_...` numbers in `js/styles.js` |
+| The close-up of the eyes | `js/cutin.js`; how it looks is the `#cutin` CSS in `index.html` |
+| The player's skin and body flames under a style | `skin` and `ember` in `STYLES`, and the end of `updateStyles()`, in `js/styles.js` |
+| How the water and the fire look | The textures and `addSource()` in `js/styles.js` |
 | How a style's slash is painted (foam, tongues of fire) | The `edge` part of `paintCrescent()` and `TRAIL_PAINTS` in `js/fx.js` |
 | The trial that unlocks a style | The entries with `style:` in `CLASSES.blade.trials` in `js/classes/blade.js` |
 | How Master Sen looks | The start of the `master` block in `js/master.js` |
@@ -104,7 +110,8 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/tuning.js` | The tuning panel shown while paused |
 | `js/progress.js` | Skill ranks and the trials that earn them |
 | `js/dojo.js` | The training hall: teleporting there, building and clearing each trial's layout |
-| `js/styles.js` | Sword styles (Water, Flame) and the pools and braziers they are taken from |
+| `js/styles.js` | Sword styles (Water, Flame), the pools and fires they are taken from, and the scene of taking one |
+| `js/cutin.js` | The close-up of the eyes that cuts across the screen when a style is taken |
 | `js/sky.js` | The dusk sky: gradient dome, sun, stars |
 | `js/quality.js` | The Low / High graphics setting |
 | `vendor/three.module.js` | The three.js library (not ours; do not edit) |
@@ -156,7 +163,9 @@ Where everything is, what the short names mean, and how to add things. If this f
 | lock-on, `lockTarget` | The dummy nearest the crosshair |
 | `aimHit` | The point on the map under the crosshair |
 | sword style, `style` | A temporary change to the sword taken from an object in the world: new slash colour and look plus one extra effect. `style.cur` is the one in use, `style.left` its seconds remaining |
-| source | A pool or brazier a style is taken from. Dark and useless until its style is unlocked |
+| source | A pool or fire a style is taken from. Still and unlit until its style is unlocked |
+| cut-in | The band across the screen showing the eyes change colour. The game stands still while it plays |
+| `P.sink` | How far the body is drawn below where it stands, for going under the water. 0 the rest of the time |
 | `reach()` | How much further sword attacks reach under the current style (1 = normal) |
 | `slashColor()` | The colour sword effects should use: the style's, or the class's when there is none |
 | rank | How far a skill has been trained: 0 = locked, 1 to 3 = learned. `rankOf()` in `js/progress.js` |
@@ -207,9 +216,9 @@ Water and Flame in `js/styles.js` are the worked examples.
 1. Add it to `STYLES`: id, name, colour, `paint`, `reach`, the numbers for its effect, and the `how` and `perk` lines.
 2. Give it its effect in `onStyleHit()` (runs for every hit that lands), or read `style.cur` wherever else it should matter.
 3. Give it a look: add an `edge` kind to `paintCrescent()` in `js/fx.js` and a matching entry in `TRAIL_PAINTS`.
-4. Give it a source: a new kind in `addSource()`, a way to take it (like `strikeSources()` or `slamSources()`), a line in `sourceHint()`, and one in the arena.
+4. Give it a source: a new kind in `addSource()`, a way to take it (like `slamSources()` or `blinkSource()`) that calls `startTake()`, a line in `sourceHint()`, and one in the arena.
 5. Add its trial to the class's `trials` with `style: '<id>'` and `arena.sources`. Passing it unlocks the style.
-6. Add checks to the style part of `tests/smoke.js`.
+6. Add checks to the style part of `tests/smoke.js`, and a column to Part 2 of `docs/ABILITIES.md`.
 
 ### Add a class
 

@@ -7,7 +7,7 @@ import { V3, TAU, clamp, lerp, damp, angDamp, _a, _b, _c, _d, _fx } from './util
 import { spawnArc, spawnRing, burst, spawnGhost, centerMsg } from './fx.js';
 import { T, P, CL, dlg, chal, TUNE, addT, tickCombo, resetDamage, setHitSrc } from './state.js';
 import { skillReady } from './progress.js';
-import { reach } from './styles.js';
+import { reach, updateTake } from './styles.js';
 import { dummies, hitDummy } from './dummies.js';
 import { updateProjs } from './projectiles.js';
 import { playerMat, player, diveMark, FLIP_T, LOCKED, integrate, setState, startAttack, attackHits, attackVfx, startDash, startSlide, doRewind, groundImpact } from './player.js';
@@ -122,6 +122,12 @@ export function update(dt) {
         if (jumped) { P.jumpBuf = 0; P.coyote = 0; P.grounded = false; }
       }
       if (CL.id === 'ninja' && rmb && !P.grounded && P.wallT > 0 && P.wallrunCd <= 0 && P.state === 'normal') { setState('wallrun'); P.airJumps = P.airJumpsMax; P.atk.on = false; }
+      break;
+    }
+    // taking a sword style: under the water of a pool, or standing in a fire (the scene is in styles.js)
+    case 'submerge':
+    case 'ignite': {
+      updateTake();
       break;
     }
     case 'dash': {

@@ -14,7 +14,7 @@ import { killProj } from './projectiles.js';
 import { camDir, facing, camFacingYaw, setCamYaw, setCamPitch } from './camera.js';
 import { removeClone } from './classes/ninja.js';
 import { endChallenge } from './challenges.js';
-import { reach, slashColor, clearStyle, strikeSources, slamSources } from './styles.js';
+import { reach, slashColor, clearStyle, slamSources } from './styles.js';
 import { inDir, hasIn, inX, inZ, hsp } from './update.js';
 
 // ================= player =================
@@ -49,6 +49,7 @@ Object.assign(P, {
   atk: { on: false, t: 0, combo: 0, hit: new Set(), queued: false, lastEnd: -9, lastCombo: 0, vfx: false },
   history: [], histT: 0,
   hp: 100, maxHp: 100, hurtT: 99, iframes: 0, blocking: false, blockStart: -9,
+  sink: 0,    // how far the body is drawn below where it stands (going under the water of a pool, see styles.js)
   castN: 0, castY: 0,    // castN counts skill uses, castY is the height the last slam started from (trials read these)
   smokeT: 0, dmgMult: 1, floatT: 0, clone: null, mark: null, jav: null, lmbHeld: 0, kunaiT: 0, chargeK: 0,
 });
@@ -56,7 +57,7 @@ Object.assign(P, {
 // PR, PH = the player's collision radius and height.  FLIP_T = length of a somersault.  REWIND_CD = Rewind cooldown.
 export const PR = 0.32, PH = 1.75, FLIP_T = 0.42, REWIND_CD = 8;
 // States that other actions cannot cancel.
-export const LOCKED = new Set(['slamUp', 'slamDown', 'dragoonUp', 'dragoonDown']);
+export const LOCKED = new Set(['slamUp', 'slamDown', 'dragoonUp', 'dragoonDown', 'submerge', 'ignite']);
 // pose = what the player looks like now. tp = the pose being blended towards (see anim.js).
 export const pose = { ...BASE }, tp = { ...BASE };
 
@@ -142,7 +143,7 @@ export function setState(s) {
 
 // ---------- taking damage ----------
 // Hits pass through the player while this is true.
-export function isInvuln() { return P.iframes > 0 || P.state === 'dash' || P.state === 'blinkStrike' || P.state === 'dragonKick'; }
+export function isInvuln() { return P.iframes > 0 || P.state === 'dash' || P.state === 'blinkStrike' || P.state === 'dragonKick' || P.state === 'submerge' || P.state === 'ignite'; }
 // The player is hit for dmg from position src. attacker (optional) is the dummy, needed for the monk's parry.
 export function hurtPlayer(dmg, src, attacker) {
   if (dlg.open || chal.phase === 'count') return;
@@ -210,7 +211,6 @@ export function attackHits() {
   setHitSrc(a.src || 'atk');
   const cx = P.pos.x + _a.x * A.off, cz = P.pos.z + _a.z * A.off;
   const rad = A.rad * reach();    // a sword style can widen the swing
-  strikeSources(cx, cz, rad);     // a swing that reaches a brazier takes its style
   for (const d of dummies) {
     if (d.dead || a.hit.has(d)) continue;
     const dx = d.pos.x - cx, dz = d.pos.z - cz, dy = d.pos.y - P.pos.y;
@@ -289,7 +289,7 @@ export function groundImpact(rad, dmg, color, stun = 0) {
     }
   }
   setState('normal'); P.vel.set(0, 0, 0);
-  slamSources();    // landing in a pool takes its style (after this slam, so the slam itself is still plain)
+  slamSources();    // landing in a pool starts the Water scene (after this slam, so the slam itself is still plain)
 }
 // Remove whatever a class left in the world (clone, kunai, javelin) when changing class or respawning.
 export function cleanupClassObjects() {
