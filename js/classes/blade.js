@@ -6,7 +6,7 @@
 
 import { _a, _b, _c, _fx } from '../util.js';
 import { solidMeshes } from '../world.js';
-import { spawnArc, spawnRing } from '../fx.js';
+import { spawnRing, spawnSwirl } from '../fx.js';
 import { P, CL, CLASSES, setHitSrc } from '../state.js';
 import { dummies, hitDummy } from '../dummies.js';
 import { depenetrate, ropeMesh, hookMesh, setState, startAttack, teleTrail } from '../player.js';
@@ -63,6 +63,8 @@ export function bmCyclone() {
   P.castN++;
   if (hasIn) P.skDir.copy(inDir); else camFwdH(P.skDir);
   setState('cyclone'); P.tick = 0; P.ghostT = 0;
+  // the whirlpool: a painted swirl that stays on the player for as long as the spin lasts
+  spawnSwirl(P.pos, CL.skills.e.rad, CL.color, CL.skills.e.dur + 0.12, 17, 0, P.pos, 1.0);
   P.yaw = P.yawT = Math.atan2(P.skDir.x, P.skDir.z);
 }
 // R: hop (if on the ground), then dive and blast. P.castY remembers the height it was started from.
@@ -78,7 +80,6 @@ export function bmRising() {
   P.cd.f = S.cd; P.atk.on = false;
   P.yaw = P.yawT = camFacingYaw(); facing(_a);
   setState('rising'); P.vel.y = 16; P.vel.x *= 0.4; P.vel.z *= 0.4; P.airJumps = P.airJumpsMax;
-  spawnArc(2, _b.copy(P.pos).setY(P.pos.y + 1.1), P.yaw, 0xffd23f, 1.1);
   const fx = _a.x, fz = _a.z;
   setHitSrc('f');
   for (const d of dummies) {

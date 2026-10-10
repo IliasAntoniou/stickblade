@@ -38,7 +38,16 @@ Where everything is, what the short names mean, and how to add things. If this f
 | Sky colours, fog, overall brightness | `SKY` and `toneMappingExposure` in `js/core.js`; the sky itself is drawn in `js/sky.js` |
 | The lighting (sun colour, direction, strength; the soft light from the sky) | `sun`, `SUN_OFFSET` and `hemi` in `js/core.js` |
 | Box colours, the floor tiles, how dark boxes get at the base | `COL`, `tileTex`, `makeFloor()` and the shading block under `boxGeo` in `js/world.js` |
-| How much things glow (slash arcs, impact flashes, the halo on the weapon) | `spawnGlow()` and the effect pools in `js/fx.js`; `bladeGlow` in `js/player.js` |
+| A sword or dagger slash: how long it hangs in the air | `TRAIL_LIFE` in `js/fx.js`. The slash is built from the blade's real positions by `updateTrail()`, so its path is the sword's path |
+| A slash's width and how far it reaches past the blade | `WEAPON_REACH` in `js/anim.js` |
+| When a slash is drawn (which moves, how fast the blade must be moving) | `TRAIL_STATES` and `SLASH_SPEED` in `js/anim.js` |
+| How a slash is painted (shape, ink outline, foam) | `paintCrescent()` and the `trailOuter` / `trailInner` shape functions in `js/fx.js` |
+| The Monk's punch and kick arcs (ready-made shapes, since fists have no blade) | The `arcs` part of `js/fx.js`, called from `attackVfx()` in `js/player.js` |
+| How snappy or bouncy the character's movement is | `SPRING_ACTION` and `SPRING_CALM` in `js/anim.js` |
+| Breathing, leaning into turns, the landing dip | The idle block and the "weight" block in `animatePlayer()` in `js/anim.js` |
+| The Cyclone whirlpool and the Meteor Slam wave | `spawnSwirl()` in `js/fx.js`, called from `bmCyclone()` and `groundImpact()` |
+| The Blademaster's stance, run and sword swings | The `id === 'blade'` blocks and `case 'slash'` in `animatePlayer()` in `js/anim.js` |
+| How much things glow (impact flashes, the halo on the weapon, afterimages) | `spawnGlow()` and the effect pools in `js/fx.js`; `bladeGlow` in `js/player.js` |
 | The outline light on characters | `addRim()` in `js/stickman.js` |
 | What Low and High graphics do | `applyQuality()` in `js/quality.js` |
 | What gets saved between sessions | `save` in `js/util.js` |
@@ -94,6 +103,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `vendor/three.module.js` | The three.js library (not ours; do not edit) |
 | `tests/smoke.js`, `tests/smoke.sh` | Automated test that plays every class and skill |
 | `tests/drawcost.sh` | Prints draw calls and triangles per frame, to compare before and after a graphics change |
+| `tests/poses.js` | Freezes the game mid-move so an animation or effect can be looked at: `?debug=pose:slash0` |
 | `tests/check_docs.py` | Checks file headers and that this map points at real things |
 | `serve.py` | The local web server (tells the browser not to keep old copies of files) |
 | `play.bat` | Starts the server and opens the game |
@@ -128,6 +138,10 @@ Where everything is, what the short names mean, and how to add things. If this f
 | draw call | One instruction to the graphics card to draw one object. The main measure of how heavy a frame is; shown as Draws with `?debug` |
 | tone mapping | Squeezing very bright colours into what a screen can show, so they glow instead of turning flat white |
 | additive | A way of drawing where colour is added on top of what is behind, so the object looks like light |
+| painted slash | A flat crescent with an ink outline and white foam, in the style of Japanese wave prints. Two layers: body (class colour) and ink |
+| chudan | The basic ready stance of Japanese swordsmanship: sword in front, tip at the opponent's eyes. The Blademaster's idle |
+| spring (animation) | Each joint is pulled towards its target pose, overshoots slightly and settles, which gives follow-through. `poseVel` holds the joint speeds |
+| `bladeAim()` | Works out the wrist angle that points the blade a given way whatever the arm is doing. In `js/anim.js` |
 | rim light | Extra brightness on the edges of a character, so its outline shows against a dark background |
 | `SKY` | The dusk palette that both the sky and the fog are made from |
 | iframes | Seconds during which the player cannot be hit |
@@ -211,6 +225,8 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Glow needs `toneMapped: false`.** Any material meant to look like light (effects, the weapon, warning marks) must set it, or tone mapping dulls it. Lit objects must not set it.
 - **`lam()` is for boxes only.** It expects the shading baked into `boxGeo`; on any other shape the result is black.
 - **Low quality has a draw budget.** The smoke test fails if one frame on Low needs more than 335 draw calls. Put expensive extras behind High in `js/quality.js`.
+- **A blade's slash must come from the blade.** Do not add a ready-made slash shape for a weapon attack: it will not line up with the swing. Change the pose in `js/anim.js` and the slash follows by itself.
+- **Poses are targets, not positions.** `animatePlayer()` sets where each joint should go (`tp`); springs move the real pose there. To make something happen instantly, set `pose` as well as `tp`.
 - **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.
 - **`dt` or `rdt`.** Gameplay uses `dt` so it slows down during hitstop. Camera and on-screen display use `rdt`.
 - **Only boxes.** Collision assumes every solid is an upright box. A slope or rotated wall will not collide correctly.
