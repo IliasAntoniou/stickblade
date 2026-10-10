@@ -7,6 +7,7 @@ import { V3, TAU, clamp, lerp, damp, angDamp, _a, _b, _c, _d, _fx } from './util
 import { spawnArc, spawnRing, burst, spawnGhost, centerMsg } from './fx.js';
 import { T, P, CL, dlg, chal, TUNE, addT, tickCombo, resetDamage, setHitSrc } from './state.js';
 import { skillReady } from './progress.js';
+import { reach, updateTake } from './styles.js';
 import { dummies, hitDummy } from './dummies.js';
 import { updateProjs } from './projectiles.js';
 import { playerMat, player, diveMark, FLIP_T, LOCKED, integrate, setState, startAttack, attackHits, attackVfx, startDash, startSlide, doRewind, groundImpact } from './player.js';
@@ -14,7 +15,7 @@ import { camPitch, camFwdH, camRight, facing, camFacingYaw } from './camera.js';
 import { removeClone, throwKunai } from './classes/ninja.js';
 import { mkPalmRelease } from './classes/monk.js';
 import { diveTarget } from './classes/lancer.js';
-import { master, openDlg, closeDlg } from './master.js';
+import { master, openDlg, closeDlg, updateMaster, updateGrab, strikeMaster } from './master.js';
 import { endChallenge, updateChallenge } from './challenges.js';
 import { keys, pressed, mouseL, mouseR } from './input.js';
 
@@ -123,6 +124,17 @@ export function update(dt) {
       if (CL.id === 'ninja' && rmb && !P.grounded && P.wallT > 0 && P.wallrunCd <= 0 && P.state === 'normal') { setState('wallrun'); P.airJumps = P.airJumpsMax; P.atk.on = false; }
       break;
     }
+    // taking a sword style: under the water of a pool, or standing in a fire (the scene is in styles.js)
+    case 'submerge':
+    case 'ignite': {
+      updateTake();
+      break;
+    }
+    // held up by the neck by Master Sen, then slammed (master.js)
+    case 'grabbed': {
+      updateGrab();
+      break;
+    }
     case 'dash': {
       P.vel.copy(P.dashDir).multiplyScalar(TUNE.dashSpeed); P.grav = 0;
       P.ghostT -= dt; if (P.ghostT <= 0) { P.ghostT = 0.028; spawnGhost(player, CL.color); }
@@ -163,16 +175,18 @@ export function update(dt) {
     }
     case 'cyclone': {
       const E = CL.skills.e;    // dmg, rad and dur depend on the skill's rank
+      const eRad = E.rad * reach();
       P.vel.set(P.skDir.x * 22, 0, P.skDir.z * 22); P.grav = 0; P.spin += dt * 30;
       P.ghostT -= dt; if (P.ghostT <= 0) { P.ghostT = 0.04; spawnGhost(player, CL.color, null, 0.2); }
       P.tick -= dt;
       if (P.tick <= 0) {
         P.tick = 0.075;
         setHitSrc('e');
+        strikeMaster(P.pos.x, P.pos.y, P.pos.z, eRad);    // spinning into Master Sen counts as hitting him
         for (const d of dummies) {
           if (d.dead) continue;
           const dx = d.pos.x - P.pos.x, dz = d.pos.z - P.pos.z, dy = d.pos.y - P.pos.y;
-          if (dx * dx + dz * dz < E.rad * E.rad && dy > -1.8 && dy < 2.2) hitDummy(d, E.dmg, P.skDir.x * 2.5, P.skDir.z * 2.5, d.grounded ? 0 : 4, false, 0.015);
+          if (dx * dx + dz * dz < eRad * eRad && dy > -1.8 && dy < 2.2) hitDummy(d, E.dmg, P.skDir.x * 2.5, P.skDir.z * 2.5, d.grounded ? 0 : 4, false, 0.015);
         }
       }
       if (P.st > E.dur) { setState('normal'); P.vel.set(P.skDir.x * 12, 0, P.skDir.z * 12); }
@@ -326,8 +340,5 @@ export function update(dt) {
   updateChallenge(dt);
 
   // master idle
-  master.yaw = angDamp(master.yaw, Math.atan2(mdx, mdz), 4, dt);
-  master.sm.root.rotation.y = master.yaw;
-  master.sm.body.position.y = 0.93 + Math.sin(T * 2) * 0.012 + (dlg.open ? Math.abs(Math.sin(T * 9)) * 0.02 : 0);
-  master.mark.position.y = 2.75 + Math.sin(T * 3) * 0.12; master.mark.rotation.y = T * 2; master.mark.visible = !dlg.open && !chal.cur;
+  updateMaster(dt);
 }

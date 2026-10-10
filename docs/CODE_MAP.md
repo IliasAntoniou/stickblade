@@ -1,5 +1,7 @@
 # Stickblade code map
 
+For what every ability and sword style does, see `docs/ABILITIES.md`.
+
 Where everything is, what the short names mean, and how to add things. If this file and the code disagree, the code is right and this file needs fixing.
 
 ## Where is it?
@@ -28,7 +30,12 @@ Where everything is, what the short names mean, and how to add things. If this f
 | The map (boxes, platforms, walls) | The `addBox()` lines in `js/world.js` |
 | Kunai and javelin | `js/projectiles.js` |
 | A challenge's goal, or a new challenge | `CH` and `updateChallenge()` in `js/challenges.js` |
-| Master Sen's lines and menu | `GREET`, `TIPS` and `renderDlg()` in `js/master.js` |
+| Master Sen's lines, and what is on each page of his menu | `GREET`, `TIPS` and `renderDlg()` in `js/master.js` |
+| How his menu looks (the window, the cards, his portrait) | The `#dlg` CSS and HTML in `index.html` |
+| The pictures on the menu cards | `ICONS` in `js/master.js` |
+| What happens when he is hit: the warning and how long it lasts | `strikeMaster()`, `warnPlayer()` and `WARNING_TIME` in `js/master.js` |
+| The grab, the jump and the slam: timing, how high he leaps, how much health it takes | `grabPlayer()`, `updateGrab()` and the `GRAB_...`, `JUMP_HEIGHT` and `SLAM_DAMAGE` numbers in `js/master.js` |
+| How his head and eyes follow the player | `updateMaster()` in `js/master.js` |
 | Camera distance, shake, zoom with speed, lock-on | `updateCamera()` in `js/camera.js` |
 | Which key does what | The "actions" block in `update()` in `js/update.js`; raw key handling is in `js/input.js` |
 | Mouse sensitivity | `sens` in `js/input.js` |
@@ -38,6 +45,22 @@ Where everything is, what the short names mean, and how to add things. If this f
 | Sky colours, fog, overall brightness | `SKY` and `toneMappingExposure` in `js/core.js`; the sky itself is drawn in `js/sky.js` |
 | The lighting (sun colour, direction, strength; the soft light from the sky) | `sun`, `SUN_OFFSET` and `hemi` in `js/core.js` |
 | Box colours, the floor tiles, how dark boxes get at the base | `COL`, `tileTex`, `makeFloor()` and the shading block under `boxGeo` in `js/world.js` |
+| A sword style's colour, how long it lasts, how strong its effect is (burn damage, extra reach) | `STYLES` and `STYLE_TIME` in `js/styles.js` |
+| Where the pool and the fire stand in the arena | The two `addSource()` lines at the bottom of `js/styles.js` |
+| How a style is taken (how close a slam has to land; how far away a fire can be locked on to) | `slamSources()`, `aimedFire()` and `FIRE_LOCK_RANGE` in `js/styles.js` |
+| The scene when a style is taken (going under the water, standing in the fire, how long it lasts) | `startTake()`, `updateTake()` and the `TAKE_...` numbers in `js/styles.js` |
+| The close-up of the eyes: their shape, the path of the slash, and the timing | `SHAPE`, `EYE`, `SLASH_PATH` and the three timings at the top of `js/cutin.js` |
+| The close-up of the eyes: colours, glow, shake and the other motion | The `#cutin` CSS in `index.html` |
+| The lock-on ring | The lock part of `updateHud()` in `js/hud.js`; what gets locked is decided at the end of `updateCamera()` in `js/camera.js` |
+| The suit worn under a style: what colour it glows | `glow`, `core`, `glowHex` and `eyes` in `STYLES` in `js/styles.js` |
+| The thin wisps running along the sword under a style | `wispTex` and `wispMat` in `js/styles.js`; how fast they flow is the `wispTex.offset` line in `updateStyles()` |
+| The hood and the mantle that hangs from it | The hood part of `attachOutfit()` in `js/styles.js` |
+| The suit's glowing cracks, and the coat's ragged hem | `drawCracks()`, `armourGlow()`, `coatCloth()` and `coatGlow()` in `js/styles.js` |
+| The suit's pieces (hood, armour, coat, cape) and where they sit on the body | `attachOutfit()` in `js/styles.js` |
+| How the water and the fire look | The textures and `addSource()` in `js/styles.js` |
+| How a style's slash is painted (foam, tongues of fire) | The `edge` part of `paintCrescent()` and `TRAIL_PAINTS` in `js/fx.js` |
+| The trial that unlocks a style | The entries with `style:` in `CLASSES.blade.trials` in `js/classes/blade.js` |
+| How Master Sen looks (build, hair, eyes, poses) | The `master` block and the `POSE_...` tables at the top of `js/master.js` |
 | A sword or dagger slash: how long it hangs in the air | `TRAIL_LIFE` in `js/fx.js`. The slash is built from the blade's real positions by `updateTrail()`, so its path is the sword's path |
 | A slash's width and how far it reaches past the blade | `WEAPON_REACH` in `js/anim.js` |
 | When a slash is drawn (which moves, how fast the blade must be moving) | `TRAIL_STATES` and `SLASH_SPEED` in `js/anim.js` |
@@ -98,6 +121,8 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/tuning.js` | The tuning panel shown while paused |
 | `js/progress.js` | Skill ranks and the trials that earn them |
 | `js/dojo.js` | The training hall: teleporting there, building and clearing each trial's layout |
+| `js/styles.js` | Sword styles (Water, Flame), the pools and fires they are taken from, and the scene of taking one |
+| `js/cutin.js` | The close-up of the eyes that cuts across the screen when a style is taken |
 | `js/sky.js` | The dusk sky: gradient dome, sun, stars |
 | `js/quality.js` | The Low / High graphics setting |
 | `vendor/three.module.js` | The three.js library (not ours; do not edit) |
@@ -147,7 +172,14 @@ Where everything is, what the short names mean, and how to add things. If this f
 | iframes | Seconds during which the player cannot be hit |
 | pool | A fixed set of objects reused over and over, never created during play |
 | lock-on, `lockTarget` | The dummy nearest the crosshair |
+| `lockFire` | A lit fire the crosshair is on. When set, `lockTarget` is null and a Blink Strike goes into the fire |
 | `aimHit` | The point on the map under the crosshair |
+| sword style, `style` | A temporary change to the sword taken from an object in the world: new slash colour and look plus one extra effect. `style.cur` is the one in use, `style.left` its seconds remaining |
+| source | A pool or fire a style is taken from. Still and unlit until its style is unlocked |
+| cut-in | The band across the screen showing the eyes change colour. The game stands still while it plays |
+| `P.sink` | How far the body is drawn below where it stands, for going under the water. 0 the rest of the time |
+| `reach()` | How much further sword attacks reach under the current style (1 = normal) |
+| `slashColor()` | The colour sword effects should use: the style's, or the class's when there is none |
 | rank | How far a skill has been trained: 0 = locked, 1 to 3 = learned. `rankOf()` in `js/progress.js` |
 | trial | A timed test that earns a rank. Runs on top of the challenge system; `chal.st` is its scratch space, `chal.st.n` its progress |
 | training hall, `dojo` | The separate room where trials happen, at x = 300. `dojo.inside` is true while the player is there |
@@ -188,6 +220,18 @@ The Blademaster is the worked example; copy from `js/classes/blade.js`.
 5. Add checks to the progression part of `tests/smoke.js`.
 
 A class with no `lv` on any skill has no progression: everything is usable from the start.
+
+### Add a sword style
+
+Water and Flame in `js/styles.js` are the worked examples.
+
+1. Add it to `STYLES`: id, name, colour, `paint`, `reach`, the numbers for its effect, and the `how` and `perk` lines.
+2. Give it its effect in `onStyleHit()` (runs for every hit that lands), or read `style.cur` wherever else it should matter.
+3. Give it a look: add an `edge` kind to `paintCrescent()` in `js/fx.js` and a matching entry in `TRAIL_PAINTS`.
+4. Give it a source: a new kind in `addSource()`, a way to take it (like `slamSources()`, or the lock-on used for fire) that calls `startTake()`, a line in `sourceHint()`, and one in the arena.
+   Give its suit a colour: `glow`, `core`, `glowHex`, `eyes` and `spark`, and an entry in `mats` in `attachOutfit()`.
+5. Add its trial to the class's `trials` with `style: '<id>'` and `arena.sources`. Passing it unlocks the style.
+6. Add checks to the style part of `tests/smoke.js`, and a column to Part 2 of `docs/ABILITIES.md`.
 
 ### Add a class
 
@@ -230,6 +274,10 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.
 - **`dt` or `rdt`.** Gameplay uses `dt` so it slows down during hitstop. Camera and on-screen display use `rdt`.
 - **Only boxes.** Collision assumes every solid is an upright box. A slope or rotated wall will not collide correctly.
+- **A style ends whenever the player respawns.** That covers death, teleports, class changes and the start of a trial (`clearStyle()` is called from `cleanupClassObjects()`), which is what keeps styles from being carried into a trial.
+- **Use `slashColor()` and `reach()` in sword code,** not `CL.color` and a bare radius, or the effect ignores the style.
+- **The menu frees the mouse.** Opening Master Sen's menu releases the mouse so cards can be clicked, which also pauses the game; closing it captures the mouse again. If the browser refuses, the pause screen shows and one click resumes.
+- **New area attacks should call `strikeMaster()`.** Sword swings, `hitArea()`, Cyclone and Rising Slash already do. An attack that loops over dummies by hand will pass straight through Master Sen unless it calls it too.
 - **Trials and tuning.** A trial will not start, and fails if running, while any tuning value differs from default. That is deliberate: it stops tuned numbers being used to pass.
 - **Stale files.** Always serve the game with `serve.py` (or `play.bat`). A plain web server lets the browser keep running old copies of changed files.
 - **Saved tuning.** Slider changes are stored in the browser and come back next time. If the game feels wrong, press "Reset all" in the panel before looking for a bug. The smoke test always runs on defaults.

@@ -55,7 +55,8 @@ const PEN = PAINT_W / 256;    // pen sizes below are written for a 256-wide pict
 // Draw one layer of a crescent onto a canvas and return it as a texture.
 //   outer(u), inner(u) = where the two edges of the shape are, 0..1 across the strip, for u = 0..1 along it.
 //   foamFrom, foamTo = the part of the outer edge that gets foam.
-function paintCrescent(layer, outer, inner, foamFrom, foamTo) {
+//   edge = what runs along the leading edge: 'foam' (water), 'flame' (tongues of fire) or 'plain' (nothing).
+function paintCrescent(layer, outer, inner, foamFrom, foamTo, edge = 'foam') {
   const canvas = document.createElement('canvas');
   canvas.width = PAINT_W;
   canvas.height = PAINT_H;
@@ -92,35 +93,63 @@ function paintCrescent(layer, outer, inner, foamFrom, foamTo) {
     flowLine(0.28, 0.08, 0.95);
     flowLine(0.58, 0.12, 0.95);
   } else {
+    const flame = edge === 'flame';
+    const ink = flame ? '#3a0c04' : INK;    // fire is outlined in dark red-brown, everything else in ink blue
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = ink;
     ctx.lineWidth = 3 * PEN;
     outline();
     ctx.stroke();
-    // white streaks flowing along the inside
-    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    // light streaks flowing along the inside
+    ctx.strokeStyle = flame ? 'rgba(255,232,150,0.9)' : 'rgba(255,255,255,0.9)';
     ctx.lineWidth = 2 * PEN;
     flowLine(0.44, 0.2, 0.9);
     flowLine(0.74, 0.3, 0.96);
-    // foam: a row of white blobs with ink outlines along the leading edge, bigger where the shape is thicker
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = ink;
     ctx.lineWidth = 2 * PEN;
-    for (let u = foamFrom; u <= foamTo; u += 0.036) {
-      const thick = outer(u) - inner(u);
-      const r = (3 + 9 * thick * (0.7 + Math.random() * 0.6)) * PEN;
-      ctx.beginPath();
-      ctx.arc(px(u), py(outer(u)) + r * 0.25, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+    if (edge === 'foam') {
+      // foam: a row of white blobs with ink outlines along the leading edge, bigger where the shape is thicker
+      ctx.fillStyle = '#ffffff';
+      for (let u = foamFrom; u <= foamTo; u += 0.036) {
+        const thick = outer(u) - inner(u);
+        const r = (3 + 9 * thick * (0.7 + Math.random() * 0.6)) * PEN;
+        ctx.beginPath();
+        ctx.arc(px(u), py(outer(u)) + r * 0.25, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      // spray: a few loose droplets beyond the foam
+      for (let k = 0; k < 14; k++) {
+        const u = foamFrom + (foamTo - foamFrom) * Math.random();
+        ctx.beginPath();
+        ctx.arc(px(u), py(Math.min(0.99, outer(u) + 0.03 + Math.random() * 0.07)), (1.5 + Math.random() * 1.5) * PEN, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (flame) {
+      // tongues of fire along the leading edge, each curling back the way the blade came from
+      ctx.fillStyle = '#ffe27a';
+      for (let u = foamFrom; u <= foamTo; u += 0.05) {
+        const thick = outer(u) - inner(u);
+        const w = 0.03, h = (0.07 + 0.2 * thick) * (0.6 + Math.random() * 0.8);
+        const y0 = outer(u) - 0.02;
+        ctx.beginPath();
+        ctx.moveTo(px(u - w), py(y0));
+        ctx.quadraticCurveTo(px(u + w * 0.4), py(y0 + h * 0.5), px(u + w * 2.2), py(Math.min(0.99, y0 + h)));
+        ctx.quadraticCurveTo(px(u + w * 1.4), py(y0 + h * 0.3), px(u + w), py(y0));
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      // embers drifting off
+      ctx.fillStyle = '#ffd24a';
+      for (let k = 0; k < 16; k++) {
+        const u = foamFrom + (foamTo - foamFrom) * Math.random();
+        ctx.beginPath();
+        ctx.arc(px(u + 0.03), py(Math.min(0.99, outer(u) + 0.04 + Math.random() * 0.16)), (1 + Math.random() * 1.6) * PEN, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
-    // spray: a few loose droplets beyond the foam
-    for (let k = 0; k < 14; k++) {
-      const u = foamFrom + (foamTo - foamFrom) * Math.random();
-      ctx.beginPath();
-      ctx.arc(px(u), py(Math.min(0.99, outer(u) + 0.03 + Math.random() * 0.07)), (1.5 + Math.random() * 1.5) * PEN, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    // edge === 'plain': just the outline and streaks
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -224,14 +253,28 @@ trailGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(TRAIL_MAX
 // Which positions are joined into ribbon pieces. Rewritten every frame, because separate swings must not be joined.
 const trailIndex = new THREE.BufferAttribute(new Uint16Array((TRAIL_MAX - 1) * 6), 1).setUsage(THREE.DynamicDrawUsage);
 trailGeo.setIndex(trailIndex);
-const [trailBodyMat, trailInkMat] = paintMats(paintCrescent('body', trailOuter, trailInner, 0.02, 0.6), paintCrescent('ink', trailOuter, trailInner, 0.02, 0.6));
-trailBodyMat.opacity = 0.92; trailInkMat.opacity = 1;
+// The slash has three painted looks, one per sword style (styles.js): plain for the bare sword, water with foam,
+// flame with tongues of fire. Each is a [body, ink] pair of materials; setTrailPaint swaps which pair is in use.
+const trailOuterFlame = () => 0.78;    // the flame look keeps its edge lower, leaving room above it for the fire
+function trailPaint(edge, outer) {
+  const mats = paintMats(paintCrescent('body', outer, trailInner, 0.02, 0.6, edge), paintCrescent('ink', outer, trailInner, 0.02, 0.6, edge));
+  mats[0].opacity = 0.92;
+  mats[1].opacity = 1;
+  return mats;
+}
+const TRAIL_PAINTS = { plain: trailPaint('plain', trailOuter), water: trailPaint('foam', trailOuter), flame: trailPaint('flame', trailOuterFlame) };
 export const trail = new THREE.Group();
 {
-  const body = new THREE.Mesh(trailGeo, trailBodyMat), ink = new THREE.Mesh(trailGeo, trailInkMat);
+  const body = new THREE.Mesh(trailGeo, TRAIL_PAINTS.plain[0]), ink = new THREE.Mesh(trailGeo, TRAIL_PAINTS.plain[1]);
   body.frustumCulled = ink.frustumCulled = false;    // its shape changes every frame, so skip the "is it on screen" test
   ink.renderOrder = 1;
   trail.add(body); trail.add(ink);
+}
+// Switch the slash to another painted look: 'plain', 'water' or 'flame'.
+export function setTrailPaint(name) {
+  const mats = TRAIL_PAINTS[name] || TRAIL_PAINTS.plain;
+  trail.children[0].material = mats[0];
+  trail.children[1].material = mats[1];
 }
 trail.visible = false; scene.add(trail);
 const trailPts = [];
@@ -277,7 +320,7 @@ export function updateTrail(dt, emitting, base, tip, color) {
     // The first position of a swing starts a new ribbon. Without this, a new cut would be joined to the end of
     // the last one by a long straight piece across the gap.
     if (!wasEmitting) trailPts[0].first = true;
-    trailBodyMat.color.setHex(color);
+    trail.children[0].material.color.setHex(color);
   }
   wasEmitting = emitting;
   trail.visible = trailCount >= 2;
@@ -316,11 +359,11 @@ export function spawnRing(pos, s0, s1, dur, color = 0xffffff) {
   r.m.position.copy(pos); r.life = r.max = dur; r.s0 = s0; r.s1 = s1; r.m.material.color.setHex(color); r.m.visible = true;
 }
 export const partGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
-export const partMats = [new THREE.MeshBasicMaterial({ color: 0xffc23d, toneMapped: false }), new THREE.MeshBasicMaterial({ color: 0xaab2c4 })];
+export const partMats = [new THREE.MeshBasicMaterial({ color: 0xffc23d, toneMapped: false }), new THREE.MeshBasicMaterial({ color: 0xaab2c4 }), new THREE.MeshBasicMaterial({ color: 0x8fd0ff, toneMapped: false })];
 export const parts = [];
 for (let i = 0; i < 110; i++) { const m = new THREE.Mesh(partGeo, partMats[0]); m.visible = false; scene.add(m); parts.push({ m, v: new V3(), life: 0 }); }
 export let partIdx = 0;
-// n small cubes flying out from pos. mat 0 = orange sparks, 1 = grey dust.
+// n small cubes flying out from pos. mat 0 = orange sparks, 1 = grey dust, 2 = pale blue sparks.
 export function burst(pos, n, speed = 8, mat = 0) {
   for (let i = 0; i < n; i++) {
     const p = parts[partIdx = (partIdx + 1) % parts.length];

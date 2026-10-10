@@ -10,8 +10,11 @@ import { spawnRing, spawnSwirl } from '../fx.js';
 import { P, CL, CLASSES, setHitSrc } from '../state.js';
 import { dummies, hitDummy } from '../dummies.js';
 import { depenetrate, ropeMesh, hookMesh, setState, startAttack, teleTrail } from '../player.js';
-import { camDir, camFwdH, facing, camFacingYaw, lockTarget, aimHit, raycaster, setCamYaw } from '../camera.js';
+import { camDir, camFwdH, facing, camFacingYaw, lockTarget, lockFire, aimHit, raycaster, setCamYaw } from '../camera.js';
 import { inDir, hasIn } from '../update.js';
+import { style, slashColor, reach, startTake } from '../styles.js';
+import { dojo } from '../dojo.js';
+import { strikeMaster } from '../master.js';
 
 // ---------- Blademaster ----------
 // RMB: pull towards the locked dummy, or the wall under the crosshair.
@@ -25,10 +28,17 @@ export function bmGrapple() {
   if (P.grounded) P.vel.y = Math.max(P.vel.y, 6);
 }
 // Q: teleport behind the locked dummy and strike. With no target, blink 14 units forward.
+// With a lit fire locked on (the ring is on it), it blinks into the flames instead, which is how the Flame style
+// is taken (styles.js).
 export function bmBlink() {
   const S = CL.skills.q;
   P.cd.q = S.cd;
   _a.copy(P.pos);
+  if (lockFire) {
+    teleTrail(_a, lockFire.pos, 5);
+    startTake(lockFire);
+    return;
+  }
   if (lockTarget) {
     const d = lockTarget;
     _c.set(d.pos.x - Math.sin(d.yaw) * 1.4, d.pos.y, d.pos.z - Math.cos(d.yaw) * 1.4); // behind the target
@@ -64,7 +74,7 @@ export function bmCyclone() {
   if (hasIn) P.skDir.copy(inDir); else camFwdH(P.skDir);
   setState('cyclone'); P.tick = 0; P.ghostT = 0;
   // the whirlpool: a painted swirl that stays on the player for as long as the spin lasts
-  spawnSwirl(P.pos, CL.skills.e.rad, CL.color, CL.skills.e.dur + 0.12, 17, 0, P.pos, 1.0);
+  spawnSwirl(P.pos, CL.skills.e.rad * reach(), slashColor(), CL.skills.e.dur + 0.12, 17, 0, P.pos, 1.0);
   P.yaw = P.yawT = Math.atan2(P.skDir.x, P.skDir.z);
 }
 // R: hop (if on the ground), then dive and blast. P.castY remembers the height it was started from.
@@ -82,6 +92,7 @@ export function bmRising() {
   setState('rising'); P.vel.y = 16; P.vel.x *= 0.4; P.vel.z *= 0.4; P.airJumps = P.airJumpsMax;
   const fx = _a.x, fz = _a.z;
   setHitSrc('f');
+  strikeMaster(P.pos.x, P.pos.y, P.pos.z, S.rad);
   for (const d of dummies) {
     if (d.dead) continue;
     const dx = d.pos.x - P.pos.x, dz = d.pos.z - P.pos.z, dist = Math.hypot(dx, dz), dy = d.pos.y - P.pos.y;
@@ -196,7 +207,28 @@ function airComboTick(st, dt) {
   if (landed || st.target.dead) st.target = null;
 }
 
+// Sword style trials: counts how many dummies one swing of the sword hits while Water is active.
+function mostInOneWaterSwing(st, ev) {
+  if (ev.src !== 'atk' || !style.cur || style.cur.id !== 'water') return;
+  if (st.swing !== P.atk.n) { st.swing = P.atk.n; st.seen = new Set(); }
+  st.seen.add(ev.d);
+  st.n = Math.max(st.n, st.seen.size);
+}
+
+// A trial with `style` unlocks that sword style (styles.js) where the others raise a skill's rank.
+//   needs = skill ranks that must already be earned, for example { r: 1 } = Meteor Slam learned.
+//   arena.sources = the style objects to place in the hall: [style id, x, z].
+// The style can be taken from its source during its own trial, which is how the trial teaches it.
 CLASSES.blade.trials = [
+  { id: 'blade-water', style: 'water', needs: { r: 1 }, name: 'Trial: Water style', desc: 'Meteor Slam into the pool to take Water, then hit 4 dummies with one swing of your sword', time: 60, goal: 4,
+    onHit: mostInOneWaterSwing,
+    // four dummies in a row, a little too wide for a plain swing: only Water's longer reach catches all of them
+    arena: { sources: [['water', 0, 9]], spawn: [['basic', -2.55, 0, -2.9], ['basic', -0.85, 0, -2.9], ['basic', 0.85, 0, -2.9], ['basic', 2.55, 0, -2.9]] } },
+  { id: 'blade-flame', style: 'flame', needs: { q: 1 }, name: 'Trial: Flame style', desc: 'Blink Strike into the fire to take Flame, then have 3 dummies burning at the same time', time: 60, goal: 3,
+    tick(st) { st.n = dojo.spawned.filter(d => d.burnT > 0 && !d.dead).length; },
+    // spread out, so all three have to be reached before the first stops burning
+    arena: { sources: [['flame', 0, 12]], spawn: [['basic', -7, 0, -3], ['basic', 0, 0, -8], ['basic', 7, 0, -3]] } },
+
   { id: 'blade-q1', slot: 'q', rank: 1, name: 'Trial: Blink Strike', desc: 'Land Blink Strike on all 3 flying dummies', time: 60, goal: 3, allow: ['q'], onHit: countFlying,
     arena: { spawn: [['flying', -10, 6, -4, { radius: 4 }], ['flying', 10, 8, -4, { radius: 4 }], ['flying', 0, 11, -14, { radius: 5 }]],
       props: [[-15, 0, -12, 3, 14, 3, 'pillar'], [15, 0, -12, 3, 14, 3, 'pillar']] } },

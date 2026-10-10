@@ -8,6 +8,7 @@ import { setBeam, updateTrail } from './fx.js';
 import { T, P, CL } from './state.js';
 import { playerMat, bladeMat, bladeGlow, player, playerShadow, cloneMat, cloneSm, FLIP_T, pose, tp, ropeMesh, hookMesh } from './player.js';
 import { camPitch } from './camera.js';
+import { slashColor, reach as styleReach } from './styles.js';
 
 // ================= player animation =================
 // How the body moves between poses. Every joint is on a SPRING: it is pulled towards its target, picks up speed,
@@ -93,6 +94,18 @@ export function animatePlayer(dt) {
     tp.shLX = s * 0.8; tp.shRX = -s * 0.8;
     if (camPitch > 0.5) tp.bodyPitch = -0.5;
     else { const rx = -Math.cos(P.yaw), rz = Math.sin(P.yaw); tp.bodyRoll = -(P.wallN.x * rx + P.wallN.z * rz) * 0.55; tp.spineX = 0.3; }
+  } else if (st === 'grabbed') {
+    // held off the ground by the throat: hands up at the neck, legs kicking
+    const kick = Math.sin(T * 16);
+    Object.assign(tp, { spineX: -0.28, shLX: -2.3, shLZ: -0.25, elL: -1.9, shRX: -2.3, shRZ: 0.25, elR: -1.9,
+      hipLX: -0.3 + kick * 0.4, kneeL: 0.55 - kick * 0.3, hipRX: -0.1 - kick * 0.4, kneeR: 0.55 + kick * 0.3 });
+  } else if (st === 'ignite') {
+    // standing in the fire: head back, chest out, arms flung wide
+    Object.assign(tp, { spineX: -0.32, shLX: -0.2, shLZ: 1.15, elL: -0.25, shRX: -0.2, shRZ: -1.15, elR: -0.25, hipLZ: 0.2, hipRZ: -0.2, bodyY: 0.96 });
+    tp.wrist = bladeAim(tp, 1.2);
+  } else if (st === 'submerge') {
+    // dropping under the water: knees tucked, arms up
+    Object.assign(tp, { hipLX: -1.2, kneeL: 1.7, hipRX: -1.0, kneeR: 1.6, shLX: -2.4, shLZ: 0.3, elL: -0.3, shRX: -2.4, shRZ: -0.3, elR: -0.3, spineX: 0.25 });
   } else if (st === 'dragonKick') {
     Object.assign(tp, { bodyPitch: -0.9, hipRX: -1.65, kneeR: 0, hipLX: 0.2, kneeL: 1.7, shLX: 0.6, shLZ: 0.6, elL: -0.4, shRX: 0.6, shRZ: -0.6, elR: -0.4, spineX: 0.3 });
   } else if (st === 'charge') {
@@ -235,6 +248,8 @@ export function animatePlayer(dt) {
     }
   }
   player.root.position.copy(P.pos);
+  player.root.position.y -= P.sink;    // going under the water of a pool; 0 the rest of the time
+  playerShadow.visible = P.sink < 0.3;
   player.root.rotation.y = P.yaw;
   applyPose(player, pose, xp, xs);
   player.root.updateMatrixWorld(true);
@@ -248,15 +263,15 @@ export function animatePlayer(dt) {
   const reach = WEAPON_REACH[CL.weapon];
   if (reach) {
     player.wrist.localToWorld(_a.set(0, 0, reach[0]));
-    player.wrist.localToWorld(_b.set(0, 0, reach[1]));
+    player.wrist.localToWorld(_b.set(0, 0, reach[1] * styleReach()));
     if (dt > 0.004) {    // not during hitstop, when dt is almost nothing
       bladeFast = _b.distanceTo(lastTip) / dt > SLASH_SPEED;
       lastTip.copy(_b);
     }
     // Only during an attack or a sword skill, after the coil back, and only while the blade is really moving.
     const attacking = (a.on && a.t >= coilTime(CL.atk[a.combo])) || TRAIL_STATES.has(st);
-    updateTrail(dt, attacking && bladeFast && P.smokeT <= 0, _a, _b, CL.color);
-  } else updateTrail(dt, false, _a, _b, CL.color);
+    updateTrail(dt, attacking && bladeFast && P.smokeT <= 0, _a, _b, slashColor());
+  } else updateTrail(dt, false, _a, _b, slashColor());
 
   if (P.clone) { cloneSm.root.position.copy(P.clone.pos); cloneMat.opacity = 0.45 + Math.sin(T * 8) * 0.2; }
   if (P.state === 'grapple') {

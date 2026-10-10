@@ -378,12 +378,12 @@ check('Master Sen: to the hall, a trial, and back', () => {
   press('KeyG', 2); press('Digit2', 2);                  // "Train my skills"
   if (!dojo.inside || dlg.open) return false;
   run(5); press('KeyG', 2);                              // he is next to where you arrive
-  if (dlg.page !== 'train' || dlg.opts.length !== 5) return false;
+  if (dlg.page !== 'train' || dlg.opts.length !== 7) return false;    // 4 skills, 2 sword styles, return
   press('Digit1', 2);                                    // first skill listed is Blink Strike
   if (chal.cur !== trial('blade-q1') || dlg.open) return false;
   SB.endChallenge(); run(2);
   SB.respawnPlayer(); run(2);
-  press('KeyG', 2); press('Digit5', 2);                  // "Return to the arena"
+  press('KeyG', 2); press('Digit7', 2);                  // "Return to the arena"
   return !dojo.inside && near(0, 14);
 });
 check('Master Sen: offers to reset tuning in the hall', () => {
@@ -391,9 +391,224 @@ check('Master Sen: offers to reset tuning in the hall', () => {
   press('KeyG', 2);
   if (dlg.opts.length !== 2) { SB.resetTuning(); return false; }    // only "reset tuning" and "return"
   press('Digit1', 2);
-  const ok = TUNE.jump === 13 && dlg.opts.length === 5;              // tuning is default again and the trials are listed
+  const ok = TUNE.jump === 13 && dlg.opts.length === 7;              // tuning is default again and the trials are listed
   press('KeyG', 2);
   return ok;
+});
+// Master Sen: one hit earns a warning, a second inside ten seconds is fatal
+const sen = SB.master;
+// Stand right in front of him and swing the sword.
+function swingAtSen() { P.pos.set(sen.pos.x, sen.pos.y, sen.pos.z + 1.6); P.vel.set(0, 0, 0); P.iframes = 0; run(2); pressed.add('M0'); run(10); }
+check('Sen: the first hit is only a warning', () => {
+  SB.setClass('blade'); reset(); run(60 * 11);           // let any earlier warning run out
+  const hp = P.hp;
+  swingAtSen();
+  // warned, thrown back from him, but alive and not sent anywhere
+  return sen.warnT > 9 && P.hp === hp && Math.hypot(P.pos.x - sen.pos.x, P.pos.z - sen.pos.z) > 1.7 && !near(0, 14);
+});
+check('Sen: a second hit inside ten seconds gets you grabbed by the neck and slammed', () => {
+  run(60 * 3);
+  if (!(sen.warnT > 0)) return false;
+  swingAtSen();
+  if (P.state !== 'grabbed') return false;
+  run(26);                                               // about half a second in: held up in front of him
+  const held = P.pos.y > sen.pos.y + 0.5 && Math.hypot(P.pos.x - sen.pos.x, P.pos.z - sen.pos.z) < 2.5 && P.hp === P.maxHp;
+  SB.hurtPlayer(20, dummies[0].pos, dummies[0]);         // nothing else can hurt him meanwhile
+  SB.strikeMaster(sen.pos.x, sen.pos.y, sen.pos.z, 3);   // and flailing at Sen does nothing
+  if (P.hp !== P.maxHp || P.state !== 'grabbed') return false;
+  run(22);                                               // he has jumped: both are well off the ground now
+  const airborne = sen.sm.root.position.y > sen.pos.y + 2 && P.pos.y > sen.pos.y + 2.5 && P.state === 'grabbed';
+  run(40);                                               // slammed, and he is back on his feet
+  return held && airborne && sen.sm.root.position.y === sen.pos.y && P.state === 'normal' && P.hp === P.maxHp - 60 && sen.warnT === 0 && !near(0, 14)
+    && Math.hypot(P.pos.x - sen.pos.x, P.pos.z - sen.pos.z) < 6;
+});
+check('Sen: the slam never takes the last of your health', () => {
+  reset(); run(120);
+  swingAtSen(); run(50);
+  P.hp = 25;
+  swingAtSen();
+  if (P.state !== 'grabbed') return false;
+  run(90);
+  return P.state === 'normal' && P.hp === 1 && !near(0, 14);
+});
+check('Sen: after ten seconds it is only a warning again', () => {
+  reset(); run(120);                                     // after a slam he cannot be provoked again for a moment
+  swingAtSen();
+  if (!(sen.warnT > 0)) return false;
+  run(60 * 11);
+  if (sen.warnT !== 0) return false;
+  swingAtSen();
+  return sen.warnT > 9 && !near(0, 14);
+});
+check('Sen: a blast counts as a hit too, and one swing never counts twice', () => {
+  reset(); run(60 * 11);
+  SB.strikeMaster(sen.pos.x + 1, sen.pos.y, sen.pos.z, 3);
+  SB.strikeMaster(sen.pos.x + 1, sen.pos.y, sen.pos.z, 3);    // the same instant: ignored
+  const once = sen.warnT > 9 && !near(0, 14);
+  SB.strikeMaster(sen.pos.x + 30, sen.pos.y, sen.pos.z, 3);   // nowhere near him
+  run(60 * 11);
+  return once && sen.warnT === 0;
+});
+check('Sen: his head follows the player', () => {
+  reset(); P.pos.set(sen.pos.x + 6, 9, sen.pos.z); P.vel.set(0, 0, 0); run(5);   // up in the air to one side of him
+  const lookingUp = sen.headPitch > 0.3;
+  P.pos.set(sen.pos.x - 6, 0, sen.pos.z); run(4);             // suddenly on his other side: the head turns before the body
+  const turned = Math.abs(sen.headYaw) > 0.4;
+  run(120);
+  return lookingUp && turned && Math.abs(sen.headYaw) < 0.2;  // and then the body catches up
+});
+check('Sen: the menu is made of cards that can be clicked', () => {
+  reset(); P.pos.copy(sen.pos); P.pos.z -= 2; P.vel.set(0, 0, 0); run(2);
+  press('KeyG', 2);
+  const win = document.getElementById('dlg'), cards = win.querySelectorAll('.card');
+  if (!dlg.open || cards.length !== dlg.opts.length || cards.length !== 5 || !cards[0].querySelector('svg')) return false;
+  if (!document.body.classList.contains('sen')) return false;
+  cards[0].click();                                      // "Change fighting style"
+  if (dlg.page !== 'classes' || win.querySelectorAll('.card').length !== 5) return false;
+  win.querySelectorAll('.card')[2].click();              // the Monk
+  const picked = !dlg.open && SB.CL.id === 'monk' && !document.body.classList.contains('sen') && getComputedStyle(win).display === 'none';
+  SB.setClass('blade');
+  return picked;
+});
+
+// sword styles: locked until their trial is passed, taken through a short scene, gone after 20 seconds
+const style = SB.style, PLAIN_SKIN = 0xeef1f8, outfit = SB.outfit;
+let flameArmour = null;    // remembered from the Flame check, to make sure Water wears different colours
+// Is the style's suit on? Dark limbs, every piece showing, the armour and coat glowing in that style's cracks
+// (each style has its own pictures for those), and the face in shadow under the hood.
+const dressedAs = id => SB.playerMat.color.getHex() !== PLAIN_SKIN && outfit.parts.length > 15 && outfit.parts.every(m => m.visible)
+  && outfit.chest.material.emissiveMap !== null && outfit.coat.material.emissiveMap !== null
+  && outfit.chest.material !== outfit.coat.material && SB.player.head.material !== SB.playerMat;
+const undressed = () => SB.playerMat.color.getHex() === PLAIN_SKIN && outfit.parts.every(m => !m.visible) && SB.player.head.material === SB.playerMat;
+const pool = SB.sources.find(s => s.id === 'water'), firePit = SB.sources.find(s => s.id === 'flame');
+// Stand six units from a fire, facing it (the camera looks along -z after a respawn), and Blink Strike.
+function faceFire(src) { P.pos.set(src.pos.x, src.pos.y, src.pos.z + 6); P.vel.set(0, 0, 0); P.cd.q = 0; run(3); }
+function blinkAt(src) { faceFire(src); pressed.add('KeyQ'); run(4); }
+// Drop into a pool from above with Meteor Slam.
+function slamInto(src) { P.pos.set(src.pos.x, src.pos.y + 7, src.pos.z); P.vel.set(0, 0, 0); P.grounded = false; P.cd.r = 0; run(1); pressed.add('KeyR'); run(14); }
+// Pass a skill's first trial the quick way, to get on with the style checks.
+function learn(id, src) {
+  if (!begin(id)) return false;
+  P.castN++; P.castY = P.pos.y + 6;
+  for (const d of dojo.spawned) skillHit(src, d);
+  run(3);
+  return chal.cur === null;
+}
+check('style: locked at the start, and the fire is out', () => {
+  SB.resetProgress(); SB.setClass('blade'); reset(); run(3);
+  return !SB.styleUnlocked('flame') && !SB.styleUnlocked('water') && SB.giveStyle('flame') === false && firePit.fire.visible === false && pool.ripples.visible === false;
+});
+check('style: each needs its skill first', () => SB.startTrial(trial('blade-flame')) === false && SB.startTrial(trial('blade-water')) === false && chal.cur === null);
+check('style: a locked fire is just a place to blink past', () => {
+  if (!learn('blade-q1', 'q')) return false;
+  reset(); faceFire(firePit);
+  if (SB.lockFire() !== null) return false;              // no ring on a fire that is out
+  pressed.add('KeyQ'); run(60);
+  return style.cur === null && P.state === 'normal' && P.cd.q > 0;
+});
+check('style: Flame trial, played', () => {
+  if (!begin('blade-flame')) return false;
+  if (dojo.sources.length !== 1 || !SB.styleUnlocked('flame')) return false;    // lent for the trial
+  const fire = dojo.sources[0];
+  faceFire(fire);
+  if (SB.lockFire() !== fire || SB.lockTarget() !== null) return false;    // the ring is on the fire
+  pressed.add('KeyQ'); run(4);
+  // the scene: standing in the middle of the fire, held there, and nothing can hit him
+  if (P.state !== 'ignite' || Math.hypot(P.pos.x - fire.pos.x, P.pos.z - fire.pos.z) > 0.01 || style.cur) return false;
+  const hp = P.hp; SB.hurtPlayer(20, dummies[0].pos, dummies[0]);
+  if (P.hp !== hp) return false;
+  run(50);
+  if (P.state !== 'normal' || !style.cur || style.cur.id !== 'flame') return false;
+  if (!dressedAs('flame')) return false;                 // he is wearing the suit
+  flameArmour = outfit.chest.material;
+  for (const d of spawned('basic')) skillHit('atk', d);
+  if (!spawned('basic').every(d => d.burnT > 0)) return false;
+  run(3);
+  return chal.cur === null && SB.styleUnlocked('flame') && style.cur === null && dojo.sources.length === 0 && undressed();
+});
+check('style: Flame burns over time, then stops', () => {
+  reset(); blinkAt(firePit); run(50);
+  if (!style.cur || style.cur.id !== 'flame' || !firePit.fire.visible) return false;
+  const d = dummies[0];
+  skillHit('atk', d);
+  const afterHit = d.hp;
+  run(150);                                              // 2.5 seconds
+  const burned = afterHit - d.hp;
+  run(200);
+  const later = d.hp;
+  run(60);
+  return burned >= 25 && d.burnT <= 0 && d.hp >= later;  // ticked, then went out (dummies heal, so only "not lower")
+});
+check('style: the ring only takes a fire that is aimed at and in reach', () => {
+  reset(); faceFire(firePit);
+  if (SB.lockFire() !== firePit) return false;
+  P.pos.z += 14; run(3);                                 // twenty units away: too far for a blink
+  if (SB.lockFire() !== null) return false;
+  P.pos.set(firePit.pos.x + 9, 0, firePit.pos.z + 6); run(3);    // close, but looking past it
+  return SB.lockFire() === null;
+});
+check('style: a sword swing at the fire no longer takes it', () => {
+  reset(); P.pos.set(firePit.pos.x, 0, firePit.pos.z + 1.7); run(3); pressed.add('M0'); run(20);
+  return style.cur === null;
+});
+check('style: lasts 20 seconds, then sword and skin are plain again', () => {
+  reset(); blinkAt(firePit); run(50);
+  if (!style.cur) return false;
+  run(60 * 18);
+  if (!style.cur) return false;
+  run(60 * 3);
+  return style.cur === null && SB.reach() === 1 && undressed();
+});
+check('style: a trial starts with a plain sword', () => {
+  reset(); blinkAt(firePit); run(50);
+  if (!style.cur) return false;
+  if (!begin('blade-q2')) return false;
+  const plain = style.cur === null;
+  SB.endChallenge();
+  return plain;
+});
+check('style: Water trial, played', () => {
+  reset();
+  if (!learn('blade-r1', 'r')) return false;             // Water needs Meteor Slam, so learn that first
+  if (!begin('blade-water')) return false;
+  standAt(0, 0, -1.2); run(3); pressed.add('M0'); run(25);
+  if (chal.cur === null || chal.st.n !== 0) return false;    // a plain swing does not count, and cannot reach all four
+  run(300);                                                  // the dummies walk back into line
+  slamInto(dojo.sources[0]);
+  // the scene: under the water, sinking
+  if (P.state !== 'submerge' || !(P.sink > 0.5) || style.cur) return false;
+  run(50);
+  if (P.state !== 'normal' || P.sink !== 0 || !style.cur || style.cur.id !== 'water') return false;
+  if (!dressedAs('water') || outfit.chest.material === flameArmour) return false;    // and not in Flame's colours
+  run(80);                                                   // he leaps out of the pool: wait to land
+  standAt(0, 0, -1.2); run(3); pressed.add('M0'); run(12);
+  return chal.cur === null && SB.styleUnlocked('water');
+});
+check('style: Water from a slam into the pool', () => {
+  reset(); slamInto(pool); run(55);
+  if (!style.cur || style.cur.id !== 'water' || SB.reach() !== 1.2 || !pool.ripples.visible) return false;
+  P.cd.q = 3; skillHit('atk', dummies[0]);
+  return P.cd.q < 3;                                     // every hit shortens cooldowns
+});
+check('style: a slam outside the pool gives nothing', () => {
+  reset(); P.pos.set(pool.pos.x + 12, 7, pool.pos.z); P.vel.set(0, 0, 0); P.grounded = false; P.cd.r = 0; press('KeyR', 30); run(60);
+  return style.cur === null && P.state === 'normal';
+});
+check('style: ends on respawn and on class change', () => {
+  reset(); SB.giveStyle('flame');
+  if (!style.cur) return false;
+  SB.respawnPlayer();
+  if (style.cur) return false;
+  SB.giveStyle('water'); SB.setClass('ninja');
+  const cleared = style.cur === null;
+  SB.setClass('blade');
+  return cleared;
+});
+check('style: being defeated mid-scene leaves nothing stuck', () => {
+  reset(); slamInto(pool);
+  if (P.state !== 'submerge') return false;
+  SB.respawnPlayer(); run(5);
+  return P.state === 'normal' && P.sink === 0 && style.cur === null;
 });
 reset();
 SB.resetProgress();
