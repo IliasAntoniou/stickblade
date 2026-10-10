@@ -154,12 +154,15 @@ const MAX_RIBBONS = 8;
 const RIBBONS = {
   flame: {
     count: 8, life: 0.5, width: 0.95, solid: false,
-    // Silk in a wind: each ribbon swings from side to side on its own beat and fans out and lifts as it ages.
+    // Silk in a wind: each ribbon swings from side to side on its own beat. It opens out a little over the
+    // length of the dash and then holds that width: `open` levels off, so the ribbons go on waving as they fade
+    // but stay a compact bundle and do not keep spreading (they used to end up three times as wide).
     bend(n, age, out) {
-      const spread = 0.1 + age * 3.2;
+      const open = 1 - Math.exp(-age * 9);    // 0 at the head, close to 1 from about a quarter of a second on
+      const spread = 0.1 + open * 0.42;
       const sway = Math.sin(n * 2.4 + age * 26 + form.time * 7) * 0.55 + Math.sin(n * 0.9 + age * 11) * 0.45;
-      out.x = sway * spread + (n - 3.5) * (0.07 + age * 0.9);
-      out.y = Math.cos(n * 1.7 + age * 19 + form.time * 5) * spread * 0.45 + age * 2.2 + ((n * 7) % 5 - 2) * 0.11;
+      out.x = sway * spread + (n - 3.5) * (0.07 + open * 0.11);
+      out.y = Math.cos(n * 1.7 + age * 19 + form.time * 5) * spread * 0.45 + open * 0.35 + ((n * 7) % 5 - 2) * 0.11;
     },
     // pale gold at the head, quickly through orange, to a deep red at the tail
     tint(age, out) {
