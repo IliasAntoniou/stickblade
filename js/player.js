@@ -17,6 +17,7 @@ import { endChallenge } from './challenges.js';
 import { reach, slashColor, clearStyle, slamSources } from './styles.js';
 import { strikeMaster } from './master.js';
 import { questEvent } from './quests.js';
+import { failMission } from './missions.js';
 import { stowMount } from './mounts.js';
 import { inDir, hasIn, inX, inZ, hsp } from './update.js';
 
@@ -182,7 +183,9 @@ export function parry(d) {
 }
 // Health ran out: end any challenge and go back to the start.
 export function playerDefeated() {
-  centerMsg('DEFEATED<small>Master Sen drags you back to the start</small>', 2);
+  // Falling during a mission loses it: its enemies go, and the respawn below is back in the yard.
+  const lost = failMission();
+  centerMsg(lost ? 'MISSION FAILED<small>The district is still theirs. Master Sen drags you home</small>' : 'DEFEATED<small>Master Sen drags you back to the start</small>', lost ? 3 : 2);
   if (chal.cur) endChallenge();
   respawnPlayer();
   for (const d of dummies) { d.cancelAtk(); if (d.type === 'fighter') d.aiCd = 3; }

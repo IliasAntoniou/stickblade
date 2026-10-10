@@ -155,7 +155,14 @@ All of them are the same stick figure underneath. Colour and shape say what each
 | Winged | Blue | Two flapping wings, a halo, a slight body | Circles in the air | 400 |
 | Brute | Purple | Horns, spiked shoulders, thick arms, glowing red eyes; bigger than the rest | Comes after you. Slams the ground around it when you are close, lunges when you are further away. Red marks on the ground warn of both | 900 |
 | Ash Hand scout (story only) | Ash grey | A red headband with flying tails, a red mask, glowing red eyes | Fights like a brute, but hunts you across the whole arena at a fast walk, never heals, and stays down when beaten | 240 |
+| Runner (missions) | Dull yellow, **yellow band** | Small and quick | Fights like a scout but moves at 8.5, nearly your running speed. **Weak to Thunder** | 170 |
+| Ironclad (missions) | Dark steel, **orange band** | Bigger and heavier | Slow (3.6) and very tough. **Weak to Flame** | 420 |
+| Dock rat (missions) | Blue-grey, **blue band** | Small | Weak alone, but they come seven at a time. **Weak to Water** | 95 |
+| Barricade (missions) | Wood | A wall of planks with spikes on top | Does not move or fight. Swords and skills do nothing to it: only a mount running into it breaks it. The elephant does it in one go, the others in two or three | 60 |
+| Marrow (missions) | Dark | As big as Rook, with spiked shoulders | The boss of the docks. At half health he calls in two runners and an ironclad | 1500 |
 | Rook (story only) | Dark ash | The same headband and mask on a much bigger body with spiked shoulders | The first boss. The same slam and lunge, with far more health | 800 |
+
+**Weaknesses.** The colour of a gang member's headband is the element that hurts it most: orange for Flame, yellow for Thunder, blue for Water, red for none. Hit under that sword style it takes 60% more. Hit any other way it takes only 60% of the damage. Burning ignores this.
 
 ---
 
