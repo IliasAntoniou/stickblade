@@ -829,13 +829,15 @@ for (const id of ['flame', 'thunder', 'water']) {
     // mid-dash: all element, the body shrunk to almost nothing, and the effect on screen
     const effect = id === 'thunder' ? SB.dashBolts.some(b => b.m.visible) : SB.dashSoft.points.visible;
     if (P.state !== 'dash' || dashForm.amount !== 1 || rootScale() > 0.1 || !effect || !SB.dashBright.points.visible) return false;
+    // fire and water are ribbons streaming back from the player; lightning is its bolt
+    if (SB.dashRibbons.visible !== (id !== 'thunder')) return false;
     // just after: partway back, neither gone nor whole (this is the smooth part)
     run(9);
     if (P.state === 'dash' || !(rootScale() > 0.15 && rootScale() < 0.98)) return false;
     // a little later: whole again, and soon nothing of the effect is left to draw
     run(20); if (dashForm.amount !== 0 || rootScale() !== 1) return false;
     run(80);
-    return !SB.dashSoft.points.visible && !SB.dashBright.points.visible && SB.dashBolts.every(b => !b.m.visible);
+    return !SB.dashSoft.points.visible && !SB.dashBright.points.visible && SB.dashBolts.every(b => !b.m.visible) && !SB.dashRibbons.visible;
   });
 }
 check('dash form: the dash itself is unchanged by it', () => {

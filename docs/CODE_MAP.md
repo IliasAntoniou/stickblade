@@ -67,7 +67,9 @@ Where everything is, what the short names mean, and how to add things. If this f
 | What being soaked does to an enemy | `SOAK` in `js/elements.js` |
 | What a skill is called on the skill bar under a style | `names` in `POWERS` in `js/elements.js` |
 | The patches of fire left on the ground | `addZone()` and `updateElements()` in `js/elements.js` |
-| How each element moves during a dash (the corkscrew, the wave) | `FIRE_TWIST`, `FIRE_WIDTH`, `WAVE_BEAT`, `WAVE_HEIGHT` and each `stream` in `FORMS` in `js/dashfx.js` |
+| The ribbons of fire and water in a dash: how many, how wide, how long they last, how they wave, their colours | `RIBBONS` in `js/dashfx.js` (`bend` is the motion, `tint` the colour); `RIBBON_WIDTH` and `RIBBON_GLOW` vary them |
+| The soft edges and fine streaks on a ribbon | `ribbonTex` in `js/dashfx.js` |
+| The swarm of embers or the head of water at the front of a dash | Each `stream` in `FORMS`, and `HEAD_PACE`, in `js/dashfx.js` |
 | Where the pool and the fire stand in the arena | The two `addSource()` lines at the bottom of `js/styles.js` |
 | How a style is taken (how close a slam has to land; how far away a fire can be locked on to; how wide a storm is) | `slamSources()`, `aimedFire()`, `FIRE_LOCK_RANGE`, `stormAt()` and `STORM_RADIUS` in `js/styles.js` |
 | Thunder's jump from one enemy to the next (share of damage, range) | `chainLightning()` and `chain`, `chainRange` in `STYLES.thunder` in `js/styles.js` |
@@ -221,6 +223,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | soaked, `d.soakT` | Seconds an enemy stays soaked (Water's Blink Strike): it takes more damage and a fighter is slowed |
 | share | A power's number given as a part of the skill's own (0.6 = 60%), so it grows with the skill's rank |
 | dash form, `form.amount` | The player turned into their style's element during a dash. 0 = the body, 1 = all element; it rises fast when a dash starts and falls more slowly after |
+| ribbon | A long strip that starts at the player and streams back along the path of their dash. What makes a dash read as being the element. Built by `updateRibbons()` in `js/dashfx.js` |
 | particle cloud | Many small soft dots drawn in one draw call. `soft` (drawn normally: smoke, water) and `bright` (added as light: embers, sparks) in `js/dashfx.js` |
 | `slashColor()` | The colour sword effects should use: the style's, or the class's when there is none |
 | rank | How far a skill has been trained: 0 = locked, 1 to 3 = learned. `rankOf()` in `js/progress.js` |
@@ -356,6 +359,7 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Read the style before a slam lands.** Landing in a pool changes the style during the blast, so the slam case in `update()` takes `power()` first and passes it to `slamLanded()`.
 - **Fire on the ground outlives the style, not a respawn.** `clearElements()` runs on every respawn (and so at the start of a trial); the style running out does not put fires out.
 - **Call `setHitSrc()` for each enemy in a loop.** A hit can set off an element's effect that deals damage of its own and changes the source.
+- **A dash effect has to be one continuous shape from the player backwards.** Puffs left along the path read as a trail behind the player, not as the player. The lightning's bolt and the ribbons are what make it read as being the element: keep that when changing them.
 - **Colours for particles are not what they look like.** They are brightened on the way to the screen: orange needs very little green, dark smoke is almost black.
 - **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.
 - **`dt` or `rdt`.** Gameplay uses `dt` so it slows down during hitstop. Camera and on-screen display use `rdt`.

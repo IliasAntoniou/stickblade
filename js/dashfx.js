@@ -1,16 +1,19 @@
 // dashfx.js: dashing under a sword style turns the player into that element for the length of the dash.
-//   Flame = a corkscrew of fire and smoke,  Thunder = a zigzag bolt of lightning,  Water = a surging wave with a wake.
+//   Flame = ribbons of flame streaming back from a swarm of embers,  Thunder = a zigzag bolt of lightning,
+//   Water = a torrent that surges and sags, with a head of water and spray.
+// In each the player is one continuous shape reaching from where they are back along their path: that is what
+// makes it read as BEING the element, where puffs left behind only read as a trail.
 // With no style the dash keeps its plain afterimages (update.js).
 // The change is never a cut. form.amount runs from 0 (the body) to 1 (all element): the body shrinks into the
 // middle of the effect as the dash starts and grows back out of it afterwards, while the element is thickest at
 // 1 and thins out as the body returns, with the last of it drawn back in towards the body.
 // Purely visual: the dash itself (speed, distance, not being hit) is unchanged.
-// Owns: form, the two particle clouds and the pool of lightning segments. Used by: main.js (updateDashForm every
+// Owns: form, the two particle clouds, the ribbons and the pool of lightning segments. Used by: main.js (updateDashForm every
 // frame), anim.js (formScale shrinks the body), update.js (hasDashForm switches the afterimages off).
 
 import * as THREE from 'three';
 import { V3 } from './util.js';
-import { scene } from './core.js';
+import { scene, camera } from './core.js';
 import { glowTex, beamGeo, setBeam, spawnGlow, spawnRing } from './fx.js';
 import { P } from './state.js';
 import { style } from './styles.js';
@@ -127,44 +130,198 @@ function updateBolts(dt) {
 // grey, and orange needs far less green than it looks like it should.)
 const SMOKE = [0.035, 0.03, 0.035], HOT = [1, 0.13, 0.01], EMBER = [1, 0.2, 0.02], CORE = [1, 0.5, 0.12], SPARK = [1, 0.95, 0.55], WATER = [0.05, 0.22, 0.75], GLINT = [0.7, 0.92, 1];
 const _at = new V3(), _to = new V3(), _last = new V3();
-// _side and _up point across the line of the dash (to its right, and upwards from it): the corkscrew and the
-// wave are drawn with them. strand flips between 0 and 1 so effects with two sides take turns.
+// _side and _up point across the line of the dash (to its right, and upwards from it): the ribbons are pushed
+// off the path along them.
 const _side = new V3(), _up = new V3();
-let strand = 0;
-const FIRE_TWIST = 85;      // how fast the corkscrew of fire turns, radians per second (about two full turns per dash)
-const FIRE_WIDTH = 0.62;    // how far from the line of the dash its two ropes are
-const WAVE_BEAT = 62;       // how fast the water rises and dips, radians per second (about one and a half waves per dash)
-const WAVE_HEIGHT = 0.6;    // how far above and below the line of the dash it goes
+const HEAD_PACE = 26;    // how fast the swarm at the front is thrown forward (the dash itself travels at 34)
+
+// ---------- ribbons ----------
+// What makes the player look like they ARE the element, not something leaving a trail: long flowing strips that
+// start at the player and stream back along the path they have just taken, the way the lightning is one bolt.
+// The path is remembered as a short list of points, newest first. Every ribbon follows that same path, each
+// pushed off it in its own slowly waving way, so together they move like silk or like water in a current.
+// All the ribbons are one shape, rebuilt every frame: one draw call.
+const PATH_POINTS = 18;      // how many points of the path are remembered
+const PATH_GAP = 0.013;      // seconds between remembered points, so a fast screen does not use them all up at once
+const SMOOTH = 3;            // each stretch between two remembered points is drawn as this many pieces, so curves are round
+const RIBBON_POINTS = (PATH_POINTS - 1) * SMOOTH + 1;
+const MAX_RIBBONS = 8;
+// How each element's ribbons look. count = how many, life = seconds a part of a ribbon lasts before it has faded,
+// width = how wide the widest one is at the head, solid = true draws them as a body (water), false as light (fire),
+// bend(n, age, out) = how far ribbon number n is pushed off the path, sideways (out.x) and upwards (out.y), at a
+//   point that is `age` seconds old,
+// tint(age, out) = its colour there as out.x, out.y, out.z (red, green, blue).
+const RIBBONS = {
+  flame: {
+    count: 8, life: 0.5, width: 0.95, solid: false,
+    // Silk in a wind: each ribbon swings from side to side on its own beat and fans out and lifts as it ages.
+    bend(n, age, out) {
+      const spread = 0.1 + age * 3.2;
+      const sway = Math.sin(n * 2.4 + age * 26 + form.time * 7) * 0.55 + Math.sin(n * 0.9 + age * 11) * 0.45;
+      out.x = sway * spread + (n - 3.5) * (0.07 + age * 0.9);
+      out.y = Math.cos(n * 1.7 + age * 19 + form.time * 5) * spread * 0.45 + age * 2.2 + ((n * 7) % 5 - 2) * 0.11;
+    },
+    // pale gold at the head, quickly through orange, to a deep red at the tail
+    tint(age, out) {
+      const k = Math.min(1, age / 0.26), cool = (1 - k) * (1 - k);
+      out.set(1, 0.2 * cool + 0.012, 0.035 * cool);
+    },
+  },
+  water: {
+    count: 5, life: 0.4, width: 0.85, solid: true,
+    // A torrent: keeps close to the path, rolls like a wave, and sags under its own weight as it ages.
+    bend(n, age, out) {
+      out.x = Math.sin(n * 1.9 + age * 17 + form.time * 4) * (0.08 + age * 1.3) + (n - 2) * 0.17;
+      out.y = Math.sin(age * 30 + n * 1.3) * 0.26 - age * age * 11 + (n % 2) * 0.14;
+    },
+    // near white at the head, deepening to blue
+    tint(age, out) {
+      const k = Math.min(1, age / 0.2), pale = (1 - k) * (1 - k);
+      out.set(0.3 * pale + 0.02, 0.4 * pale + 0.13, 0.95);
+    },
+  },
+};
+// Each ribbon's own share of the full width and brightness, so they are not all alike: a few broad ones and
+// several thin wisps.
+const RIBBON_WIDTH = [1, 0.45, 0.8, 0.3, 0.65, 0.38, 0.9, 0.28];
+const RIBBON_GLOW = [0.75, 1, 0.6, 1, 0.8, 0.95, 0.55, 1];
+// The picture on every ribbon: see-through at both edges, with fine streaks running along its length, which is
+// what makes a flat strip read as flowing flame or running water. Across the ribbon is left to right in the
+// picture; along it is top to bottom.
+const ribbonTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 8;
+  const x = c.getContext('2d');
+  for (let px = 0; px < 64; px++) {
+    const across = Math.sin(px / 63 * Math.PI);                       // 0 at the edges, 1 in the middle
+    const streak = 0.55 + 0.45 * Math.sin(px * 1.9) * Math.sin(px * 0.73 + 1);    // fine uneven lines
+    const alpha = Math.pow(across, 1.6) * Math.max(0.15, streak);
+    x.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+    x.fillRect(px, 0, 1, 8);
+  }
+  return new THREE.CanvasTexture(c);
+})();
+const path = [];
+for (let i = 0; i < PATH_POINTS; i++) path.push({ pos: new V3(), side: new V3(), up: new V3(), dir: new V3(), born: 0 });
+let pathCount = 0;        // how many points of the path are in use (they are kept newest first)
+let ribbonClock = 0;      // seconds, counted here so the ribbons age in game time
+let ribbonLook = null;    // the entry of RIBBONS being drawn
+const ribbonGeo = new THREE.BufferGeometry();
+{
+  const corners = MAX_RIBBONS * RIBBON_POINTS * 2;
+  ribbonGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(corners * 3), 3));
+  ribbonGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(corners * 4), 4));    // red, green, blue, opacity
+  // which part of the picture each corner shows: one edge of the ribbon or the other
+  const uv = new Float32Array(corners * 2);
+  for (let v = 0; v < corners; v++) { uv[v * 2] = v % 2; uv[v * 2 + 1] = 0.5; }
+  ribbonGeo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  // each ribbon is a row of four-cornered pieces joining one point to the next
+  const index = [];
+  for (let r = 0; r < MAX_RIBBONS; r++) {
+    for (let k = 0; k < RIBBON_POINTS - 1; k++) {
+      const a = (r * RIBBON_POINTS + k) * 2;
+      index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+  }
+  ribbonGeo.setIndex(index);
+}
+export const ribbons = new THREE.Mesh(ribbonGeo, new THREE.MeshBasicMaterial({ map: ribbonTex, vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, blending: THREE.AdditiveBlending }));
+ribbons.frustumCulled = false;    // rebuilt every frame, so three.js cannot know where it is
+ribbons.visible = false;
+ribbons.renderOrder = 2;
+scene.add(ribbons);
+
+// Remember where the dash is now. The newest point always follows the player; a new one is started only every
+// PATH_GAP seconds.
+function recordPath(at) {
+  if (pathCount === 0 || ribbonClock - path[Math.min(1, pathCount - 1)].born >= PATH_GAP || pathCount === 1) {
+    const oldest = path.pop();
+    path.unshift(oldest);
+    pathCount = Math.min(PATH_POINTS, pathCount + 1);
+  }
+  const head = path[0];
+  head.pos.copy(at);
+  head.side.copy(_side);
+  head.up.copy(_up);
+  head.dir.copy(P.dashDir);
+  head.born = ribbonClock;
+}
+const _bend = new V3(), _tint = new V3(), _mid = new V3(), _across = new V3(), _toEye = new V3();
+// Rebuild the ribbons from the path. Runs every frame while any of the path is still young enough to show.
+function updateRibbons(dt) {
+  ribbonClock += dt;
+  const look = ribbonLook;
+  // points older than the ribbon's life have faded completely: forget them
+  while (look && pathCount > 0 && ribbonClock - path[pathCount - 1].born > look.life) pathCount--;
+  if (!look || pathCount < 2) {
+    ribbons.visible = false;    // a ribbon needs two points; the first frame of a dash has only one
+    return;
+  }
+  const pos = ribbonGeo.attributes.position.array, col = ribbonGeo.attributes.color.array;
+  const last = (pathCount - 1) * SMOOTH;    // the last drawn point of each ribbon
+  for (let r = 0; r < MAX_RIBBONS; r++) {
+    for (let k = 0; k < RIBBON_POINTS; k++) {
+      const corner = (r * RIBBON_POINTS + k) * 2;
+      // past the end of this ribbon (or a ribbon this element does not have): fold everything onto the last
+      // real point, see-through, so nothing is drawn
+      const used = r < look.count && k <= last;
+      // where along the remembered path this point is: between point `from` and the next one
+      const along = Math.min(k, last) / SMOOTH;
+      const from = Math.min(Math.floor(along), pathCount - 2), part = along - from;
+      const a = path[from], b = path[from + 1];
+      const age = ribbonClock - (a.born + (b.born - a.born) * part);
+      look.bend(r, age, _bend);
+      _mid.copy(a.pos).lerp(b.pos, part).addScaledVector(a.side, _bend.x).addScaledVector(a.up, _bend.y);
+      // The strip is turned to face the camera: its width runs across both the path and the line of sight.
+      _toEye.copy(camera.position).sub(_mid);
+      _across.crossVectors(a.dir, _toEye);
+      if (_across.lengthSq() < 0.0001) _across.copy(a.up);
+      _across.normalize();
+      const fade = Math.max(0, 1 - age / look.life);
+      // wide near the head, tapering to a point at the tail; the very front is pinched so it grows out of the body
+      const half = used ? look.width * RIBBON_WIDTH[r] * 0.5 * Math.pow(fade, 0.6) * Math.min(1, 0.2 + age * 16) : 0;
+      look.tint(age, _tint);
+      const opacity = used ? fade * RIBBON_GLOW[r] : 0;
+      for (let side = 0; side < 2; side++) {
+        const v = corner + side, sign = side ? 1 : -1;
+        pos[v * 3] = _mid.x + _across.x * half * sign;
+        pos[v * 3 + 1] = _mid.y + _across.y * half * sign;
+        pos[v * 3 + 2] = _mid.z + _across.z * half * sign;
+        col[v * 4] = _tint.x; col[v * 4 + 1] = _tint.y; col[v * 4 + 2] = _tint.z;
+        col[v * 4 + 3] = opacity;
+      }
+    }
+  }
+  ribbonGeo.attributes.position.needsUpdate = true;
+  ribbonGeo.attributes.color.needsUpdate = true;
+  ribbons.material.blending = look.solid ? THREE.NormalBlending : THREE.AdditiveBlending;
+  ribbons.visible = true;
+}
+
 // Each form: glow = colour of the flash at each end, rate = how many times a second `stream` runs during the dash,
 //   stream(at, dir, t) = what pours off the player while dashing (at = the chest, dir = the way the dash is
-//                      going, t = seconds since it began). Each element moves in its own way: fire winds in a
-//                      corkscrew, lightning zigzags, water surges like a wave
+//                      going, t = seconds since it began). Fire and water also have ribbons (RIBBONS, above)
 //   gather(at)       = one wisp of the element being drawn back into the body as it re-forms
 const FORMS = {
   flame: {
-    glow: 0xff7a1f, rate: 260,
-    // A corkscrew: two ropes of fire wind round the line of the dash, opposite each other, each dragging smoke
-    // that keeps turning after it is left behind. Embers are flung outwards off the spin.
-    stream(at, dir, t) {
-      strand = 1 - strand;
-      const angle = t * FIRE_TWIST + strand * Math.PI;
-      const cos = Math.cos(angle), sin = Math.sin(angle);
-      // a point on the corkscrew, and the way the corkscrew is turning there
-      _to.copy(at).addScaledVector(_side, cos * FIRE_WIDTH).addScaledVector(_up, sin * FIRE_WIDTH);
-      const turnX = (-sin * _side.x + cos * _up.x) * 5, turnY = (-sin * _side.y + cos * _up.y) * 5, turnZ = (-sin * _side.z + cos * _up.z) * 5;
-      // the rope itself: bright fire that dies quickly
-      emit(bright, _to, turnX * 0.5, turnY * 0.5, turnZ * 0.5, 1.0, -1.4, 0.26 + Math.random() * 0.1, HOT, 1, 0, 1);
-      emit(bright, _to, turnX * 0.3, turnY * 0.3, turnZ * 0.3, 0.5, -0.8, 0.2, CORE, 1, 0, 1);
-      // the smoke it drags: carries on turning, swelling and rising
-      emit(soft, _to, turnX + rand(0.5), turnY + 0.6, turnZ + rand(0.5), 0.8 + Math.random() * 0.4, 2.0, 0.45 + Math.random() * 0.35, SMOKE, 0.8, -1.1, 2.2);
-      // embers thrown straight outwards
-      if (Math.random() < 0.35) emit(bright, _to, (cos * _side.x + sin * _up.x) * 7 + rand(1), (cos * _side.y + sin * _up.y) * 7 + 1, (cos * _side.z + sin * _up.z) * 7 + rand(1), 0.3, -0.4, 0.35 + Math.random() * 0.25, EMBER, 1, 4, 1);
+    glow: 0xff7a1f, rate: 520,
+    // The player IS the fire: long ribbons of flame stream back from where they are (see RIBBONS), and at the
+    // front a dense swarm of embers travels with them. Only a little smoke is left behind.
+    stream(at, dir) {
+      // the swarm: tiny bright embers thrown forward at nearly the speed of the dash, so they stay around the
+      // head and spill out ahead of it when it stops
+      _to.set(at.x + rand(0.5), at.y + rand(0.6), at.z + rand(0.5));
+      const pace = HEAD_PACE * (0.75 + Math.random() * 0.4);
+      emit(bright, _to, dir.x * pace + rand(3), dir.y * pace + rand(3) + 0.5, dir.z * pace + rand(3), 0.13 + Math.random() * 0.12, -0.15, 0.22 + Math.random() * 0.3, Math.random() < 0.3 ? CORE : EMBER, 1, 2.5, 2.2);
+      // dark flecks of ash among them
+      if (Math.random() < 0.3) emit(soft, _to, dir.x * pace * 0.8 + rand(3), dir.y * pace * 0.8 + rand(3), dir.z * pace * 0.8 + rand(3), 0.12, 0, 0.4, SMOKE, 1, 5, 1.5);
+      // a thin wisp of smoke left on the path
+      if (Math.random() < 0.08) emit(soft, _to, rand(0.6), 0.9, rand(0.6), 0.8, 1.8, 0.5, SMOKE, 0.45, -1, 2);
     },
     gather(at) {
-      // smoke spiralling back in: pulled towards the body and swept round it at the same time
-      _to.set(at.x + rand(1), at.y + rand(0.9), at.z + rand(1));
-      const inX = at.x - _to.x, inZ = at.z - _to.z;
-      emit(soft, _to, inX * 4 - inZ * 5, (at.y - _to.y) * 4 + 0.5, inZ * 4 + inX * 5, 1.0, 0.8, 0.3, SMOKE, 0.9, -0.5, 1);
+      // embers falling back in towards the body
+      _to.set(at.x + rand(1.1), at.y + rand(1), at.z + rand(1.1));
+      emit(bright, _to, (at.x - _to.x) * 6, (at.y - _to.y) * 6, (at.z - _to.z) * 6, 0.16, -0.2, 0.2, EMBER, 1, 0, 0);
     },
   },
   thunder: {
@@ -188,23 +345,16 @@ const FORMS = {
     },
   },
   water: {
-    glow: 0x2f8fff, rate: 280,
-    // A surge: the stream leaps and dips like a wave running along the line of the dash, throwing spray off each
-    // crest, while a wake is thrown out low to both sides like the bow wave of a boat.
-    stream(at, dir, t) {
-      const swell = Math.sin(t * WAVE_BEAT);
-      // the body of the wave
-      _to.copy(at).addScaledVector(_up, swell * WAVE_HEIGHT);
-      _to.x += rand(0.22); _to.y += rand(0.25); _to.z += rand(0.22);
-      emit(soft, _to, -dir.x * 1.5, Math.cos(t * WAVE_BEAT) * 3, -dir.z * 1.5, 0.65 + Math.random() * 0.35, 0.4, 0.4 + Math.random() * 0.2, WATER, 1, 8, 1);
-      // spray off the top of each crest
-      if (swell > 0.6) emit(bright, _to, rand(2), 3.5 + rand(1.5), rand(2), 0.22, -0.2, 0.35 + Math.random() * 0.15, GLINT, 0.95, 11, 0.5);
-      // the wake: thrown out sideways from low down, one side then the other, arcing up and falling back
-      strand = 1 - strand;
-      const out = strand ? 1 : -1;
-      _to.copy(at).addScaledVector(_up, -0.75).addScaledVector(_side, out * 0.3);
-      emit(soft, _to, _side.x * out * 5.5 - dir.x * 2, 3.2 + rand(0.8), _side.z * out * 5.5 - dir.z * 2, 0.5, 0.3, 0.42, WATER, 0.9, 13, 0.6);
-      if (Math.random() < 0.4) emit(bright, _to, _side.x * out * 6.5, 4 + rand(1), _side.z * out * 6.5, 0.16, -0.1, 0.4, GLINT, 0.9, 13, 0.5);
+    glow: 0x2f8fff, rate: 300,
+    // The player IS the water: a thick torrent (see RIBBONS) that surges along the path and sags as it ages, with
+    // a head of water travelling at the front and spray thrown up off it.
+    stream(at, dir) {
+      _to.set(at.x + rand(0.3), at.y + rand(0.35), at.z + rand(0.3));
+      const pace = HEAD_PACE * (0.8 + Math.random() * 0.3);
+      // the head: blobs of water carried along with the dash
+      emit(soft, _to, dir.x * pace + rand(1.5), dir.y * pace + rand(1.5), dir.z * pace + rand(1.5), 0.5 + Math.random() * 0.3, -0.6, 0.2 + Math.random() * 0.15, WATER, 1, 6, 2);
+      // spray: bright drops thrown up and out, falling in arcs
+      if (Math.random() < 0.6) emit(bright, _to, dir.x * pace * 0.6 + rand(3), 2.5 + Math.random() * 3, dir.z * pace * 0.6 + rand(3), 0.17, -0.1, 0.4 + Math.random() * 0.2, GLINT, 0.95, 14, 0.6);
     },
     gather(at) {
       // drops rising back up into the body
@@ -233,6 +383,8 @@ export function updateDashForm(dt) {
   if (dashing && !form.dashing) {
     // the moment of leaving: a flash where the body was, and the bolt starts from here
     form.kind = FORMS[style.cur.id];
+    ribbonLook = RIBBONS[style.cur.id] || null;
+    pathCount = 0;
     spawnGlow(_at, form.kind.glow, 2.4, 0.2);
     _last.copy(_at);
     form.time = 0;
@@ -247,14 +399,19 @@ export function updateDashForm(dt) {
   if (dashing) form.time += dt;
   form.amount = dashing ? Math.min(1, form.amount + dt / DISSOLVE_TIME) : Math.max(0, form.amount - dt / REFORM_TIME);
   if (form.kind) {
-    if (dashing) {
-      // dt-based, so the stream is as thick at 30 frames a second as at 144
+    // The ribbons stay joined to the player for the dash and for the first part of coming back, so the body is
+    // seen to grow out of the front of them and not appear beside them.
+    if (ribbonLook && (dashing || form.amount > 0.3)) {
       // across the dash: to its right, and up from it (for a dash straight up or down, any sideways will do)
       _side.set(P.dashDir.z, 0, -P.dashDir.x);
       if (_side.lengthSq() < 0.01) _side.set(1, 0, 0);
       _side.normalize();
       _up.crossVectors(P.dashDir, _side).normalize();
       if (_up.y < 0) _up.negate();
+      recordPath(_at);
+    }
+    if (dashing) {
+      // dt-based, so the stream is as thick at 30 frames a second as at 144
       streamOwed += form.kind.rate * dt;
       while (streamOwed >= 1) {
         streamOwed -= 1;
@@ -270,4 +427,5 @@ export function updateDashForm(dt) {
   updateCloud(soft, dt);
   updateCloud(bright, dt);
   updateBolts(dt);
+  updateRibbons(dt);
 }
