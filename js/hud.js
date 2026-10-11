@@ -13,6 +13,7 @@ import { locked } from './input.js';
 import { rankOf } from './progress.js';
 import { style, sourceHint, STYLE_TIME } from './styles.js';
 import { questLine } from './quests.js';
+import { missionLine } from './missions.js';
 
 // ================= HUD =================
 export const skEl = $('skills');
@@ -99,7 +100,7 @@ export function updateHud(rdt) {
   if (hudT <= 0) {
     hudT = 0.1;
     // The story's task, top right. Only touched when its text changes.
-    const task = questLine();
+    const task = missionLine() || questLine();    // a running mission takes the place of the story's task
     if (task !== lastTask) {
       lastTask = task;
       questEl.style.display = task ? 'block' : 'none';

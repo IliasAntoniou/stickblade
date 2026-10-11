@@ -2,6 +2,32 @@
 
 Newest first. One entry per merged feature: what changed, where, how to check it, and the git tag to go back to.
 
+## v0.13-campaign: take back the city (the docks)
+
+- **The purpose:** the city has five districts, all held by the Ash Hand, each with a keeper. The game is taking them back one by one. Sen's menu has a new card, "The city", with a map of all five: which are free, which are held, which are still locked.
+- **Missions:** a district is a mission in its own walled area, fought in stages with a boss at the end. Fall and the mission is lost; P gives up. Clearing a stage gives back 35% of your health, and health returns on its own only a quarter as fast as in the yard. Winning frees the district for good and adds 20 to your maximum health.
+- **The Docks** (the first district, open once chapter 1 is done). Five stages, each built around a different tool: break through the gate (runners, weak to Thunder); hook up the crane to cut the alarm (only the grappling hook reaches it); ram three barricades that only a mount can break, guarded by ironclads (weak to Flame); clear a swarm of dock rats (weak to Water); defeat Marrow, who calls for help at half health.
+- **The Old Market** (the second district, open once the docks are free) is a different kind of place: one long street against the clock. You have 75 seconds to reach a prisoner at the far end. The street is shut by curtains of light that only a dash passes through, barricades that block the way until a mount breaks them, and walls the hook gets over. Then the Twins: two bosses at once, one weak to Flame and one to Water. Run out of time and the mission is lost.
+- **Weaknesses:** some gang members are weak to one element, shown by the colour of their headband. Under that sword style they take 60% more; from anything else only 60%.
+- **Story:** chapter 2 has one task, to free the docks. The other three districts are on the map with their keepers' names, not built yet.
+- **Menu numbers moved again:** "The city" is card 2 in Sen's menu, so changing class is 3 and training is 4.
+- **Where:** new `js/missions.js` (the campaign is data in `DISTRICTS`); enemy options in `js/dummies.js` (`weak`, `tough`, `zone`, `speed`, `size`, `ramOnly`, `fixed`, `look`); the barricade and band colours in `js/skins.js`; `addPhaseWall()` in `js/world.js` and the dash passing through it in `overl()` in `js/player.js`; the map page in `js/master.js`; hooks in `js/update.js`, `js/player.js`, `js/hud.js`, `js/tuning.js`, `js/mounts.js`, `js/quests.js`.
+- **Not tuned yet:** every enemy's health and speed, how many come, and how much health you get back. It has only been played by the automated test, so it may be far too hard or too easy.
+- **Check:** `bash tests/smoke.sh` (plays the whole mission, a defeat, giving up and a reset). To look at an area: `?debug=mission:docks`, `?debug=mission:market`.
+
+## v0.12-elements: each element is its own power
+
+- **What:** a sword style no longer just recolours the sword. Each element has a job, and all four skills do something different under it. The skill bar shows each skill's new name in gold while the style is on.
+  - **Flame, destruction:** Blink Strike explodes where you arrive. Cyclone leaves a trail of fire. Meteor Slam leaves a burning crater. Rising Slash is a wide pillar of fire that hits all around. Fire on the ground sets burning whatever stands in it.
+  - **Thunder, speed and stuns:** Blink Strike jumps on to two more enemies. Cyclone is faster, can be steered, and stuns. Meteor Slam stuns everything it hits. Rising Slash calls a bolt down on each enemy it launched.
+  - **Water, control and survival:** Blink Strike soaks the target (it takes more damage and is slowed). Cyclone is a whirlpool that drags enemies in. Meteor Slam is a wide wave that throws enemies back and heals you. Rising Slash is a geyser that holds enemies in the air and heals you.
+- **The fire and water dashes are rebuilt so you are the element:** the lightning dash worked because you are one continuous bolt, where fire and water were only puffs left behind. Now fire is long silky ribbons of flame streaming back from you, swaying and fanning out, with a dense swarm of embers at the front (after the smoke dash in inFAMOUS Second Son). Water is a torrent: thick streams running back along your path that roll and sag, with a head of water and spray. After the dash the ribbons keep waving and fade where they are, with their front end staying on you while your body grows back; nothing new is produced once the dash is over. Lightning is unchanged.
+- **Unchanged:** with a plain sword every skill is exactly as it was, so the skill trials are not affected.
+- **Load:** fire on the ground is up to 16 flat patches, one draw call each while burning. Nothing is added when no element is in use.
+- **Where:** new `js/elements.js` (every number is in `POWERS`); the skills call into it from `bmBlink()` and `bmRising()` in `js/classes/blade.js` and from the `cyclone` and `slamDown` cases in `js/update.js`; soaking in `js/dummies.js`; `groundImpact()` in `js/player.js` takes a knockback; the ribbons (`RIBBONS`, `updateRibbons()`) and each form's `stream` in `js/dashfx.js`.
+- **Not tuned yet:** every number in `POWERS` is a first guess, and so is how strong the elements are against each other.
+- **Check:** `bash tests/smoke.sh` (one check per power, plus that a plain sword leaves no fire and a respawn puts fires out). To look at the dashes: `?debug=pose:dash&style=flame` and `&style=water`.
+
 ## v0.11-dash: the dash turns you into your element
 
 - **What:** dashing under a sword style no longer leaves afterimages. You become the element for the length of the dash. Flame: a thick rush of dark smoke with a glow of heat in it and embers flying off. Thunder: a jagged bolt of lightning along your path, with thin branches and sparks. Water: a stream of water that sags and falls, with bright drops flung off and a ring where you land. With no style the dash looks as it did.

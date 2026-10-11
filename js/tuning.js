@@ -8,6 +8,7 @@ import { P, CL, CLASSES, TUNE, TUNE_DEFAULTS } from './state.js';
 import { dummies } from './dummies.js';
 import { unlockAll, resetProgress } from './progress.js';
 import { resetStory } from './quests.js';
+import { campaignHp, resetCampaign } from './missions.js';
 
 const STORE_KEY = 'stickblade.tune.v1';
 // The smoke test must always run on default numbers, so it ignores and never writes saved tuning.
@@ -93,7 +94,7 @@ function load() {
 
 // Push the numbers that are copied onto the player or the dummies (most are simply read live and need nothing here).
 export function applyTune() {
-  P.maxHp = TUNE.maxHp;
+  P.maxHp = TUNE.maxHp + campaignHp();    // freed districts add to it (missions.js)
   if (P.hp > P.maxHp) P.hp = P.maxHp;
   if (P.dashCharges > TUNE.dashCharges) P.dashCharges = TUNE.dashCharges;
   if (CL) {
@@ -207,10 +208,11 @@ panel.querySelector('.th').addEventListener('click', () => {
 panel.querySelector('.ra').addEventListener('click', resetTuning);
 // Testing shortcuts for skill progress. They skip the trials, so they are for trying things out, not for playing.
 panel.querySelector('.ua').addEventListener('click', unlockAll);
-// "Reset progress" also starts the story again from its first task.
+// "Reset progress" also starts the story again from its first task and gives every district back to the Hand.
 panel.querySelector('.rp').addEventListener('click', () => {
   resetProgress();
   resetStory();
+  resetCampaign();
 });
 // Copy every changed number as text, to paste into a chat or a note ("make these the new defaults").
 panel.querySelector('.cp').addEventListener('click', e => {

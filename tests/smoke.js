@@ -99,7 +99,7 @@ check('master dialog', () => {
   SB.setClass('blade'); reset();
   P.pos.copy(SB.master.pos); P.pos.z -= 2; P.vel.set(0, 0, 0); run(2);
   press('KeyG', 2); if (!dlg.open) return false;
-  press('Digit2', 2); if (dlg.page !== 'classes') return false;
+  press('Digit3', 2); if (dlg.page !== 'classes') return false;
   press('Digit2', 2);
   return !dlg.open && SB.CL.id === 'ninja';
 });
@@ -377,7 +377,7 @@ check('progress: reset goes back to the start', () => {
 check('Master Sen: to the hall, a trial, and back', () => {
   SB.setClass('blade'); reset();
   P.pos.copy(SB.master.pos); P.pos.z -= 2; P.vel.set(0, 0, 0); run(2);
-  press('KeyG', 2); press('Digit3', 2);                  // "Train my skills"
+  press('KeyG', 2); press('Digit4', 2);                  // "Train my skills"
   if (!dojo.inside || dlg.open) return false;
   run(5); press('KeyG', 2);                              // he is next to where you arrive
   if (dlg.page !== 'train' || dlg.opts.length !== 8) return false;    // 4 skills, 3 sword styles, return
@@ -512,9 +512,9 @@ check('Sen: the menu is made of cards that can be clicked', () => {
   reset(); P.pos.copy(sen.pos); P.pos.z -= 2; P.vel.set(0, 0, 0); run(2);
   press('KeyG', 2);
   const win = document.getElementById('dlg'), cards = win.querySelectorAll('.card');
-  if (!dlg.open || cards.length !== dlg.opts.length || cards.length !== 6 || !cards[0].querySelector('svg')) return false;
+  if (!dlg.open || cards.length !== dlg.opts.length || cards.length !== 7 || !cards[0].querySelector('svg')) return false;
   if (!document.body.classList.contains('sen')) return false;
-  cards[1].click();                                      // "Change fighting style"
+  cards[2].click();                                      // "Change fighting style"
   if (dlg.page !== 'classes' || win.querySelectorAll('.card').length !== 5) return false;
   win.querySelectorAll('.card')[2].click();              // the Monk
   const picked = !dlg.open && SB.CL.id === 'monk' && !document.body.classList.contains('sen') && getComputedStyle(win).display === 'none';
@@ -700,6 +700,117 @@ check('style: Cyclone outside the storm gives nothing', () => {
   run(90);
   return spinning && style.cur === null;
 });
+// element powers: under a sword style the four skills do something different, and each element has its own job
+// Stand in open ground with a style on (null = plain sword), every skill usable and off cooldown.
+function asElement(id) {
+  SB.unlockAll(); SB.setClass('blade'); reset(); SB.clearStyle();
+  P.pos.set(0, 0, 40); P.vel.set(0, 0, 0); SB.setCamYaw(0);
+  if (id) SB.giveStyle(id);
+  run(3);
+}
+// Stand a dummy somewhere and keep it there.
+function put(d, x, z) { d.respawn(false); d.pos.set(x, 0, z); d.anchor.set(x, 0, z); d.vel.set(0, 0, 0); return d; }
+function putBack(...list) { for (const d of list) { d.anchor.copy(d.base); d.respawn(false); } }
+const basics = () => dummies.filter(d => d.type === 'basic' && !d.patrol);
+// Meteor Slam from 6 up, and wait for the landing.
+function slamHere() { P.pos.y = 6; P.grounded = false; P.cd.r = 0; press('KeyR', 3); for (let i = 0; i < 90 && P.state !== 'normal'; i++) run(1); }
+check('element: the skills are renamed while a style is on', () => {
+  asElement('flame'); if (SB.skillAlt('q') !== 'Fire Burst' || SB.skillAlt('r') !== 'Burning Crater') return false;
+  SB.giveStyle('water'); if (SB.skillAlt('e') !== 'Whirlpool') return false;
+  SB.clearStyle();
+  return SB.skillAlt('q') === null;
+});
+check('element: Flame slam leaves a crater that burns whoever walks in, then goes out', () => {
+  asElement('flame'); slamHere();
+  if (SB.zoneCount() !== 1) return false;
+  const d = put(basics()[0], 1.5, 40); run(20);
+  const burning = d.burnT > 0;
+  run(60 * 7);
+  const out = SB.zoneCount() === 0;
+  putBack(d);
+  return burning && out;
+});
+check('element: Flame Cyclone leaves a trail of fire; a plain one leaves nothing', () => {
+  asElement(null); press('KeyE', 40); if (SB.zoneCount() !== 0) return false;
+  asElement('flame'); press('KeyE', 40);
+  return SB.zoneCount() >= 3;
+});
+check('element: Flame Blink Strike explodes on those standing near the target', () => {
+  asElement('flame');
+  const [a, b] = basics(); put(a, 0, 34); put(b, 2.5, 34);
+  const hp = b.hp;
+  SB.blinkPower(a, { dmg: 40 });
+  const ok = b.hp < hp && b.burnT > 0;
+  putBack(a, b);
+  return ok;
+});
+check('element: Thunder Blink Strike jumps on to two more enemies and stuns them', () => {
+  asElement('thunder');
+  const [a, b, c, far] = basics(); put(a, 0, 34); put(b, 4, 34); put(c, 8, 34); put(far, 30, 34);
+  const hpB = b.hp, hpC = c.hp, hpFar = far.hp;
+  SB.blinkPower(a, { dmg: 40 });
+  const ok = b.hp < hpB - 20 && c.hp < hpC - 20 && far.hp === hpFar && b.stunT > 0 && c.stunT > 0 && Math.hypot(P.pos.x - c.pos.x, P.pos.z - c.pos.z) < 2.5;
+  putBack(a, b, c, far);
+  return ok;
+});
+check('element: Water Blink Strike soaks the target, which then takes more', () => {
+  asElement('water');
+  const a = put(basics()[0], 0, 34);
+  SB.blinkPower(a, { dmg: 40 });
+  if (!(a.soakT > 0)) return false;
+  SB.clearStyle();                                        // so only the soaking is measured
+  const hp = a.hp; skillHit('atk', a);
+  const soaked = hp - a.hp;                               // 10 damage, give or take 10%, times 1.3: at least 12
+  a.soakT = 0; const hp2 = a.hp; skillHit('atk', a);
+  const dry = hp2 - a.hp;                                 // at most 11
+  putBack(a);
+  return soaked >= 12 && dry <= 11;
+});
+check('element: Water Cyclone drags enemies in from outside its reach', () => {
+  asElement('water');
+  const d = put(basics()[0], 6, 37);                      // off to the side of the path, beyond the spin
+  press('KeyE', 20);
+  const pulled = d.pos.x < 5;
+  putBack(d);
+  return pulled;
+});
+check('element: Thunder Cyclone can be steered', () => {
+  asElement('thunder'); SB.keys.add('KeyW'); press('KeyE', 4); SB.keys.delete('KeyW');
+  const before = P.skDir.x;
+  SB.keys.add('KeyD'); run(12); SB.keys.delete('KeyD');   // lean right mid-spin
+  return P.state === 'cyclone' && Math.abs(P.skDir.x - before) > 0.4;
+});
+check('element: Water slam heals for each enemy hit; Thunder slam stuns', () => {
+  asElement('water');
+  const [a, b, c] = basics(); put(a, 2, 40); put(b, -2, 40); put(c, 0, 42);
+  P.hp = 40; P.hurtT = 0;                                 // hurt just now, so health does not come back by itself
+  slamHere();
+  const healed = P.hp >= 40 + 17 && P.hp <= 40 + 19;      // 6 for each of the three
+  asElement('thunder');
+  const f = dummies.find(d => d.type === 'fighter' && !d.gang);
+  put(f, 2, 40); f.stunT = 0;
+  slamHere();
+  const stunned = f.stunT > 1;
+  putBack(a, b, c, f);
+  return healed && stunned;
+});
+check('element: Thunder Rising Slash calls a bolt down a moment later', () => {
+  asElement('thunder');
+  const d = put(basics()[0], 0, 38.5);                    // just in front
+  press('KeyF', 3);
+  const afterCut = d.hp;
+  if (SB.pendingCount() !== 1 || afterCut === d.maxHp) return false;
+  run(40);
+  const ok = SB.pendingCount() === 0 && d.hp < afterCut - 20;
+  putBack(d);
+  return ok;
+});
+check('element: a respawn puts the fires out', () => {
+  asElement('flame'); slamHere();
+  if (SB.zoneCount() !== 1) return false;
+  SB.respawnPlayer(); run(2);
+  return SB.zoneCount() === 0 && SB.pendingCount() === 0;
+});
 // the elemental dash: under a sword style the body turns into the element for the dash and comes back smoothly
 const dashForm = SB.dashForm, rootScale = () => SB.player.root.scale.x;
 // Stand in open ground and dash forwards under a style (null = none). Returns after the given number of frames.
@@ -718,13 +829,15 @@ for (const id of ['flame', 'thunder', 'water']) {
     // mid-dash: all element, the body shrunk to almost nothing, and the effect on screen
     const effect = id === 'thunder' ? SB.dashBolts.some(b => b.m.visible) : SB.dashSoft.points.visible;
     if (P.state !== 'dash' || dashForm.amount !== 1 || rootScale() > 0.1 || !effect || !SB.dashBright.points.visible) return false;
+    // fire and water are ribbons streaming back from the player; lightning is its bolt
+    if (SB.dashRibbons.visible !== (id !== 'thunder')) return false;
     // just after: partway back, neither gone nor whole (this is the smooth part)
     run(9);
     if (P.state === 'dash' || !(rootScale() > 0.15 && rootScale() < 0.98)) return false;
     // a little later: whole again, and soon nothing of the effect is left to draw
     run(20); if (dashForm.amount !== 0 || rootScale() !== 1) return false;
     run(80);
-    return !SB.dashSoft.points.visible && !SB.dashBright.points.visible && SB.dashBolts.every(b => !b.m.visible);
+    return !SB.dashSoft.points.visible && !SB.dashBright.points.visible && SB.dashBolts.every(b => !b.m.visible) && !SB.dashRibbons.visible;
   });
 }
 check('dash form: the dash itself is unchanged by it', () => {
@@ -881,12 +994,144 @@ check('story: changing class pauses the task and takes its enemies away', () => 
 check('story: the chapter ends, and a reset starts it again', () => {
   reset(); P.iframes = 99; beatGang();
   if (phase() !== 'ready' || !SB.turnInQuest()) return false;
-  if (phase() !== 'end' || story.done.length !== SB.QUESTS.length || SB.questLine() !== null) return false;
+  // chapter 2 is on offer next; finishing every task there is ends the story for now
+  if (phase() !== 'offer' || SB.questState().quest.chapter !== 2) return false;
+  story.done.push(...SB.QUESTS.filter(q => !story.done.includes(q.id)).map(q => q.id));
+  if (phase() !== 'end' || SB.questLine() !== null) return false;
   SB.resetStory();
   return phase() === 'offer' && story.done.length === 0 && dummies.length === arenaDummies;
 });
+// the campaign: districts are taken in order, a mission runs in stages, falling loses it, winning frees the district
+const mission = SB.mission, campaign = SB.campaign, DOCKS = SB.DISTRICTS[0].area;
+const chapterOne = SB.QUESTS.filter(q => q.chapter === 1).map(q => q.id);
+// A fresh campaign with the story far enough along for the docks to be open.
+function readyForDocks() {
+  reset(); SB.resetStory(); SB.resetCampaign(); SB.unlockAll(); SB.setClass('blade');
+  story.done.push(...chapterOne);
+}
+const foes = () => mission.spawned.filter(d => !d.dead);
+// Knock out everything the stage spawned and wait for the next stage to begin.
+function clearStage() { for (const d of foes()) d.ko(1, 0); run(140); }
+check('campaign: the docks are locked until Sen has finished with you, and later districts until the docks are free', () => {
+  reset(); SB.resetStory(); SB.resetCampaign(); SB.setClass('blade');
+  if (SB.districtList()[0].open || SB.startMission('docks')) return false;
+  story.done.push(...chapterOne);
+  const list = SB.districtList();
+  return list[0].open && !list[1].open && list.length === 5;
+});
+check('campaign: Sen shows the city map, and a card starts the mission', () => {
+  readyForDocks(); P.pos.copy(SB.master.pos); P.pos.z -= 2; P.vel.set(0, 0, 0); run(2);
+  press('KeyG', 2); press('Digit2', 2);                  // "The city"
+  if (dlg.page !== 'map' || dlg.opts.length !== 6) return false;    // five districts and Back
+  press('Digit1', 2);                                    // the docks
+  const there = !dlg.open && mission.cur && Math.hypot(P.pos.x - DOCKS.cx, P.pos.z - (DOCKS.cz + 34)) < 2;
+  return there && foes().length === 5 && dummies.length === arenaDummies + 5 && SB.missionLine().includes('Break through the gate');
+});
+check('campaign: an enemy with a weakness shrugs off the wrong element and falls to the right one', () => {
+  const runner = foes().find(d => d.weak === 'thunder');
+  let hp = runner.hp; skillHit('atk', runner);
+  const plain = hp - runner.hp;                           // 10, give or take 10%, times 0.6: at most 7
+  SB.giveStyle('thunder');
+  hp = runner.hp; skillHit('atk', runner);
+  const weak = hp - runner.hp;                            // times 1.6: at least 14
+  SB.clearStyle();
+  return plain <= 7 && weak >= 14;
+});
+check('campaign: stage 2 is reached with the hook: standing on the crane clears it', () => {
+  clearStage();
+  if (mission.stage !== 1 || foes().length !== 0) return false;
+  run(60); if (mission.stage !== 1) return false;         // nothing to fight: it waits for the player to get up there
+  P.pos.set(DOCKS.cx + 26, 17, DOCKS.cz + 8); P.vel.set(0, 0, 0); run(10);
+  if (!P.grounded) return false;                          // the top of the tower is solid
+  run(130);
+  return mission.stage === 2;
+});
+check('campaign: a barricade ignores the sword and breaks to a mount', () => {
+  const wall = foes().find(d => d.ramOnly);
+  if (foes().filter(d => d.ramOnly).length !== 3) return false;
+  const hp = wall.hp;
+  if (skillHit('atk', wall) !== false || wall.hp !== hp) return false;
+  SB.setHitSrc('ram'); SB.hitDummy(wall, 28, 0, 0, 0, true);    // what the elephant does
+  return wall.dead;
+});
+check('campaign: the boss calls for help at half health, and beating him frees the district', () => {
+  clearStage(); clearStage();
+  if (mission.stage !== 4) return false;
+  const boss = foes().find(d => d.boss);
+  if (!boss || foes().length !== 3) return false;
+  boss.hp = boss.maxHp * 0.4; run(3);
+  if (foes().length !== 6) return false;
+  SB.acceptQuest();                                       // chapter 2's task: free the docks
+  for (const d of foes()) d.ko(1, 0);
+  run(5);
+  if (!mission.won || !campaign.free.includes('docks') || P.maxHp !== 120) return false;
+  run(60 * 4);
+  const home = mission.cur === null && near(0, 14) && dummies.length === arenaDummies;
+  return home && phase() === 'ready' && SB.districtList()[0].free;
+});
+check('campaign: falling loses the mission and sends you home', () => {
+  readyForDocks();
+  if (!SB.startMission('docks')) return false;
+  run(5); P.iframes = 0; SB.hurtPlayer(9999, P.pos, null); run(5);
+  return mission.cur === null && near(0, 14) && dummies.length === arenaDummies && campaign.free.length === 0 && P.maxHp === 100;
+});
+check('campaign: P gives up, and a reset gives every district back', () => {
+  if (!SB.startMission('docks')) return false;
+  run(5); press('KeyP', 3);
+  if (mission.cur !== null || !near(0, 14) || dummies.length !== arenaDummies) return false;
+  campaign.free.push('docks'); SB.applyTune();
+  if (P.maxHp !== 120) return false;
+  SB.resetCampaign();
+  return campaign.free.length === 0 && P.maxHp === 100;
+});
+// the Old Market: a different kind of district. One long street against the clock, shut by curtains only a dash
+// passes, barricades only a mount breaks, and a prisoner to reach at the far end
+const MARKET = SB.DISTRICTS[1].area;
+let solidsBefore = 0;
+function readyForMarket() { readyForDocks(); campaign.free.push('docks'); SB.applyTune(); solidsBefore = SB.solids.length; }
+// Stand in the middle of the street at a distance along it, facing down it, and not able to be hit.
+function onStreet(z) { P.pos.set(MARKET.cx, 0, MARKET.cz + z); P.vel.set(0, 0, 0); P.iframes = 99; SB.setCamYaw(0); run(2); }
+check('market: it opens once the docks are free, and starts the clock', () => {
+  readyForDocks(); if (SB.startMission('market')) return false;
+  readyForMarket(); if (!SB.startMission('market')) return false;
+  run(5);
+  return mission.cur.id === 'market' && SB.missionLine().includes(' s</span>') && foes().filter(d => d.ramOnly).length === 2;
+});
+check('market: a curtain of light stops you walking, and a dash goes straight through', () => {
+  onStreet(116);
+  SB.keys.add('KeyW'); run(70);
+  const stopped = P.pos.z > MARKET.cz + 112.4;
+  press('ShiftLeft', 25); SB.keys.delete('KeyW');
+  return stopped && P.pos.z < MARKET.cz + 111.5;
+});
+check('market: a barricade shuts the way until a mount breaks it', () => {
+  onStreet(87);
+  SB.keys.add('KeyW'); run(60);
+  const stopped = P.pos.z > MARKET.cz + 82.4;
+  const wall = foes().find(d => d.ramOnly && Math.abs(d.pos.z - (MARKET.cz + 82)) < 1);
+  SB.setHitSrc('ram'); SB.hitDummy(wall, 28, 0, 0, 0, true);    // what the elephant does
+  run(90); SB.keys.delete('KeyW');
+  return stopped && wall.dead && P.pos.z < MARKET.cz + 80;
+});
+check('market: running out of time loses the mission, and nothing of it is left behind', () => {
+  mission.clock = 74.9; run(20);
+  return mission.cur === null && near(0, 14) && !campaign.free.includes('market') && dummies.length === arenaDummies && SB.solids.length === solidsBefore;
+});
+check('market: reaching the prisoner in time brings the Twins, and beating them frees the district', () => {
+  if (!SB.startMission('market')) return false;
+  run(5); onStreet(-126); run(135);
+  if (mission.stage !== 1 || foes().length !== 2) return false;
+  const [ember, tide] = foes();
+  if (ember.weak !== 'flame' || tide.weak !== 'water' || !ember.boss) return false;
+  for (const d of foes()) d.ko(1, 0);
+  run(5);
+  if (!mission.won || !campaign.free.includes('market') || P.maxHp !== 140) return false;
+  run(60 * 4);
+  return mission.cur === null && near(0, 14) && dummies.length === arenaDummies && SB.solids.length === solidsBefore;
+});
 reset();
 SB.resetStory();
+SB.resetCampaign();
 SB.resetProgress();
 check('hall: nothing is left behind', () => !dojo.inside && dummies.length === arenaDummies && dojo.props.length === 0);
 

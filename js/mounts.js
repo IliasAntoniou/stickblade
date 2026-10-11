@@ -12,7 +12,7 @@ import { clamp, lerp, damp, _fx } from './util.js';
 import { scene } from './core.js';
 import { addRim } from './stickman.js';
 import { spawnRing, burst } from './fx.js';
-import { T, P, CL, TUNE } from './state.js';
+import { T, P, CL, TUNE, setHitSrc } from './state.js';
 import { joined } from './skins.js';
 import { dummies, hitDummy } from './dummies.js';
 import { setState } from './player.js';
@@ -259,6 +259,7 @@ export function updateMounted(dt) {
     const dy = d.pos.y - P.pos.y;
     if (Math.hypot(d.pos.x - frontX, d.pos.z - frontZ) > m.width + 0.5 || dy < -1.5 || dy > m.seat + 0.6) continue;
     d.ramT = T;
+    setHitSrc('ram');    // lets a barricade tell a ram from a sword (dummies.js)
     hitDummy(d, m.ram, dirX * m.push, dirZ * m.push, m.lift, m.heavy);
   }
 }

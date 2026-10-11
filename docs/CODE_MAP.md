@@ -30,6 +30,15 @@ Where everything is, what the short names mean, and how to add things. If this f
 | The map (boxes, platforms, walls) | The `addBox()` lines in `js/world.js` |
 | Kunai and javelin | `js/projectiles.js` |
 | The story: what Sen says, what each task asks for, how many it takes, which enemies it brings and where | `QUESTS` in `js/quests.js` |
+| The campaign: the districts, their layout, their stages, which enemies each stage brings and where | `DISTRICTS` in `js/missions.js` |
+| The kinds of enemy in missions (health, speed, size, which element they are weak to) | `THUG`, `RUNNER`, `IRON`, `RAT`, `BARRICADE`, `BLOCKADE`, `MARROW`, `TWIN_EMBER` and `TWIN_TIDE` in `js/missions.js` |
+| A timed stage: how long the player has | `time` on the stage in `DISTRICTS` in `js/missions.js` |
+| Where the curtains of light stand (the ones only a dash passes) | `gates` on the district in `DISTRICTS`; how one looks and blocks is `addPhaseWall()` in `js/world.js` |
+| The prisoner to be rescued | `captive` in `js/missions.js`; a stage shows him with `rescue: true` |
+| How much a weakness matters, and how hard a mount hits a barricade | `WEAK_BONUS` and `RAM_BONUS` in `js/dummies.js`; `tough` on the enemy kind |
+| What freeing a district gives, the healing between stages, and how slowly health returns in a mission | `HP_PER_DISTRICT`, `STAGE_HEAL` and `MISSION_REGEN` in `js/missions.js` |
+| The city map in Sen's menu | The `map` page of `renderDlg()` in `js/master.js`; what it lists comes from `districtList()` in `js/missions.js` |
+| What a barricade looks like, and the headband colours | `barricadeGeo` and `weakBandMat` in `js/skins.js` |
 | How strong the gang's fighters are (health, colour) | `SCOUT` and `ROOK` in `js/quests.js` |
 | How far a gang member sees and how fast it walks | `GANG_SIGHT` and `GANG_SPEED` in `js/dummies.js` |
 | What the gang looks like (headband, mask) | The `d.gang` part of `dressDummy()` in `js/skins.js` |
@@ -63,6 +72,13 @@ Where everything is, what the short names mean, and how to add things. If this f
 | The grass on the ground: its colours | `grassTex` and the tint on the `ground` line in `js/world.js` |
 | The training hall's tiled floor | `tileTex` and `makeFloor()` in `js/world.js`, used from `js/dojo.js` |
 | A sword style's colour, how long it lasts, how strong its effect is (burn damage, extra reach) | `STYLES` and `STYLE_TIME` in `js/styles.js` |
+| What a sword style does to each skill, and every number behind it (explosion size, stun times, healing, how long fire burns) | `POWERS` in `js/elements.js` |
+| What being soaked does to an enemy | `SOAK` in `js/elements.js` |
+| What a skill is called on the skill bar under a style | `names` in `POWERS` in `js/elements.js` |
+| The patches of fire left on the ground | `addZone()` and `updateElements()` in `js/elements.js` |
+| The ribbons of fire and water in a dash: how many, how wide, how long they last, how they wave, their colours | `RIBBONS` in `js/dashfx.js` (`bend` is the motion, `tint` the colour); `RIBBON_WIDTH` and `RIBBON_GLOW` vary them |
+| The soft edges and fine streaks on a ribbon | `ribbonTex` in `js/dashfx.js` |
+| The swarm of embers or the head of water at the front of a dash | Each `stream` in `FORMS`, and `HEAD_PACE`, in `js/dashfx.js` |
 | Where the pool and the fire stand in the arena | The two `addSource()` lines at the bottom of `js/styles.js` |
 | How a style is taken (how close a slam has to land; how far away a fire can be locked on to; how wide a storm is) | `slamSources()`, `aimedFire()`, `FIRE_LOCK_RANGE`, `stormAt()` and `STORM_RADIUS` in `js/styles.js` |
 | Thunder's jump from one enemy to the next (share of damage, range) | `chainLightning()` and `chain`, `chainRange` in `STYLES.thunder` in `js/styles.js` |
@@ -140,6 +156,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/classes/blade.js`, `ninja.js`, `monk.js`, `lancer.js` | One class each: skill functions and the class table |
 | `js/master.js` | Master Sen and the dialog menu |
 | `js/challenges.js` | Timed challenges |
+| `js/missions.js` | The campaign: the districts of the city, and running a mission through its stages |
 | `js/quests.js` | The story: Sen's chain of tasks, their progress, and the gang enemies they bring |
 | `js/input.js` | Keyboard, mouse, pause |
 | `js/update.js` | One step of the game |
@@ -150,6 +167,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/dojo.js` | The training hall: teleporting there, building and clearing each trial's layout |
 | `js/styles.js` | Sword styles (Water, Flame, Thunder), the pools, fires and storms they are taken from, and the scene of taking one |
 | `js/cutin.js` | The close-up of the eyes that cuts across the screen when a style is taken |
+| `js/elements.js` | What each sword style does to the four skills: Flame destroys, Thunder chains and stuns, Water controls and heals |
 | `js/dashfx.js` | The elemental dash: under a sword style the player becomes smoke, lightning or water for the dash |
 | `js/sky.js` | The dusk sky: gradient dome, sun, stars |
 | `js/quality.js` | The Low / High graphics setting |
@@ -210,7 +228,12 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `P.splat` | True while the player is stuck flat against a rock after Master Sen's throw |
 | `P.sink` | How far the body is drawn below where it stands, for going under the water. 0 the rest of the time |
 | `reach()` | How much further sword attacks reach under the current style (1 = normal) |
+| power, `POWERS` | What a sword style changes about the skills. `power()` gives the entry for the style in use, or null with a plain sword |
+| zone | A round patch of fire on the ground that sets burning whatever stands in it. Left by Flame's Cyclone and Meteor Slam |
+| soaked, `d.soakT` | Seconds an enemy stays soaked (Water's Blink Strike): it takes more damage and a fighter is slowed |
+| share | A power's number given as a part of the skill's own (0.6 = 60%), so it grows with the skill's rank |
 | dash form, `form.amount` | The player turned into their style's element during a dash. 0 = the body, 1 = all element; it rises fast when a dash starts and falls more slowly after |
+| ribbon | A long strip that starts at the player and streams back along the path of their dash. What makes a dash read as being the element. Built by `updateRibbons()` in `js/dashfx.js` |
 | particle cloud | Many small soft dots drawn in one draw call. `soft` (drawn normally: smoke, water) and `bright` (added as light: embers, sparks) in `js/dashfx.js` |
 | `slashColor()` | The colour sword effects should use: the style's, or the class's when there is none |
 | rank | How far a skill has been trained: 0 = locked, 1 to 3 = learned. `rankOf()` in `js/progress.js` |
@@ -221,6 +244,14 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `lv` | A skill's numbers at each rank. The current rank's row is copied onto the skill by `applyRanks()` |
 | `hitSrc` | Which attack the current hits belong to: `atk`, `q`, `e`, `r`, `f` or `other`. Set with `setHitSrc()` just before dealing damage |
 | `P.castN` | Counts skill uses, so a trial can tell one use from the next |
+| district, mission | One part of the city held by the Ash Hand, and the fight to take it back. Data in `DISTRICTS` in `js/missions.js`. `mission.cur` is the one running, or null in the yard |
+| stage | One step of a mission: a group of enemies to beat, or a place to reach, sometimes against the clock. `mission.stage` is its number, `mission.clock` the seconds spent on it |
+| curtain of light, phase wall, `s.phase` | A see-through wall that is solid except to a dashing player. A flag on its entry in `solids` |
+| blocker, `d.blocker` | The unseen wall behind a barricade that shuts the way. Removed when the barricade breaks |
+| the yard | The main arena, the player's base between missions |
+| `d.weak`, `d.tough` | The sword style an enemy is weak to, and what every other hit on it is multiplied by |
+| `d.zone` | The square a gang member is kept inside: the yard, or its district |
+| `d.ramOnly`, `d.fixed`, `d.look` | A barricade: only a mount can damage it, it never moves, and it is drawn as a wall of planks |
 | quest, task | One step of the story, given by Master Sen. Data in `QUESTS` in `js/quests.js` |
 | `story` | Where the story stands: `story.done` (finished task ids), `story.cur` (the running one), `story.n` (its count) |
 | phase (of the story) | `none` (wrong class), `offer` (Sen has a task), `active` (doing it), `ready` (done, go and tell him), `end` (nothing left). From `questState()` |
@@ -270,7 +301,19 @@ Water, Flame and Thunder in `js/styles.js` are the worked examples.
 4. Give it a source: a new kind in `addSource()`, a way to take it (like `slamSources()`, the lock-on used for fire, or `stormAt()` called from Cyclone) that calls `startTake()`, a line in `sourceHint()`, and one in the arena.
    Give its suit a colour: `glow`, `core`, `glowHex`, `eyes` and `spark`, and an entry in `mats` in `attachOutfit()`.
 5. Add its trial to the class's `trials` with `style: '<id>'` and `arena.sources`. Passing it unlocks the style.
+   Give it a job: an entry in `POWERS` in `js/elements.js` (a role, a name for each skill, its numbers), and a branch for it in each of the hook functions there (`blinkPower()`, `spinTick()`, `slamPower()`, `slamLanded()`, `risingPower()`, `risingHit()`). Give its dash a look: an entry in `FORMS` in `js/dashfx.js`.
 6. Add checks to the style part of `tests/smoke.js`, and a column to Part 2 of `docs/ABILITIES.md`.
+
+### Add a district, or a stage to one
+
+The docks in `DISTRICTS` in `js/missions.js` are the worked example. Every stage should lean on a different tool.
+
+1. A district that already has a card on the map only needs its data: `area` (pick a centre at least 250 from every other area, so fog hides them from each other), `floor`, `start`, `props`, `sources` and `stages`.
+2. A stage is `goal` and `hint` plus one of: `spawn` (enemies; cleared when all are down) or `point` (a place to stand on; put it somewhere only the hook reaches). With both, the enemies are only in the way. Add `time` for a limit and `rescue: true` to put the prisoner at the point.
+   A district does not have to be a square yard: the Old Market sets `walls: false` and builds a long street out of `props`. To shut a gap, use a curtain (`gates`: only a dash passes) or a `BLOCKADE` (only a mount breaks it).
+3. To make a stage about a mount, spawn `BARRICADE`s. To make it about an element, spawn enemies with `weak` set, and make sure the district has that element's source.
+4. A new kind of enemy is a new set of options next to `THUG`. Give it a row in Part 4 of `docs/ABILITIES.md`.
+5. Look at it: `http://localhost:8000/?debug=mission:<id>`. Add it to `docs/STORY.md` and to the campaign checks in `tests/smoke.js`.
 
 ### Add a task to the story
 
@@ -328,6 +371,12 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Dummies and boxes can now come and go.** Trial dummies are added with `spawnDummy()` and removed with `removeDummy()`; trial boxes with `addBox()` and `removeBox()`. Never keep a dummy in a variable across frames without checking `d.dead`.
 - **Gang members are dummies, but not all dummy rules hold for them.** `respawn()` does nothing to one, they have no home spot, and they are removed from `dummies` after a knockout. Removal happens in `updateQuests()`, never inside the loop that updates dummies.
 - **Sen's main menu starts with the story card.** The number keys follow the cards, so adding or moving a card changes which number does what (the smoke test presses them).
+- **A mission is not a challenge.** It does not use `chal`: it has its own state (`mission`) and runs while the player is in its district. Master Sen stays in the yard, so no trial, class change or other mission can start during one.
+- **Being defeated in a mission is handled before the respawn.** `playerDefeated()` calls `failMission()` first, which puts `SPAWN` and the area back to the yard, so the respawn that follows lands there.
+- **Beaten mission enemies stay in `mission.spawned`,** marked dead, so the stage can tell they are down. Only `despawnAll()` empties the list.
+- **A curtain of light is solid to everything except a dashing player.** Enemies, mounts and walking players are stopped by it. It is left out of ray checks on purpose, so the camera, the crosshair and the hook ignore it. Never pass one to `removeBox()`.
+- **A `BLOCKADE` has to stand in a gap no wider than 6,** which is the width of its unseen wall; anything wider can be walked round.
+- **District ids are in the save,** like task ids.
 - **Task ids are in the save.** Renaming one in `QUESTS` makes saved games forget it.
 - **`SPAWN` moves.** It is where the player respawns: the arena start, the hall's arrival point, or a trial's start. `js/dojo.js` changes it.
 - **Glow needs `toneMapped: false`.** Any material meant to look like light (effects, the weapon, warning marks) must set it, or tone mapping dulls it. Lit objects must not set it.
@@ -341,6 +390,13 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Poses are targets, not positions.** `animatePlayer()` sets where each joint should go (`tp`); springs move the real pose there. To make something happen instantly, set `pose` as well as `tp`.
 - **The player's size belongs to the dash form.** `animatePlayer()` sets `player.root.scale` from `formScale()` every frame, so setting that scale anywhere else has no effect.
 - **Particle clouds have a fixed size.** Each holds `CLOUD_SIZE` particles and reuses the oldest. Emitting far more per second than that lasts makes the trail cut off early.
+- **A skill asks the element, the element never runs the skill.** The four skills stay in `js/classes/blade.js` and `js/update.js` and call small functions in `js/elements.js` for what the style changes. With a plain sword every one of those returns "no change", so the skills behave exactly as before.
+- **Read the style before a slam lands.** Landing in a pool changes the style during the blast, so the slam case in `update()` takes `power()` first and passes it to `slamLanded()`.
+- **Fire on the ground outlives the style, not a respawn.** `clearElements()` runs on every respawn (and so at the start of a trial); the style running out does not put fires out.
+- **Call `setHitSrc()` for each enemy in a loop.** A hit can set off an element's effect that deals damage of its own and changes the source.
+- **Nothing new may come out of a dash once it has ended.** After the dash the ribbons keep waving and fading (that is what keeps the ending alive), and their front end stays on the player, but `recordPath()` adds no more to them. Do not freeze them or pull them in either: that was tried and made the ending feel dead.
+- **A dash effect has to be one continuous shape from the player backwards.** Puffs left along the path read as a trail behind the player, not as the player. The lightning's bolt and the ribbons are what make it read as being the element: keep that when changing them.
+- **Colours for particles are not what they look like.** They are brightened on the way to the screen: orange needs very little green, dark smoke is almost black.
 - **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.
 - **`dt` or `rdt`.** Gameplay uses `dt` so it slows down during hitstop. Camera and on-screen display use `rdt`.
 - **Only boxes.** Collision assumes every solid is an upright box (however rocky it is drawn). A slope or rotated wall will not collide correctly.

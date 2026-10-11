@@ -13,13 +13,14 @@ import { toast, centerMsg, spawnRing, burst } from './fx.js';
 import { P, CL, CLASSES } from './state.js';
 import { spawnDummy, removeDummy } from './dummies.js';
 import { trainingList } from './progress.js';
+import { isFree } from './missions.js';
 
 const STORE_KEY = 'stickblade.story.v1';
 // The smoke test starts from nothing and never writes, so running it cannot touch a real save.
 const SMOKE = new URLSearchParams(location.search).get('debug') === 'smoke';
 const STORY_CLASS = 'blade';
 
-export const CHAPTERS = { 1: 'The Recruit' };
+export const CHAPTERS = { 1: 'The Recruit', 2: 'The Docks' };
 
 // What the gang's fighters are made of. All are built on the 'fighter' dummy (same attacks: a slam up close, a
 // lunge from further away) with less health than a training fighter, because several come at once.
@@ -82,6 +83,13 @@ export const QUESTS = [
       ['fighter', -8, 0, -34, SCOUT], ['fighter', 8, 0, -34, SCOUT],
     ],
     outro: 'He was the best of them once. So was I. You are one of mine now, recruit. Rest. Next we go to them: the Hand runs the docks, and that is where we start cutting.',
+  },
+  {
+    id: 'c2-docks', chapter: 2, name: 'Take the docks',
+    intro: 'Everything the Hand owns comes in by water. Marrow keeps the docks for them: a butcher, and patient. Take the docks and they starve. Ask me about the city when you are ready. And listen: out there I cannot drag you home in one piece twice.',
+    goal: 'Free the docks (choose "The city" in his menu)', need: 1,
+    check: () => isFree('docks'),
+    outro: 'Marrow is done, and the dockers are ours. Four districts left. They know now that I am not hiding, and they know your face. Good. Let them lose sleep.',
   },
 ];
 

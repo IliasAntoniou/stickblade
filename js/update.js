@@ -19,8 +19,10 @@ import { master, openDlg, closeDlg, updateMaster, updateGrab, strikeMaster } fro
 import { endChallenge, updateChallenge } from './challenges.js';
 import { keys, pressed, mouseL, mouseR } from './input.js';
 import { updateQuests } from './quests.js';
+import { mission, updateMissions, abandonMission, MISSION_REGEN } from './missions.js';
 import { toggleMount, updateMounted } from './mounts.js';
 import { hasDashForm } from './dashfx.js';
+import { power, spinSpeed, spinSteer, spinTick, spinHit, spinPull, slamPower, slamLanded, updateElements } from './elements.js';
 
 // This frame's input. inDir = the direction the movement keys point, in the world. hasIn = a movement key is held.
 // inX, inZ = raw -1..1. hsp = horizontal speed. inputOn = false during a dialog or countdown.
@@ -36,7 +38,9 @@ export function update(dt) {
   for (const k in P.cd) P.cd[k] = Math.max(0, P.cd[k] - cdStep);
   if (P.dashCharges < TUNE.dashCharges) { P.dashRecharge -= dt; if (P.dashRecharge <= 0) { P.dashCharges++; P.dashRecharge = P.dashCharges < TUNE.dashCharges ? TUNE.dashCd : 0; } }
   P.iframes = Math.max(0, P.iframes - dt); P.wallrunCd = Math.max(0, P.wallrunCd - dt);
-  P.hurtT += dt; if (P.hurtT > 3 && P.hp < P.maxHp) P.hp = Math.min(P.maxHp, P.hp + TUNE.hpRegen * dt);
+  // Health comes back by itself 3 s after the last hit; much more slowly during a mission, so damage adds up there.
+  P.hurtT += dt;
+  if (P.hurtT > 3 && P.hp < P.maxHp) P.hp = Math.min(P.maxHp, P.hp + TUNE.hpRegen * (mission.cur ? MISSION_REGEN : 1) * dt);
   if (P.smokeT > 0) { P.smokeT -= dt; if (P.smokeT <= 0) P.dmgMult = 1; }
   if (P.clone) { P.clone.life -= dt; if (P.clone.life <= 0) { burst(_fx.copy(P.clone.pos).setY(P.clone.pos.y + 1), 8, 4, 1); removeClone(); P.cd.q = CL.skills.q.cd; } }
 
@@ -48,6 +52,7 @@ export function update(dt) {
     if (dlg.open && (pressed.has('KeyG') || pressed.has('Backspace') || !master.near)) closeDlg();
   } else if (master.near && pressed.has('KeyG')) openDlg();
   if (chal.cur && pressed.has('KeyP')) { endChallenge(); centerMsg('Challenge ended', 1.2); }
+  else if (mission.cur && pressed.has('KeyP')) abandonMission();
 
   inputOn = !dlg.open && chal.phase !== 'count';
   camFwdH(_a); camRight(_b);
@@ -187,17 +192,26 @@ export function update(dt) {
     case 'cyclone': {
       const E = CL.skills.e;    // dmg, rad and dur depend on the skill's rank
       const eRad = E.rad * reach();
-      P.vel.set(P.skDir.x * 22, 0, P.skDir.z * 22); P.grav = 0; P.spin += dt * 30;
+      // The sword style changes the spin (elements.js): Thunder is faster and can be steered, Water drags enemies
+      // in, Flame leaves fire along the path.
+      spinSteer(dt);
+      spinPull(dt, eRad);
+      const travel = spinSpeed();
+      P.vel.set(P.skDir.x * travel, 0, P.skDir.z * travel); P.grav = 0; P.spin += dt * 30;
       P.ghostT -= dt; if (P.ghostT <= 0) { P.ghostT = 0.04; spawnGhost(player, CL.color, null, 0.2); }
       P.tick -= dt;
       if (P.tick <= 0) {
         P.tick = 0.075;
+        spinTick();
         setHitSrc('e');
         strikeMaster(P.pos.x, P.pos.y, P.pos.z, eRad);    // spinning into Master Sen counts as hitting him
         for (const d of dummies) {
           if (d.dead) continue;
           const dx = d.pos.x - P.pos.x, dz = d.pos.z - P.pos.z, dy = d.pos.y - P.pos.y;
-          if (dx * dx + dz * dz < eRad * eRad && dy > -1.8 && dy < 2.2) hitDummy(d, E.dmg, P.skDir.x * 2.5, P.skDir.z * 2.5, d.grounded ? 0 : 4, false, 0.015);
+          if (dx * dx + dz * dz < eRad * eRad && dy > -1.8 && dy < 2.2) {
+            setHitSrc('e');    // again for each enemy: a hit can set off effects that change it
+            if (hitDummy(d, E.dmg, P.skDir.x * 2.5, P.skDir.z * 2.5, d.grounded ? 0 : 4, false, 0.015)) spinHit(d);
+          }
         }
       }
       if (P.st > E.dur) { setState('normal'); P.vel.set(P.skDir.x * 12, 0, P.skDir.z * 12); }
@@ -209,7 +223,17 @@ export function update(dt) {
       break;
     }
     case 'slamDown': {
-      if (P.grounded && P.st > 0) { groundImpact(CL.skills.r.rad, CL.skills.r.dmg, CL.color, CL.skills.r.stun); break; }
+      if (P.grounded && P.st > 0) {
+        // The sword style changes the blast (elements.js): Thunder stuns, Water is a wide wave that shoves and
+        // heals, Flame leaves a burning crater. The style is read first, because landing in a pool changes it.
+        const R = CL.skills.r;
+        const element = power();
+        const blast = slamPower();
+        const blastRad = R.rad * blast.rad * reach();
+        groundImpact(R.rad * blast.rad, R.dmg, CL.color, Math.max(R.stun, blast.stun), blast.knock);
+        slamLanded(element, blastRad);
+        break;
+      }
       camFwdH(_c); P.vel.set(_c.x * 8, -50, _c.z * 8); P.grav = 0;
       P.ghostT -= dt; if (P.ghostT <= 0) { P.ghostT = 0.03; spawnGhost(player, CL.color, null, 0.22); }
       break;
@@ -345,8 +369,10 @@ export function update(dt) {
   for (const d of dummies) d.update(dt);
   updateProjs(dt);
   tickCombo(dt);
+  updateElements(dt);
   updateChallenge(dt);
   updateQuests();
+  updateMissions(dt);
 
   // master idle
   updateMaster(dt);

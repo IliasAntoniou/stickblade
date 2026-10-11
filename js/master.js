@@ -17,6 +17,7 @@ import { trainingList, styleList, startTrial, ROMAN } from './progress.js';
 import { isTuned, resetTuning } from './tuning.js';
 import { dojo, enterDojo, leaveDojo } from './dojo.js';
 import { CHAPTERS, questState, acceptQuest, turnInQuest } from './quests.js';
+import { DISTRICTS, campaign, districtList, startMission } from './missions.js';
 
 // ================= the figure =================
 // His poses. Each lists only the joints that differ from the standing pose.
@@ -390,13 +391,14 @@ const ICONS = {
   combo: '<path d="M4 8 L10 12 L4 16 M10 8 L16 12 L10 16 M16 8 L22 12 L16 16"/>',
   wrench: '<path d="M15 4 a4 4 0 0 0 -4 6 L4 17 L7 20 L14 13 a4 4 0 0 0 6 -4 L17 12 L15 10 L18 7 Z"/>',
   story: '<path d="M6 4 H17 a2 2 0 0 1 2 2 V20 H8 a2 2 0 0 1 -2 -2 Z"/><path d="M10 9 H15 M10 13 H15"/><path d="M6 18 a2 2 0 0 1 2 -2 H19"/>',
+  map: '<path d="M3 6 L9 4 L15 6 L21 4 V18 L15 20 L9 18 L3 20 Z"/><path d="M9 4 V18 M15 6 V20"/>',
   lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11 V8 a4 4 0 0 1 8 0 v3"/>',
   again: '<path d="M4 12 a8 8 0 1 0 3 -6.2"/><path d="M4 4 V9 H9"/>',
 };
 const SLOT_ICON = { m2: 'hook', q: 'blink', e: 'cyclone', r: 'slam', f: 'rising' };
 const WEAPON_ICON = { sword: 'sword', daggers: 'daggers', spear: 'spear', none: 'fist' };
 const CHALLENGE_ICON = { rings: 'rings', summit: 'flag', demo: 'smash', combo: 'combo' };
-const PAGE_TITLE = { main: 'What do you want?', classes: 'Choose how you fight', chal: 'Challenges', train: 'Training hall', tips: 'Advice', story: 'The story' };
+const PAGE_TITLE = { main: 'What do you want?', classes: 'Choose how you fight', chal: 'Challenges', train: 'Training hall', tips: 'Advice', story: 'The story', map: 'The city' };
 const icon = name => `<svg viewBox="0 0 24 24">${ICONS[name] || ICONS.back}</svg>`;
 
 export function fmtBest(c) { const b = save.best[c.id]; return b ? `best ${b.toFixed(2)}s` : 'not done yet'; }
@@ -432,6 +434,7 @@ export function renderDlg(text) {
     text = text || pick(GREET);
     opts = [
       storyCard(),
+      { label: 'The city', sub: `Take it back from the Ash Hand, district by district. <b>${campaign.free.length} of ${DISTRICTS.length}</b> free`, icon: 'map', act: () => { dlg.page = 'map'; renderDlg(); } },
       { label: 'Change fighting style', sub: 'Blademaster, Ninja, Monk or Lancer', icon: 'swap', act: () => { dlg.page = 'classes'; renderDlg(); } },
       { label: 'Train my skills', sub: 'He takes you to the training hall, where skills and sword styles are earned', icon: 'hall', act: () => { closeDlg(); enterDojo(); } },
       { label: 'Take a challenge', sub: 'Timed tests in the arena. Your best times are kept', icon: 'trophy', act: () => { dlg.page = 'chal'; renderDlg(); } },
@@ -497,6 +500,18 @@ export function renderDlg(text) {
     } else {
       text = text || 'That is all I ask of you for now. Train. The docks are next, and the Hand will not be gentle there.';
     }
+    opts.push(backOption());
+  } else if (dlg.page === 'map') {
+    // The campaign: one card per district, in the order they have to be taken.
+    text = campaign.free.length === DISTRICTS.length ? 'The city is ours. I did not think I would live to say it.'
+      : 'Five districts, and the Hand holds them. Each has a keeper. Take a district and its people are with us. Fall there, and you start it again.';
+    opts = districtList().map(({ d, free, open, why }) => {
+      const card = { label: d.name, icon: 'map', sub: `${d.blurb}<br><b>Held by:</b> ${d.boss}` };
+      if (!open) return { ...card, sub: `${card.sub}<br><b>${why}</b>`, tag: 'LOCKED', tone: 'grey', cur: true, act: () => renderDlg() };
+      const go = () => { closeDlg(); startMission(d.id); };
+      if (free) return { ...card, sub: `${d.blurb}<br>Taken from ${d.boss}. You can fight for it again`, tag: 'FREE', tone: 'gold', act: go };
+      return { ...card, tag: 'HELD', tone: 'red', act: go };
+    });
     opts.push(backOption());
   } else if (dlg.page === 'tips') {
     text = pick(TIPS);

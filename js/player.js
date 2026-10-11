@@ -17,7 +17,9 @@ import { endChallenge } from './challenges.js';
 import { reach, slashColor, clearStyle, slamSources } from './styles.js';
 import { strikeMaster } from './master.js';
 import { questEvent } from './quests.js';
+import { failMission } from './missions.js';
 import { stowMount } from './mounts.js';
+import { clearElements } from './elements.js';
 import { inDir, hasIn, inX, inZ, hsp } from './update.js';
 
 // ================= player =================
@@ -65,8 +67,9 @@ export const LOCKED = new Set(['slamUp', 'slamDown', 'dragoonUp', 'dragoonDown',
 export const pose = { ...BASE }, tp = { ...BASE };
 
 // collision
-// Would the player's box at (x, y, z) overlap solid s?
-export function overl(s, x, y, z) { return x + PR > s.min.x && x - PR < s.max.x && z + PR > s.min.z && z - PR < s.max.z && y + PH > s.min.y && y < s.max.y; }
+// Would the player's box at (x, y, z) overlap solid s? A curtain of light (s.phase, see addPhaseWall in world.js)
+// does not count while dashing: that is how a dash passes through it.
+export function overl(s, x, y, z) { return !(s.phase && P.state === 'dash') && x + PR > s.min.x && x - PR < s.max.x && z + PR > s.min.z && z - PR < s.max.z && y + PH > s.min.y && y < s.max.y; }
 export function anyOverlap(x, y, z) { for (const s of solids) if (overl(s, x, y, z)) return s; return null; }
 // Move along ONE axis ('x', 'y' or 'z') by d, then push back out of anything hit. Doing one axis at a time is
 // what makes sliding along walls work. Also steps up small ledges (up to 0.55 high) and remembers the wall just
@@ -137,6 +140,7 @@ export function setState(s) {
   const o = P.state;
   if (o === 'grapple' && s !== 'grapple') { ropeMesh.visible = hookMesh.visible = false; P.cd.m2 = CL.skills.m2.cd; }
   if (o === 'wallrun') P.wallrunCd = 0.35;
+  if (o === 'dash') depenetrate();    // a dash that ends inside a curtain of light is pushed out of it
   if (o === 'pcharge') releaseDrag(P.st >= 0.5);
   if (o === 'charge') { P.chargeK = 0; playerMat.emissive.setHex(0); }
   if (o === 'dragoonUp' || o === 'dragoonDown') diveMark.visible = s === 'dragoonDown';
@@ -182,7 +186,9 @@ export function parry(d) {
 }
 // Health ran out: end any challenge and go back to the start.
 export function playerDefeated() {
-  centerMsg('DEFEATED<small>Master Sen drags you back to the start</small>', 2);
+  // Falling during a mission loses it: its enemies go, and the respawn below is back in the yard.
+  const lost = failMission();
+  centerMsg(lost ? 'MISSION FAILED<small>The district is still theirs. Master Sen drags you home</small>' : 'DEFEATED<small>Master Sen drags you back to the start</small>', lost ? 3 : 2);
   if (chal.cur) endChallenge();
   respawnPlayer();
   for (const d of dummies) { d.cancelAtk(); if (d.type === 'fighter') d.aiCd = 3; }
@@ -270,7 +276,7 @@ export function teleTrail(from, to, n = 6) {
   for (let i = 1; i <= n; i++) { player.root.position.lerpVectors(from, to, i / (n + 1)); spawnGhost(player, CL.color, player.root.position, 0.35); }
 }
 // Shared landing blast for Meteor Slam and Dragoon Dive. stun = seconds everything in the blast is stunned (0 = none).
-export function groundImpact(rad, dmg, color, stun = 0) {
+export function groundImpact(rad, dmg, color, stun = 0, knock = 9) {
   rad *= reach();
   color = slashColor();
   _fx.copy(P.pos).setY(P.pos.y + 0.05);
@@ -278,7 +284,7 @@ export function groundImpact(rad, dmg, color, stun = 0) {
   spawnSwirl(_fx.setY(P.pos.y + 0.12), rad * 0.5, color, 0.5, 2.5, 1);    // a painted wave rolling outwards
   burst(_fx.setY(P.pos.y + 0.3), 18, 12); shake(0.7); addHitstop(0.06);
   setHitSrc('r');
-  hitArea(P.pos.x, P.pos.y, P.pos.z, rad, dmg, 9, 13, true, 0.07, true, 0.75);
+  hitArea(P.pos.x, P.pos.y, P.pos.z, rad, dmg, knock, 13, true, 0.07, true, 0.75);
   if (stun > 0) {
     for (const d of dummies) {
       if (!d.dead && Math.hypot(d.pos.x - P.pos.x, d.pos.z - P.pos.z) < rad) d.stun(stun);
@@ -294,5 +300,6 @@ export function cleanupClassObjects() {
   if (P.jav) { killProj(P.jav); P.jav = null; }
   P.smokeT = 0; P.dmgMult = 1; P.floatT = 0; P.blocking = false;
   clearStyle();    // a sword style does not survive a respawn, a teleport, a class change or the start of a trial
+  clearElements(); // nor does fire left on the ground, or a bolt still on its way
   if (CL) setWeapon(player, CL.weapon);
 }
