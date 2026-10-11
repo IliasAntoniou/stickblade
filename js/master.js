@@ -202,28 +202,65 @@ const THROW_RELEASE = 0.9;    // throw: he lets go (between GRAB_HOLD and this h
 const THROW_DAMAGE = 0.4;     // throw: share of the player's full health hitting the rock takes
 const STUCK_TIME = 0.45;      // throw: seconds the player stays flat against the rock before dropping
 const NECK_HEIGHT = 1.5;      // how far above the player's feet their neck is
+const EYE_HEIGHT = 3;         // how far above his feet he holds the player, and so where a throw starts from
 const _hold = new V3();
-// Something to throw the player at: a tall rock standing on the ground, neither too close nor too far. Works out
-// which of its sides faces him, and the spot on that side the player will hit (master.throwTo), and which way that
-// side faces (master.wallN). Returns false if there is no such rock.
-function pickWall() {
+// True if something solid stands on the straight line between two points. skip = a solid to leave out (the
+// rock being aimed at, which the line ends on). Curtains of light are left out too: they are not rock.
+// Each solid is an upright box, so the line is cut down one axis at a time to the part of it inside the box
+// (enter and leave are how far along the line that part starts and ends, 0..1); if anything is left, it is hit.
+const _eye = new V3(), _spot = new V3(), _side = new V3();
+function wallBetween(from, to, skip) {
+  for (const solid of solids) {
+    if (solid === skip || solid.phase) continue;
+    let enter = 0, leave = 1;
+    for (const axis of ['x', 'y', 'z']) {
+      const start = from[axis], step = to[axis] - start;
+      if (Math.abs(step) < 1e-6) {
+        if (start < solid.min[axis] || start > solid.max[axis]) { enter = 2; break; }    // beside the box all the way
+        continue;
+      }
+      const one = (solid.min[axis] - start) / step, other = (solid.max[axis] - start) / step;
+      enter = Math.max(enter, Math.min(one, other));
+      leave = Math.min(leave, Math.max(one, other));
+    }
+    if (enter < leave) return true;
+  }
+  return false;
+}
+// Where on a rock the player would hit if thrown at it from where he stands, written into `spot`, and which way
+// that side of the rock faces, written into `side`.
+function wallSpot(rock, spot, side) {
   const ox = master.pos.x, oz = master.pos.z;
-  const good = solids.filter(r => {
-    const away = Math.hypot((r.min.x + r.max.x) / 2 - ox, (r.min.z + r.max.z) / 2 - oz);
-    return r.max.y - r.min.y >= 8 && r.min.y < master.pos.y + 1 && away > 7 && away < 60;
-  });
-  if (!good.length) return false;
-  const rock = pick(good);
   // Follow a straight line from him towards the middle of the rock. It meets the rock at one of its sides: the
   // one it reaches last, of the two it is heading for (one facing him along x, one along z).
   const dx = (rock.min.x + rock.max.x) / 2 - ox, dz = (rock.min.z + rock.max.z) / 2 - oz;
   const alongX = dx !== 0 ? ((dx > 0 ? rock.min.x : rock.max.x) - ox) / dx : -Infinity;
   const alongZ = dz !== 0 ? ((dz > 0 ? rock.min.z : rock.max.z) - oz) / dz : -Infinity;
   const k = Math.max(alongX, alongZ);
-  if (alongX > alongZ) master.wallN.set(-Math.sign(dx), 0, 0); else master.wallN.set(0, 0, -Math.sign(dz));
+  if (alongX > alongZ) side.set(-Math.sign(dx), 0, 0); else side.set(0, 0, -Math.sign(dz));
   // partway up the rock, and just clear of its surface so the player is against it, not inside it
   const height = clamp(master.pos.y + 5, rock.min.y + 1.5, rock.max.y - 1.5);
-  master.throwTo.set(ox + dx * k + master.wallN.x * 0.38, height - 0.9, oz + dz * k + master.wallN.z * 0.38);
+  spot.set(ox + dx * k + side.x * 0.38, height - 0.9, oz + dz * k + side.z * 0.38);
+}
+// The rocks he could throw the player at from where he stands: tall, standing on the ground, neither too close
+// nor too far, and in his sight: nothing else may stand between him and the spot on it the player would hit.
+export function throwTargets() {
+  const ox = master.pos.x, oz = master.pos.z;
+  _eye.set(ox, master.pos.y + EYE_HEIGHT, oz);
+  return solids.filter(r => {
+    const away = Math.hypot((r.min.x + r.max.x) / 2 - ox, (r.min.z + r.max.z) / 2 - oz);
+    if (r.phase || r.max.y - r.min.y < 8 || r.min.y >= master.pos.y + 1 || away <= 7 || away >= 60) return false;
+    wallSpot(r, _spot, _side);
+    _spot.y += 0.9;    // the middle of the body, where it would strike
+    return !wallBetween(_eye, _spot, r);
+  });
+}
+// Choose one of them. Sets the spot the player will hit (master.throwTo) and which way that side of the rock
+// faces (master.wallN). Returns false if there is no rock he can throw at.
+function pickWall() {
+  const good = throwTargets();
+  if (!good.length) return false;
+  wallSpot(pick(good), master.throwTo, master.wallN);
   return true;
 }
 function grabPlayer() {

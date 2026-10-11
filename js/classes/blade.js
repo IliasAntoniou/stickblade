@@ -279,8 +279,8 @@ CLASSES.blade.trials = [
   { id: 'blade-r3', slot: 'r', rank: 3, name: 'Meteor Slam III', desc: 'Hit all 3 dummies and both fighters with one slam', time: 120, goal: 5, allow: ['r'], onHit: mostInOneSlam,
     arena: { spawn: [['basic', 0, 0, -8], ['basic', -5.2, 0, 1], ['basic', 5.2, 0, 1], ['fighter', -10, 0, -13], ['fighter', 10, 0, -13]] } },
 
-  { id: 'blade-f2', slot: 'f', rank: 2, name: 'Rising Slash II', desc: 'Launch the dummy, then hit it 6 more times before it lands', time: 90, goal: 6, onHit: airCombo, tick: airComboTick,
+  { id: 'blade-f2', slot: 'f', rank: 2, name: 'Rising Slash II', desc: 'Launch the dummy, then hit it 4 more times before it lands', time: 90, goal: 4, onHit: airCombo, tick: airComboTick,
     arena: { spawn: [['basic', 0, 0, 0]] } },
-  { id: 'blade-f3', slot: 'f', rank: 3, name: 'Rising Slash III', desc: 'Launch the fighter, then hit it 8 more times before it lands', time: 120, goal: 8, onHit: airCombo, tick: airComboTick,
+  { id: 'blade-f3', slot: 'f', rank: 3, name: 'Rising Slash III', desc: 'Launch the fighter, then hit it 5 more times before it lands', time: 120, goal: 5, onHit: airCombo, tick: airComboTick,
     arena: { spawn: [['fighter', 0, 0, -2]] } },
 ];

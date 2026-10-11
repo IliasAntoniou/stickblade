@@ -331,7 +331,7 @@ const wispTex = canvasTex(256, 64, x => {
     }
   }
 });
-const wispMat = new THREE.MeshBasicMaterial({ map: wispTex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+export const wispMat = new THREE.MeshBasicMaterial({ map: wispTex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
 const metalMat = new THREE.MeshLambertMaterial({ color: 0x2a2732 });
 // The head keeps its skin colour while the rest of the body turns dark, so it has a material of its own.
 // (It still fades in and out with the body.)

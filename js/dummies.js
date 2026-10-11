@@ -47,6 +47,23 @@ const THROW_DAMAGE = 10;
 const BARE_TIME = 6;       // seconds an armoured enemy stays without its armour after a blast strips it
 const YARD = { cx: 0, cz: 0, half: ARENA };    // the main arena, where gang members are kept unless told otherwise
 const GANG_SPEED = 5.2;    // how fast it walks, units per second. A training fighter does 3.4; the player runs at about 9.5
+// Juggling. A sword hit on an enemy that is already in the air lifts it a little and slows its fall for a
+// moment, so a launch can be followed by a few more hits. Each one after the first does less (the first counts
+// fully, the one numbered JUGGLE_HITS + 1 does nothing), and the count only starts again when it lands: it
+// always comes down. Only swung weapons do this (attackHits in player.js asks for it), not the Mage's missiles.
+const JUGGLE_HITS = 5;      // how many hits in the air still hold an enemy up
+const JUGGLE_LIFT = 6;      // upward speed the first one gives it
+const JUGGLE_HANG = 0.35;   // seconds of slow fall after the first one
+const HANG_PULL = 12;       // the pull downwards during that slow fall (normally 32)
+// Called for a sword hit about to land on d. Returns the upward speed the hit should give it (0 if it is on
+// the ground or has been held up as often as it can be), and starts its slow fall.
+export function juggle(d) {
+  if (d.grounded || d.fixed) return 0;
+  const share = Math.max(0, 1 - d.lifts / JUGGLE_HITS);
+  d.lifts++;
+  d.hangT = JUGGLE_HANG * share;
+  return JUGGLE_LIFT * share;
+}
 // True if a dummy standing at p would be inside a wall.
 export function dummyBlocked(p) {
   for (const s of solids) if (p.x + 0.3 > s.min.x && p.x - 0.3 < s.max.x && p.z + 0.3 > s.min.z && p.z - 0.3 < s.max.z && p.y + 1.8 > s.min.y && p.y + 0.4 < s.max.y) return true;
@@ -94,6 +111,7 @@ export class Dummy {
     this.sinceHit = 99; this.flash = 0; this.rage = 0; this.tx = 0; this.tz = 0; this.tvx = 0; this.tvz = 0;
     this.yaw = 0; this.dead = false; this.deadT = 0; this.spin = 0; this.grounded = true;
     this.floatT = 0; this.stunT = 0; this.pinned = false; this.engaged = false;
+    this.lifts = 0; this.hangT = 0;    // juggling: sword hits taken in the air since it last landed, and seconds of slow fall left
     // Burning (Flame style): burnT = seconds left, burnDps = damage per second, burnTick = time to the next tick.
     this.burnT = 0; this.burnDps = 0; this.burnTick = 0;
     // Soaked (Water's Blink Strike, elements.js): seconds left. A soaked enemy takes more damage and a fighter is slowed.
@@ -225,7 +243,10 @@ export class Dummy {
         const f = Math.exp(-3 * dt); this.vel.x *= f; this.vel.z *= f;
       } else if (flying && this.sinceHit >= 0.9) {
         this.path(_dv); this.pos.lerp(_dv, 1 - Math.exp(-2.5 * dt)); this.vel.multiplyScalar(Math.exp(-4 * dt));
-      } else this.vel.y -= (this.sinceHit < 0.6 ? 15 : 32) * dt;
+      } else {
+        this.hangT = Math.max(0, this.hangT - dt);
+        this.vel.y -= (this.hangT > 0 ? HANG_PULL : 32) * dt;    // a slow fall only while a juggle holds it (see juggle)
+      }
       if (this.fixed) { this.vel.x = 0; this.vel.z = 0; }    // a barricade is not pushed about
       const ox = this.pos.x, oz = this.pos.z;
       this.pos.addScaledVector(this.vel, dt);
@@ -236,7 +257,7 @@ export class Dummy {
       }
       if (this.pos.y <= gy) {
         this.pos.y = gy; if (this.vel.y < 0) this.vel.y = 0;
-        const f = Math.exp(-9 * dt); this.vel.x *= f; this.vel.z *= f; this.grounded = true;
+        const f = Math.exp(-9 * dt); this.vel.x *= f; this.vel.z *= f; this.grounded = true; this.lifts = 0; this.hangT = 0;
       } else { const f = Math.exp(-1.2 * dt); this.vel.x *= f; this.vel.z *= f; this.grounded = false; }
       if (!this.dead && !flying && !this.gang && this.grounded && this.sinceHit > 1 && !(ty === 'fighter' && this.engaged)) {
         if (Math.abs(gy - this.anchor.y) < 0.05) {

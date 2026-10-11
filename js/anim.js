@@ -124,11 +124,16 @@ export function animatePlayer(dt) {
   } else if (st === 'submerge') {
     // dropping under the water: knees tucked, arms up
     Object.assign(tp, { hipLX: -1.2, kneeL: 1.7, hipRX: -1.0, kneeR: 1.6, shLX: -2.4, shLZ: 0.3, elL: -0.3, shRX: -2.4, shRZ: -0.3, elR: -0.3, spineX: 0.25 });
-  } else if (st === 'cast' || st === 'channel' || st === 'aim') {
-    // casting, or taking aim: the staff thrust straight out at the target, the other hand behind it. A Barrage shakes with each missile.
+  } else if (st === 'cast' || st === 'channel' || st === 'aim' || st === 'bow') {
+    // casting, taking aim, or directing what has been conjured (the crossbow, the machine gun): the staff thrust straight out at the target, the other hand behind it. A Barrage shakes with each missile.
     Object.assign(tp, { shRX: -1.5, shRZ: -0.1, elR: 0, shLX: -1.2, shLZ: -0.1, elL: -0.6, spineX: 0.3, hipRX: -0.35, kneeR: 0.4, hipLX: 0.3, kneeL: 0.25 });
     if (st === 'channel') tp.shRX += Math.sin(T * 57) * 0.06;
     tp.wrist = -(tp.shRX + tp.elR);
+    staffUp = false;
+  } else if (st === 'smack') {
+    // Force Nova: down on bent knees, the staff driven point-first into the ground with both hands
+    Object.assign(tp, { bodyY: 0.68, spineX: 0.55, hipLX: -0.75, kneeL: 1.2, hipRX: -0.55, kneeR: 1.0, shRX: -0.7, shRZ: 0.1, elR: -0.4, shLX: -0.7, shLZ: -0.15, elL: -0.5 });
+    tp.wrist = 1.57 - (tp.shRX + tp.elR);    // the mirror of carrying it upright: straight down
     staffUp = false;
   } else if (st === 'invoke') {
     // calling a comet: the staff raised high in both hands, head back

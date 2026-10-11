@@ -326,11 +326,11 @@ check('progress: air combo trial', () => {
   if (!begin('blade-f2')) return false;
   const d = spawned('basic')[0];
   skillHit('f', d, 17.5, true); run(20);                 // launched and in the air
-  for (let i = 0; i < 3; i++) skillHit('atk', d, 6);
+  for (let i = 0; i < 3; i++) skillHit('atk', d);
   run(400);                                              // it lands: the count starts again
   if (chal.cur === null || chal.st.n !== 3) return false;
   skillHit('f', d, 17.5, true); run(20);
-  for (let i = 0; i < 6; i++) skillHit('atk', d, 6);
+  for (let i = 0; i < 4; i++) skillHit('atk', d);
   run(2);
   return chal.cur === null && rankOf('f') === 2 && SB.CL.skills.f.dmg === 28;
 });
@@ -355,6 +355,52 @@ check('progress: reset goes back to the start', () => {
   SB.resetProgress();
   const S = SB.CL.skills;
   return rankOf('q') === 0 && rankOf('f') === 1 && S.q.refund === false && S.q.dmg === 34 && S.e.dur === 0.45 && S.f.dmg === 20;
+});
+// the air: a sword hit that lands holds you and the enemy up for a few hits; nothing else does, and it always ends
+check('air: swinging at nothing does not hold you up', () => {
+  SB.unlockAll(); SB.setClass('blade');
+  // frames from the jump to the landing, with or without swinging all the way (far from anything to hit)
+  const airtime = swinging => {
+    reset(); P.pos.set(0, 0, 40); P.vel.set(0, 0, 0); run(3);
+    press('Space', 2);
+    let frames = 0;
+    while (frames < 600 && !(P.grounded && frames > 5)) { if (swinging && frames % 12 === 0) pressed.add('M0'); run(1); frames++; }
+    return frames;
+  };
+  const plain = airtime(false), swinging = airtime(true);
+  return plain > 20 && plain < 80 && Math.abs(swinging - plain) <= 3;
+});
+check('air: a hit that is not a sword swing does not hold an enemy up', () => {
+  const d = dummies.find(one => one.type === 'basic');
+  // frames from being launched to landing, with or without being hit on the way
+  const airtime = hitting => {
+    reset(); run(120);
+    SB.setHitSrc('f'); SB.hitDummy(d, 1, 0, 0, 16, false, null, P.pos, true);
+    let frames = 0;
+    while (frames < 600 && !(d.grounded && frames > 5)) { if (hitting && frames % 8 === 4) { SB.setHitSrc('e'); SB.hitDummy(d, 1, 0, 0, 0, false, null, P.pos, true); } run(1); frames++; }
+    return frames;
+  };
+  const alone = airtime(false), hit = airtime(true);
+  return alone > 30 && alone < 120 && Math.abs(hit - alone) <= 3;
+});
+check('air: a sword combo after a launch holds both up for a few hits, and then both come down', () => {
+  SB.TUNE.fightersAttack = false;
+  reset(); run(120);
+  const d = dummies.find(one => one.type === 'basic');
+  P.pos.set(d.pos.x, d.pos.y, d.pos.z + 1.6); P.vel.set(0, 0, 0); SB.setCamYaw(0); run(4);
+  press('KeyF', 1);                                       // Rising Slash: both go up
+  let hits = 0, last = d.hp, enemyAir = 0, playerAir = 0, held = 0;
+  for (let i = 0; i < 400; i++) {
+    pressed.add('M0'); run(1);                            // and the sword does not stop
+    if (d.hp < last) { hits++; last = d.hp; }
+    if (!d.grounded) enemyAir = i;
+    if (!P.grounded) playerAir = i;
+    held = Math.max(held, P.airHits);
+    if (i > 20 && d.grounded && P.grounded) break;
+  }
+  SB.TUNE.fightersAttack = true;
+  // an unhit launch lasts about 65 frames: this one lasts clearly longer, takes 5 hits or more, and still ends
+  return hits >= 5 && hits <= 10 && enemyAir > 85 && enemyAir < 220 && playerAir > 55 && playerAir < 200 && held >= 3 && d.grounded && P.grounded && P.airHits === 0 && d.lifts === 0;
 });
 // the Mage: the same ranks and trials as the Blademaster (its trials written as data), spells that are missiles,
 // magic to move with, and the sword styles changing how its missiles fly and what it wears
@@ -403,7 +449,7 @@ check('mage ranks: every trial has a layout that builds', () => {
   }
   return dummies.length === arenaDummies;
 });
-check('mage trials: different flying dummies teach Arcane Lance, and a knockout trial takes it to rank III', () => {
+check('mage trials: different flying dummies teach Arcane Crossbow, and a knockout trial takes it to rank III', () => {
   if (!beginFor('mage', 'mage-q1')) return false;
   if (rankOf('q') !== 1 || rankOf('e') !== 0) return false;    // lent for the trial
   const f = spawned('flying');
@@ -414,7 +460,7 @@ check('mage trials: different flying dummies teach Arcane Lance, and a knockout 
   hitFor('q', f[2], 10); run(2);
   if (rankOf('q') !== 1 || SB.CL.skills.q.dmg !== 70 || !beginFor('mage', 'mage-q2')) return false;
   let d = spawned('basic');
-  hitFor('q', d[0], 210); hitFor('q', d[1], 230); run(2);
+  hitFor('q', d[0], 240); hitFor('q', d[1], 240); run(2);    // well over 400 between them, whatever the 10% either way does
   if (rankOf('q') !== 2 || SB.CL.skills.q.dmg !== 90 || !beginFor('mage', 'mage-q3')) return false;
   d = spawned('basic');
   hitFor('q', d[0], 10); run(2);
@@ -456,7 +502,7 @@ check('mage: the Water trial is taken with R in the pool, and passing it unlocks
 check('ranks: the top rank of every Mage skill has its perk', () => {
   SB.unlockAll();
   const M = SB.CLASSES.mage.skills;
-  return M.q.refund === true && M.e.shots === 12 && M.r.stun === 2 && M.f.knock === 22;
+  return M.q.refund === true && M.e.shots === 12 && M.r.stun === 2 && M.f.knock === 36 && M.f.dmg === 10;
 });
 // what the Mage does
 check('mage: the basic attack is a bolt from the staff that flies to the target', () => {
@@ -467,17 +513,22 @@ check('mage: the basic attack is a bolt from the staff that flies to the target'
   run(40);
   return flying().length === 0 && target.hp < hp && SB.player.W.staff.visible && !SB.player.W.sword.visible;
 });
-check('mage: Arcane Lance is one heavy hit on one target; a Barrage is a stream of small ones', () => {
+check('mage: Arcane Crossbow is one heavy hit on one target; a Barrage is a stream of small ones', () => {
   const target = faceDummy();
   let hp = target.hp;
-  press('KeyQ', 40);
+  press('KeyQ', 6);
+  const bowOut = SB.mageModels.bow.visible && SB.mageModels.bow.position.y > P.pos.y + 2;    // the crossbow, up above the head
+  run(50);
   const lance = hp - target.hp;
+  if (!bowOut || SB.mageModels.bow.visible) return false;  // it was there, and has faded
   if (lance < 75 || !(P.cd.q > 0)) return false;          // 90 at rank III, give or take 10%
   hp = target.hp;
   press('KeyE', 3);
-  if (P.state !== 'channel') return false;
+  if (P.state !== 'channel' || !SB.mageModels.gun.visible) return false;    // the machine gun is out
   run(120);
-  return P.state === 'normal' && P.shots === 12 && hp - target.hp > 120;
+  if (!(P.state === 'normal' && P.shots === 12 && hp - target.hp > 120)) return false;
+  run(40);
+  return !SB.mageModels.gun.visible;                       // and gone again once the stream has ended
 });
 check('mage: a Comet lands a moment after it is called, on the target', () => {
   const target = faceDummy(), hp = target.hp;
@@ -491,7 +542,17 @@ check('mage: Force Nova throws back what is close', () => {
   const near3 = dummies.filter(d => d.type === 'basic' && Math.hypot(d.pos.x - P.pos.x, d.pos.z - P.pos.z) < 6);
   const hp = near3.map(d => d.hp);
   press('KeyF', 3);
-  return near3.length >= 3 && near3.every((d, i) => d.hp < hp[i]) && near3.some(d => Math.hypot(d.vel.x, d.vel.z) > 5);
+  // low damage on each (10 at rank III), a hard throw outwards and up, and a moment in which they cannot act
+  const light = near3.every((d, i) => d.hp < hp[i] && hp[i] - d.hp <= 12);
+  const thrown = near3.every(d => Math.hypot(d.vel.x, d.vel.z) > 20 && d.vel.y > 5 && d.stunT > 0);
+  if (near3.length < 3 || !light || !thrown || P.state !== 'smack') return false;
+  // under Flame it only singes, and leaves no fire on the ground: it must not become an attack on a crowd
+  run(120); reset(); SB.giveStyle('flame'); P.cd.f = 0;
+  const zones = SB.zoneCount();
+  press('KeyF', 3);
+  const singed = near3.every(d => d.burnT > 0 && d.burnT <= 1) && SB.zoneCount() === zones;
+  SB.clearStyle(); run(120);
+  return singed;
 });
 // Hold the right mouse button for some frames, then let go.
 function snipe(frames) { P.cd.m2 = 0; SB.setMouse(false, true); pressed.add('M2'); run(frames); SB.setMouse(false, false); run(3); }
@@ -505,10 +566,34 @@ check('mage: holding the right mouse button charges a shot while the scope close
   const scoped = SB.camera.fov;
   run(60);
   if (P.aimK !== 1 || !(SB.camera.fov < scoped) || !(SB.camera.fov < 40)) return false;    // full, and the view has narrowed
+  if (Math.abs(SB.aimSens() - 0.4) > 0.001) return false;                                 // and the mouse has slowed to match
   SB.setMouse(false, false); run(3);
   const full = hp - target.hp;                            // 150, give or take 10%
   run(30);
-  return full >= 130 && full <= 170 && P.cd.m2 > 0 && SB.scope() === 0 && SB.camera.fov > 60;
+  return full >= 130 && full <= 170 && P.cd.m2 > 0 && SB.scope() === 0 && SB.camera.fov > 60 && SB.aimSens() === 1;
+});
+check('mage: every kind of shot can hit Master Sen, who answers it like any other blow', () => {
+  const m = SB.master;
+  reset(); m.warnT = 0; m.hitCd = 0;
+  // eight in front of him and a step to the left, so the crosshair (over the right shoulder) is on him
+  P.pos.set(m.pos.x - 0.6, m.pos.y, m.pos.z + 8); P.vel.set(0, 0, 0); SB.setCamYaw(0); SB.setCamPitch(0); run(8);
+  // a bolt from the staff
+  press('M0', 8); run(40);
+  if (!(m.warnT > 0) || flying().length !== 0) return false;    // it stopped on him, and he noticed
+  m.warnT = 0; m.hitCd = 0; run(60);
+  // an Arcane Crossbow
+  P.pos.set(m.pos.x - 0.6, m.pos.y, m.pos.z + 8); P.vel.set(0, 0, 0); SB.setCamYaw(0); SB.setCamPitch(0); run(8);
+  P.cd.q = 0; press('KeyQ', 40);
+  if (!(m.warnT > 0)) return false;
+  m.warnT = 0; m.hitCd = 0; run(60);
+  // the sniping shot
+  P.pos.set(m.pos.x - 0.6, m.pos.y, m.pos.z + 8); P.vel.set(0, 0, 0); SB.setCamYaw(0); SB.setCamPitch(0); run(8);
+  SB.setCamYaw(0.4); run(3); snipe(90);
+  if (m.warnT > 0) return false;                          // aimed well to one side of him: nothing
+  SB.setCamYaw(0); run(20); snipe(90);                     // (after the first shot's moment of standing still)
+  const warned = m.warnT > 0;
+  m.warnT = 0; m.hitCd = 0; run(60);
+  return warned;
 });
 check('mage: a quick shot is weak, and a shot hits only what the crosshair is on', () => {
   const target = aimAtDummy();
@@ -516,9 +601,9 @@ check('mage: a quick shot is weak, and a shot hits only what the crosshair is on
   snipe(4);
   const quick = hp - target.hp;                           // about 37
   if (!(quick > 20 && quick < 50)) return false;
-  // a little to one side: the lock-on ring would still pick this dummy, but the shot is not guided
+  // a little to one side: the lock-on ring still has a dummy to go to, but the shot is not guided
   SB.setCamYaw(0.14); run(4);
-  if (SB.lockTarget() !== target) return false;
+  if (!SB.lockTarget()) return false;
   hp = target.hp;
   snipe(90);
   if (target.hp !== hp) return false;
@@ -526,7 +611,17 @@ check('mage: a quick shot is weak, and a shot hits only what the crosshair is on
   SB.setCamYaw(0); SB.setCamPitch(0.035); run(4);
   hp = target.hp;
   snipe(90);
-  return hp - target.hp >= 195;                           // 150 x 1.5, give or take 10%
+  if (hp - target.hp < 195) return false;                 // 150 x 1.5, give or take 10%
+  // a brute is drawn bigger, so its head is higher: a shot there has to count too
+  const brute = dummies.find(d => d.type === 'fighter');
+  const headY = brute.pos.y + 1.75 * brute.sm.root.scale.y;
+  SB.TUNE.fightersAttack = false;
+  reset(); P.pos.set(brute.pos.x - 0.6, brute.pos.y, brute.pos.z + 8); P.vel.set(0, 0, 0); SB.setCamYaw(0); SB.setCamPitch(0); run(8);
+  SB.setCamPitch(Math.atan2(headY - SB.camera.position.y, 8)); run(4);
+  hp = brute.hp;
+  snipe(90);
+  SB.TUNE.fightersAttack = true;
+  return headY > brute.pos.y + 2 && hp - brute.hp >= 195;
 });
 check('mage: a jump in the air hovers', () => {
   reset(); P.pos.set(0, 0, 30); P.vel.set(0, 0, 0); run(2);
@@ -545,11 +640,15 @@ check('mage style: a style changes how the missile flies, and every hit does wha
   run(60); faceDummy(); SB.giveStyle('flame');    // (standing at the dummy first: a respawn ends a style)
   const zones = SB.zoneCount();
   P.cd.q = 0; press('KeyQ', 3);
+  if (flying().length !== 0) return false;                // the crossbow is still drawing
+  run(20);
   const fireball = flying()[0].o;
   if (!(fireball.speed < plain.speed) || !(fireball.size > plain.size) || fireball.color === plain.color) return false;
+  const shot = flying()[0];
+  if (!fireball.arrow || !fireball.wisps || !shot.arrow.visible || !shot.wisps.visible || plain.arrow) return false;    // an arrow, wrapped in the style's wisps; a bolt is a ball
   run(60);
   if (!(target.burnT > 0) || SB.zoneCount() <= zones) return false;    // burning, and fire left where it landed
-  if (SB.CL.skills.q.alt() !== 'Fireball') return false;
+  if (SB.CL.skills.q.alt() !== 'Flame Arrow') return false;
   faceDummy(); SB.giveStyle('thunder'); press('M0', 8);
   const streak = flying()[0].o;
   SB.clearStyle(); run(60);
@@ -674,6 +773,19 @@ check('Sen: the other time he throws you into the side of a rock', () => {
   run(200);
   // then he drops to the ground at its foot, free again; next time it is the slam
   return smacked && held && P.state === 'normal' && P.splat === false && P.grounded && P.pos.y < at.y - 1 && sen.nextMove === 'slam';
+});
+check('Sen: he only throws you at a rock he can see', () => {
+  reset();
+  const before = SB.throwTargets();
+  if (before.length < 2) return false;
+  // stand a wall right in front of one of them, between him and it: that rock is out, the others are not
+  const rock = before[0];
+  const mx = (sen.pos.x + (rock.min.x + rock.max.x) / 2) / 2, mz = (sen.pos.z + (rock.min.z + rock.max.z) / 2) / 2;
+  const screen = { min: { x: mx - 2, y: 0, z: mz - 2 }, max: { x: mx + 2, y: 5, z: mz + 2 } };    // too low to be thrown at itself
+  SB.solids.push(screen);
+  const after = SB.throwTargets();
+  SB.solids.pop();
+  return !after.includes(rock) && after.length >= 1 && after.every(r => before.includes(r)) && SB.throwTargets().includes(rock);
 });
 check('Sen: in the training hall he throws you at its wall', () => {
   reset(); run(120); SB.enterDojo(); run(5);

@@ -9,7 +9,7 @@ import { solids, area, makeShadow } from './world.js';
 import { makeStickman, setWeapon, BASE, addRim, castShadows } from './stickman.js';
 import { glowTex, spawnSwirl, spawnArc, ringGeo, spawnRing, burst, spawnGhost, beamGeo, spawnBeam, spawnText, centerMsg, shake, addHitstop, flashHurt } from './fx.js';
 import { T, P, CL, dlg, chal, SPAWN, combo, TUNE, setHitSrc } from './state.js';
-import { dummies, hitDummy, hitArea } from './dummies.js';
+import { dummies, hitDummy, hitArea, juggle } from './dummies.js';
 import { clearProjs } from './projectiles.js';
 import { mageBolt, clearMage } from './classes/mage.js';
 import { camDir, facing, camFacingYaw, setCamYaw, setCamPitch, setScope } from './camera.js';
@@ -52,7 +52,22 @@ Object.assign(P, {
   castN: 0, castY: 0,    // castN counts skill uses, castY is the height the last slam started from (trials read these)
   floatT: 0,    // seconds left of hanging in the air (the Mage's hover)
   aimK: 0,      // how far the Mage's sniping shot is charged, 0..1
+  airHits: 0,   // swings that have landed since the player left the ground (see AIR_HITS)
+  hangT: 0,     // seconds of slow fall left from the last of them
 });
+// Fighting in the air. A sword hit that LANDS while the player is off the ground holds them up for a moment:
+// a small hop, then a short slow fall. Each one after the first does less (the first counts fully, the one
+// numbered AIR_HITS + 1 does nothing), and the count only starts again on landing. So a combo in the air
+// lasts a few hits and then comes down, and swinging at nothing does not hold anyone up at all: it cannot be
+// used to fly. Only swung weapons do this, not the Mage's missiles.
+export const AIR_HITS = 4;       // how many landed hits in the air still hold the player up
+const AIR_HOP = 6;               // upward speed of the first one's hop (the same as an enemy's juggle lift, to stay level with it)
+const AIR_HANG = 0.3;            // seconds of slow fall after the first one
+const AIR_LUNGE = 0.2;           // share of a swing's step forward that is kept in the air
+const AIR_REACH = 1.2;           // how much further up a swing reaches when the player is in the air
+const AIR_KNOCK = 0.3;           // share of a hit's knockback an enemy in the air takes, so it is not batted out of reach
+// How much the next landed hit in the air will hold the player up: 1 for the first, down to 0.
+export const airShare = () => Math.max(0, 1 - P.airHits / AIR_HITS);
 // Jump, gravity, dash and health numbers are in TUNE (state.js) so the tuning panel can change them.
 // PR, PH = the player's collision radius and height.  FLIP_T = length of a somersault.
 export const PR = 0.32, PH = 1.75, FLIP_T = 0.42;
@@ -111,7 +126,7 @@ export function integrate(dt) {
   const lim = area.half - PR - 0.05;
   P.pos.x = clamp(P.pos.x, area.cx - lim, area.cx + lim); P.pos.z = clamp(P.pos.z, area.cz - lim, area.cz + lim);
   if (P.grounded) {
-    P.coyote = 0.1; P.airJumps = P.airJumpsMax;
+    P.coyote = 0.1; P.airJumps = P.airJumpsMax; P.airHits = 0; P.hangT = 0;
     if (!was) { P.justLanded = true; spawnRing(_fx.copy(P.pos).setY(P.pos.y + 0.05), 0.2, 1.1, 0.22, 0xffffff); }
   }
 }
@@ -174,13 +189,15 @@ export function startAttack(force = -1) {
   let c = 0; if (T - a.lastEnd < 0.4 && a.lastCombo < n - 1) c = a.lastCombo + 1;
   if (force >= 0) c = force;
   a.on = true; a.t = 0; a.combo = c; a.hit.clear(); a.queued = false; a.vfx = false;
+  a.held = false;    // this swing has not yet held the player up in the air
   a.src = null;    // a skill that starts a swing (Blink Strike) sets this so the swing counts as that skill
   a.n = (a.n || 0) + 1;    // counts swings, so a trial can tell one swing from the next
   P.yaw = P.yawT = camFacingYaw(); facing(_a);
-  const lunge = CL.atk[c].lunge ?? 6;
+  // the step forward that comes with a swing. In the air there is almost none: it would carry the player
+  // straight past an enemy they are trying to stay beside
+  const lunge = (CL.atk[c].lunge ?? 6) * (P.grounded ? 1 : AIR_LUNGE);
   const along = P.vel.x * _a.x + P.vel.z * _a.z;
   if (along < lunge) { P.vel.x += _a.x * (lunge - along); P.vel.z += _a.z * (lunge - along); }
-  if (!P.grounded) P.vel.y = Math.max(P.vel.y, 3);
   if (P.state === 'dash' || P.state === 'slide' || P.state === 'mounted') setState('normal');    // attacking gets off a mount
 }
 // Runs every frame of the hit window. Each dummy can be hit once per swing (a.hit remembers who).
@@ -194,10 +211,30 @@ export function attackHits() {
   for (const d of dummies) {
     if (d.dead || a.hit.has(d)) continue;
     const dx = d.pos.x - cx, dz = d.pos.z - cz, dy = d.pos.y - P.pos.y;
-    if (dx * dx + dz * dz < rad * rad && dy > -1.8 && dy < 2.2) {
+    if (dx * dx + dz * dz < rad * rad && dy > -1.8 && dy < 2.2 + (P.grounded ? 0 : AIR_REACH)) {
       a.hit.add(d);
-      const up = !P.grounded ? 6 : (A.heavy ? 3 : 0);
-      hitDummy(d, A.dmg, _a.x * A.kb, _a.z * A.kb, up, !!A.heavy);
+      // the finisher lifts what it hits a little; an enemy already in the air is held up by the hit (juggle, dummies.js)
+      const up = Math.max(A.heavy ? 3 : 0, juggle(d));
+      const inAir = !d.grounded;
+      const kb = A.kb * (inAir ? AIR_KNOCK : 1);
+      if (!hitDummy(d, A.dmg, _a.x * kb, _a.z * kb, up, !!A.heavy)) continue;
+      // An enemy in the air is not just lifted: its climb or fall is REPLACED by the small pop of the juggle,
+      // and it stops drifting. Otherwise one launched fast keeps climbing out of reach while it is being hit.
+      if (inAir && up > 0 && !d.dead) d.vel.set(d.vel.x * 0.3, up, d.vel.z * 0.3);
+      // the first enemy this swing lands on, with the player in the air: the hop and the slow fall (see AIR_HITS)
+      if (!P.grounded && !a.held) {
+        a.held = true;
+        const share = airShare();
+        P.airHits++;
+        if (share > 0) {
+          // the hop REPLACES whatever climb or fall the player had, as the juggle does for the enemy, so the two
+          // stay level. The player also stops drifting sideways, to stay beside it.
+          P.vel.y = AIR_HOP * share;
+          P.vel.x *= 0.3;
+          P.vel.z *= 0.3;
+          P.hangT = AIR_HANG * share;
+        }
+      }
     }
   }
 }

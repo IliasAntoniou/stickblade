@@ -102,7 +102,8 @@ export function update(dt) {
       }
       P.vel.x = hx; P.vel.z = hz;
       let g = TUNE.gravity * (P.vel.y < 0 ? 1.35 : 1);
-      if (P.atk.on && !P.grounded) { g *= 0.25; if (P.vel.y < -2) P.vel.y = -2; }
+      // a sword hit that landed in the air: a short slow fall (AIR_HITS in player.js)
+      if (P.hangT > 0) { P.hangT -= dt; g *= 0.3; if (P.vel.y < -2) P.vel.y = -2; }
       if (P.wallT > 0 && !P.grounded && P.vel.y < -5) P.vel.y = -5;
       if (P.floatT > 0) { P.floatT -= dt; g = 0; P.vel.y = damp(P.vel.y, 0, 4, dt); if (P.grounded) P.floatT = 0; }
       P.grav = g;
@@ -246,11 +247,14 @@ export function update(dt) {
     }
     // ----- mage -----
     // casting: a moment standing still with the staff out while the spell leaves ('invoke' is the longer one,
-    // staff raised, for calling a comet)
+    // staff raised, for calling a comet; 'smack' is the staff driven into the ground for Force Nova;
+    // 'bow' is waiting for the conjured crossbow to loose its arrow)
     case 'cast':
+    case 'smack':
+    case 'bow':
     case 'invoke': {
       P.grav = TUNE.gravity; P.vel.x *= Math.exp(-10 * dt); P.vel.z *= Math.exp(-10 * dt);
-      if (P.st > (P.state === 'invoke' ? 0.35 : 0.22)) setState('normal');
+      if (P.st > (P.state === 'cast' ? 0.22 : 0.35)) setState('normal');
       break;
     }
     // Arcane Snipe: the right mouse button is held. The shot charges and the scope closes in (camera.js); the

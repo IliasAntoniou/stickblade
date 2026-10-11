@@ -36,6 +36,8 @@ Sword and grapple hook. Skills are learned and ranked up through trials with Mas
 | R | Meteor Slam | A hop, then a dive straight down and a blast around the landing. Landing in a pool takes Water | 6 s |
 | F | Rising Slash | An uppercut that launches dummies into the air, and you with them | 3 s |
 
+**Fighting in the air.** A sword hit that lands while you are off the ground holds you up: a small hop, then a short slow fall. Each one does less than the last, and after four there is nothing left until you land again. An enemy hit by the sword in the air is held up the same way, for five hits. So a launch can be followed by about half a dozen hits, and then both of you come down. Swinging at nothing does not hold you up at all, and neither do the Mage's missiles.
+
 ### Ranks
 
 Grapple has no ranks. Rising Slash is known from the start; the other three start locked.
@@ -54,7 +56,7 @@ Grapple has no ranks. Rising Slash is known from the start; the other three star
 | Blink Strike | Land it on all 3 flying dummies (60 s) | Interrupt a fighter's attack with it, twice (120 s) | Land it on all 4 flying dummies (25 s) |
 | Cyclone | Hit 3 dummies with one spin: they stand close enough that a spin straight through the middle one catches all three (45 s) | Deal 400 damage with it (45 s) | Deal 600 damage with it, with a shield dummy in the line (45 s) |
 | Meteor Slam | Start a slam 5 high and hit 3 dummies (75 s) | Catch 3 dummies and a fighter in one blast (90 s) | Catch 3 dummies and two fighters in one blast (120 s) |
-| Rising Slash | Known from the start | Launch a dummy, then 6 more hits before it lands (90 s) | Launch a fighter, then 8 more hits before it lands (120 s) |
+| Rising Slash | Known from the start | Launch a dummy, then 4 more hits before it lands (90 s) | Launch a fighter, then 5 more hits before it lands (120 s) |
 
 ## Mage
 
@@ -63,12 +65,14 @@ A staff and spells. Slow on foot (8, where the Blademaster runs at 9.5) and with
 | Key | Ability | What it does | Cooldown |
 |---|---|---|---|
 | LMB | Arcane Bolt | Three bolts from the staff, each a missile that flies to the locked-on enemy or to the crosshair: 14, 14, then a heavy one for 30. You do not step forward | none |
-| RMB (hold) | Arcane Snipe | Hold to take aim: the camera comes up to the eye (your own body is hidden), the view narrows, and a ring closes round the crosshair for 1.2 s while the shot charges (it turns gold when full). You can only creep while aiming. Let go to fire a straight line up to 90 long: 30 damage uncharged, 150 fully charged, and half as much again for a hit to the head. **Nothing guides it:** it hits only what the crosshair itself is on, and the lock-on ring is hidden while you aim. A dash or being hit breaks the aim off | 4 s |
+| RMB (hold) | Arcane Snipe | Hold to take aim: the camera comes up to the eye (your own body is hidden), the view narrows, and a ring closes round the crosshair for 1.2 s while the shot charges (it turns gold when full). You can only creep while aiming. Let go to fire a straight line up to 90 long: 30 damage uncharged, 150 fully charged, and half as much again for a hit to the head. **Nothing guides it:** it hits only what the crosshair itself is on, and the lock-on ring is hidden while you aim. The mouse slows down as the scope closes (to 40% when full), so the crosshair moves across the screen as it normally does. A dash or being hit breaks the aim off | 4 s |
 | Space in the air | Hover | In place of a second jump: you hang in the air for 1.6 s and can cast from there | once per jump |
-| Q | Arcane Lance | One great missile at one enemy. The hardest single hit in the game. With the lock-on ring on a lit fire it takes Flame instead | 5 s |
-| E | Arcane Barrage | You stand still and pour a stream of small missiles at one enemy, one every 0.11 s. A dash breaks it off. Inside a storm it takes Thunder instead | 7 s |
+| Q | Arcane Crossbow | A big crossbow made of light appears in the air above and in front of you, draws its string for 0.3 s, and looses one great arrow at one enemy, then kicks back and fades. The hardest single hit of the skills. Being hit or dashing before it looses breaks the spell. With the lock-on ring on a lit fire it takes Flame instead | 5 s |
+| E | Arcane Barrage | A machine gun made of light appears at your right side, its barrels spinning, and pours a stream of small missiles at one enemy, one every 0.11 s, while you stand still and direct it. A dash breaks it off. Inside a storm it takes Thunder instead | 7 s |
 | R | Comet | Calls something down from the sky onto the locked-on enemy, or the spot under the crosshair, up to 40 away. It lands 0.7 s later, in a small circle (3.2). Pressed while standing in a pool it takes Water instead | 9 s |
-| F | Force Nova | A ring of force that throws back everything around you. Little damage: it is for making room | 5 s |
+| F | Force Nova | The way out. The staff is driven into the ground and a ring of force hurls everything around you back and into the air, a long way, and leaves it unable to act for a moment. It does almost no damage on purpose: it is for getting away, and the Mage stays a class that kills one enemy at a time | 5 s |
+
+Every shot can hit Master Sen (the bolts, the crossbow's arrow, each missile of a Barrage, the Comet, the Nova and the sniping shot), with the usual consequences: a warning, then a grab. A Barrage at him lands more than one, so it earns both.
 
 A missile bends towards a locked-on enemy, so it rarely misses one that is standing still; it hits the first enemy or wall in its way.
 
@@ -78,16 +82,16 @@ Arcane Snipe has no ranks. Force Nova is known from the start; the other three s
 
 | Ability | Rank I | Rank II | Rank III |
 |---|---|---|---|
-| Arcane Lance | 70 damage, 5 s cooldown | 90 damage, 4.5 s cooldown | A knockout gives the skill straight back |
+| Arcane Crossbow | 70 damage, 5 s cooldown | 90 damage, 4.5 s cooldown | A knockout gives the skill straight back |
 | Arcane Barrage | 6 missiles of 12, 7 s cooldown | 8 missiles of 14, 6 s cooldown | 12 missiles |
 | Comet | 110 damage, 9 s cooldown | 140 damage, 8 s cooldown | What it lands on is stunned for 2 s |
-| Force Nova | 15 damage, reach 5, 5 s cooldown | 22 damage, 4 s cooldown | Reach 6.5, and it throws harder |
+| Force Nova | 8 damage, reach 5, a hard throw (26), 0.4 s stun, 5 s cooldown | 10 damage, throws harder (30), 4 s cooldown | Reach 6.5, throws harder still (36), 1 s stun |
 
 ### Trials
 
 | Ability | To learn | For rank II | For rank III |
 |---|---|---|---|
-| Arcane Lance | Hit all 3 flying dummies with it (75 s) | Deal 400 damage with it (60 s) | Knock out 4 weak dummies with it (60 s) |
+| Arcane Crossbow | Hit all 3 flying dummies with it (75 s) | Deal 400 damage with it (60 s) | Knock out 4 weak dummies with it (60 s) |
 | Arcane Barrage | Deal 200 damage with it (60 s) | Hit the flying dummies 12 times with it (75 s) | Deal 450 damage with it (75 s) |
 | Comet | Hit 3 dummies with one Comet (60 s) | Land one on the fighter, twice (120 s) | Deal 600 damage with it (75 s) |
 | Force Nova | Known from the start | Throw back 4 dummies with one Nova (60 s) | Interrupt a fighter's attack with it, twice (120 s) |
@@ -133,15 +137,15 @@ The Mage takes the same three styles and gets the same dash and the same mounts.
 
 | | Water | Flame | Thunder |
 |---|---|---|---|
-| **Taken by** | R (Comet) while standing in a pool | Q (Arcane Lance) with the lock-on ring on a fire (within 15): you are carried into it | E (Arcane Barrage) while standing inside a storm |
-| **Needs first** | Comet learned | Arcane Lance learned | Arcane Barrage learned |
+| **Taken by** | R (Comet) while standing in a pool | Q (Arcane Crossbow) with the lock-on ring on a fire (within 15): you are carried into it | E (Arcane Barrage) while standing inside a storm |
+| **Needs first** | Comet learned | Arcane Crossbow learned | Arcane Barrage learned |
 | **Trial to unlock** (if the Blademaster has not unlocked it already) | Take Water, then land 12 hits before it runs out (60 s) | Take Flame, then have 3 dummies burning at once (60 s) | Take Thunder, then make lightning jump between enemies 6 times (60 s) |
 
 A style is unlocked once, for both classes.
 
 **What it wears.** Robes in place of the Blademaster's plate: a pointed hat with a wide brim and a glowing band, wide sleeves, a short mantle over the shoulders, and the same long coat and cape, all in dark cloth split by glowing cracks in the style's colour. No hair made of the element; the hat is there instead. The staff's orb takes the style's colour and grows a head: a tongue of flame, a ring of water, or three forks of lightning.
 
-**How its missiles fly.** Every missile (the bolts, the Lance, the Barrage) changes:
+**How its missiles fly.** Every missile (the bolts, the crossbow's arrow, the Barrage) changes:
 
 | | Plain | Flame | Thunder | Water |
 |---|---|---|---|---|
@@ -149,6 +153,8 @@ A style is unlocked once, for both classes.
 | **Speed** | 46 | 34, the slowest | 95, the fastest | 40 |
 | **What is special** | Nothing | It bursts where it lands: everything within 2.6 takes half its damage again, the one it struck included | It goes on through two more enemies | It bends after its target far harder, so it almost never misses |
 | **Comet lands after** | 0.7 s | 0.8 s | 0.3 s | 0.7 s |
+
+**The crossbow and the machine gun** take the style's colour, and the crossbow's arrow is wrapped in the same wisps that run along the Blademaster's sword under that style: fire, water or lightning flowing along the shaft.
 
 **The sniping shot** takes the style's colour and its special: under Flame it bursts on the enemy it hits, under Thunder it goes on through two more enemies in the line. A fully charged shot also carries the style's strike (below).
 
@@ -158,13 +164,15 @@ A style is unlocked once, for both classes.
 |---|---|---|---|
 | **Adds** | A patch of fire, 60% as wide as the skill's reach (at least 1.6), burning 4 s for 16 a second | A bolt on everything the skill reached: stunned 0.8 s and hit again for 40% of the skill's damage | Everything within 1.8 times the skill's reach is dragged in and soaked for 3 s (it takes 30% more, and a fighter is slowed); you are healed 4 for each, up to 20 |
 
-Where it lands: on the enemy the Lance strikes, on the enemy the last missile of a Barrage strikes, where the Comet comes down, and around you for Force Nova.
+Where it lands: on the enemy the arrow strikes, on the enemy the last missile of a Barrage strikes, and where the Comet comes down.
+
+**Force Nova does not get that strike.** Fire on the ground or a bolt on everyone would turn it into an attack on a crowd. A style only changes what kind of room it makes: under Flame what it throws is singed (it burns for 1 s only), under Thunder it is stunned 0.8 s longer, under Water it is thrown 30% harder and soaked for 3 s.
 
 What each skill is called on the skill bar while a style is on:
 
 | Skill | Flame | Thunder | Water |
 |---|---|---|---|
-| Arcane Lance | Fireball | Lightning Lance | Water Lance |
+| Arcane Crossbow | Flame Arrow | Lightning Arrow | Tide Arrow |
 | Arcane Barrage | Ember Barrage | Spark Barrage | Rain Barrage |
 | Comet | Meteor | Thunderbolt | Tidal Crash |
 | Force Nova | Fire Nova | Shock Nova | Tidal Nova |
@@ -190,7 +198,7 @@ The suit is the same for every style: small glowing eyes, a chest plate, spiked 
 
 # Part 3: Master Sen
 
-He cannot be hurt, but he reacts to being hit. Sword swings, blasts, Cyclone and Rising Slash count; thrown weapons do not.
+He cannot be hurt, but he reacts to being hit. Sword swings, blasts, Cyclone and Rising Slash count, and so does every one of the Mage's shots.
 
 | What you do | What he does |
 |---|---|
@@ -198,7 +206,7 @@ He cannot be hurt, but he reacts to being hit. Sword swings, blasts, Cyclone and
 | Hit him again within those 10 seconds | He catches you by the neck and holds you off the ground. Then one of two things, taking turns: **the slam** (he leaps into the air with you and slams you into the ground from the top of the jump, for 60% of your full health) or **the throw** (he winds up and hurls you flat and fast at one of the tall rocks; you smack into its side, hang there spread out for a moment, then drop, for 40%). Neither ever takes your last point. In the training hall he throws you at the wall. Where there is nothing tall to throw you at, it is always the slam |
 | Hit him again after the 10 seconds | Another warning |
 
-Hits less than 0.6 seconds apart count as one. For about a second and a half after a slam he cannot be provoked again.
+Hits less than 0.6 seconds apart count as one. For about a second and a half after a slam he cannot be provoked again. He only throws you at a rock he can see from where he stands: one with another rock in the way is never chosen, and if he can see none it is the slam.
 
 ---
 

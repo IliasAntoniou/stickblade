@@ -18,8 +18,8 @@ import { hurtPlayer, respawnPlayer } from './player.js';
 import { updateCamera, setCamYaw, setCamPitch, setCamDist, scope } from './camera.js';
 import { CLASS_ORDER, setClass } from './classes/index.js';
 import { CH, startChallenge, endChallenge } from './challenges.js';
-import { keys, pressed, locked, overlay, setMouse } from './input.js';
-import { master, strikeMaster, openDlg, renderDlg } from './master.js';
+import { keys, pressed, locked, overlay, setMouse, aimSens } from './input.js';
+import { master, strikeMaster, openDlg, renderDlg, throwTargets } from './master.js';
 import { update } from './update.js';
 import { animatePlayer } from './anim.js';
 import { updateHud } from './hud.js';
@@ -36,7 +36,8 @@ import { quality, applyQuality, updateQuality } from './quality.js';
 import { POWERS, zoneCount, pendingCount, skillAlt, blinkPower } from './elements.js';
 import { DISTRICTS, campaign, mission, initMissions, startMission, jumpToStage, districtList, missionLine, resetCampaign, campaignHp } from './missions.js';
 import { things, fire } from './setpieces.js';
-import { projs } from './projectiles.js';
+import { projs, initProjs } from './projectiles.js';
+import { mageModels } from './classes/mage.js';
 import { QUESTS, story, initStory, questState, acceptQuest, turnInQuest, questEvent, questLine, resetStory } from './quests.js';
 import { MOUNTS, mount, initMounts, toggleMount, animateMount, mountFor } from './mounts.js';
 import { form, soft, bright, bolts, ribbons, updateDashForm, formScale } from './dashfx.js';
@@ -80,6 +81,7 @@ setClass(save.cls, false);
 applyTune();
 applyQuality(save.quality);
 initMounts();    // builds the mount models (hidden until X is pressed)
+initProjs();     // gives every missile its arrow (hidden until the Mage's crossbow fires one)
 for (const d of dummies) d.update(0);
 animatePlayer(0.016);
 // ?debug: run without pointer lock and expose internals for testing
@@ -90,7 +92,8 @@ if (DEBUG !== null) {
     get T() { return T; }, get CL() { return CL; } };
   Object.assign(window.SB, { DISTRICTS, campaign, mission, startMission, jumpToStage, districtList, missionLine, resetCampaign, campaignHp, things, fire, sayCount });
   Object.assign(window.SB, { MOUNTS, mount, toggleMount, mountFor });
-  Object.assign(window.SB, { trainingList, styleList, projs, scope: () => scope });
+  Object.assign(window.SB, { throwTargets, mageModels });
+  Object.assign(window.SB, { trainingList, styleList, projs, scope: () => scope, aimSens });
   Object.assign(window.SB, { dashForm: form, dashSoft: soft, dashBright: bright, dashBolts: bolts, dashRibbons: ribbons, formScale });
   Object.assign(window.SB, { POWERS, zoneCount, pendingCount, skillAlt, blinkPower });
   // &quality=high (with ?debug) switches the graphics setting for this visit, for screenshots.
