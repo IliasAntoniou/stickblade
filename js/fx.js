@@ -452,6 +452,22 @@ export let centerT = 0, toastT = 0;
 export function centerMsg(html, dur = 1.5) { centerEl.innerHTML = html; centerEl.style.opacity = 1; centerT = dur; }
 // Small message near the top of the screen.
 export function toast(html, dur = 3.5) { toastEl.innerHTML = html; toastEl.style.opacity = 1; toastT = dur; }
+// A line of speech low on the screen: who says it, and what. Lines wait their turn and show one at a time
+// (missions.js uses it for what the Hand's keepers, the prisoners and Sen say during a mission).
+const sayEl = $('say');
+const sayQueue = [];
+let sayT = 0;
+export function say(who, line, dur = 3.8) {
+  sayQueue.push({ who, line, dur });
+}
+// Drop every line, shown or waiting (when a mission ends).
+export function clearSay() {
+  sayQueue.length = 0;
+  sayT = 0;
+  sayEl.style.opacity = 0;
+}
+// How many lines are showing or waiting (for tests).
+export const sayCount = () => sayQueue.length + (sayT > 0 ? 1 : 0);
 
 // shakeAmt = how hard the camera is shaking.  hitstop = seconds of slow motion left after a hit (the impact freeze).
 // hurtFlash = strength of the red screen edge when the player is hit.
@@ -531,6 +547,15 @@ export function updateDomFx(rdt) {
   }
   if (centerT > 0) { centerT -= rdt; if (centerT <= 0) centerEl.style.opacity = 0; }
   if (toastT > 0) { toastT -= rdt; if (toastT <= 0) toastEl.style.opacity = 0; }
+  if (sayT > 0) {
+    sayT -= rdt;
+    if (sayT <= 0) sayEl.style.opacity = 0;
+  } else if (sayQueue.length) {
+    const next = sayQueue.shift();
+    sayEl.innerHTML = `<b>${next.who}</b>${next.line}`;
+    sayEl.style.opacity = 1;
+    sayT = next.dur;
+  }
   if (hurtFlash > 0) hurtFlash = Math.max(0, hurtFlash - rdt * 2.5);
   if (flashT > 0) {
     flashT = Math.max(0, flashT - rdt * 1.5);

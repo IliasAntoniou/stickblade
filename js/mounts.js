@@ -259,7 +259,7 @@ export function updateMounted(dt) {
     const dy = d.pos.y - P.pos.y;
     if (Math.hypot(d.pos.x - frontX, d.pos.z - frontZ) > m.width + 0.5 || dy < -1.5 || dy > m.seat + 0.6) continue;
     d.ramT = T;
-    setHitSrc('ram');    // lets a barricade tell a ram from a sword (dummies.js)
+    setHitSrc('ram');    // lets a barricade tell a ram from a sword: one ram from any mount breaks it (dummies.js)
     hitDummy(d, m.ram, dirX * m.push, dirZ * m.push, m.lift, m.heavy);
   }
 }

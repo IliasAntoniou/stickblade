@@ -88,6 +88,9 @@
   #center small{font-size:22px;display:block}
   #toast{position:fixed;left:50%;top:20%;transform:translateX(-50%);background:rgba(20,23,28,.88);color:#fff;padding:10px 18px;border-radius:10px;font-size:15px;opacity:0;transition:opacity .3s;pointer-events:none;max-width:80vw;text-align:center}
   #toast b{color:#ffd23f}
+  #say{position:fixed;left:50%;bottom:150px;transform:translateX(-50%);background:rgba(20,23,28,.9);border-left:3px solid #c22a2a;color:#e8eef3;padding:9px 16px;border-radius:8px;font-size:15px;line-height:1.35;opacity:0;transition:opacity .3s;pointer-events:none;max-width:min(620px,80vw)}
+  #say b{display:block;font-size:11px;letter-spacing:2px;color:#ffd23f;text-transform:uppercase}
+  #quest .pg{display:block;font-size:11px;color:#9fb0bd}
   #lock.fire{border-color:#ffb02e;box-shadow:0 0 12px #ff6a1f,inset 0 0 8px #ff6a1f}
   #cutin{position:fixed;left:0;right:0;top:50%;height:38vh;transform:translateY(-50%) scaleY(0);transition:transform .14s ease-out;z-index:18;pointer-events:none;overflow:hidden;background:linear-gradient(#000,#0d0e16 50%,#000);border-top:5px solid var(--style,#fff);border-bottom:5px solid var(--style,#fff);box-shadow:0 0 70px #000,0 0 26px var(--style,#fff)}
   #cutin.on{transform:translateY(-50%) scaleY(1)}
@@ -194,6 +197,7 @@
 <div id="chal"></div>
 <div id="center"></div>
 <div id="toast"></div>
+<div id="say"></div>
 <div id="hurt"></div>
 <div id="flash"></div>
 <div id="dmg"></div>

@@ -10,7 +10,7 @@ import './fx.js';
 import * as THREE from 'three';
 import { save, DEBUG } from './util.js';
 import { renderer, scene, camera } from './core.js';
-import { hitstop, updateFx, updateDomFx, tickHitstop, flash, trail, arcs, swirls } from './fx.js';
+import { hitstop, updateFx, updateDomFx, tickHitstop, flash, trail, arcs, swirls, sayCount } from './fx.js';
 import { T, P, CL, dlg, chal, CLASSES, TUNE, totalDmg, setHitSrc } from './state.js';
 import { solids } from './world.js';
 import { dummies, hitDummy, DTYPE } from './dummies.js';
@@ -34,7 +34,8 @@ import { cutinActive, playCutin } from './cutin.js';
 import { playerMat, player } from './player.js';
 import { quality, applyQuality, updateQuality } from './quality.js';
 import { POWERS, zoneCount, pendingCount, skillAlt, blinkPower } from './elements.js';
-import { DISTRICTS, campaign, mission, initMissions, startMission, districtList, missionLine, resetCampaign, campaignHp } from './missions.js';
+import { DISTRICTS, campaign, mission, initMissions, startMission, jumpToStage, districtList, missionLine, resetCampaign, campaignHp } from './missions.js';
+import { things, fire } from './setpieces.js';
 import { QUESTS, story, initStory, questState, acceptQuest, turnInQuest, questEvent, questLine, resetStory } from './quests.js';
 import { MOUNTS, mount, initMounts, toggleMount, animateMount, mountFor } from './mounts.js';
 import { form, soft, bright, bolts, ribbons, updateDashForm, formScale } from './dashfx.js';
@@ -86,7 +87,7 @@ if (DEBUG !== null) {
   window.SB = { QUESTS, story, questState, acceptQuest, turnInQuest, questEvent, questLine, resetStory, styleSpeed, solids, strikeMaster, openDlg, renderDlg, lockFire: () => lockFire, lockTarget: () => lockTarget, player, outfit, startTake, playCutin, playerMat, STYLES, style, sources, giveStyle, forceStyle, clearStyle, reach, styleUnlocked, freeze: v => { frozen = v; }, setCamYaw, setCamPitch, setCamDist, trail, arcs, swirls, renderer, camera, quality, applyQuality, P, dummies, DTYPE, CLASSES, CLASS_ORDER, CH, chal, dlg, keys, pressed, scene, master, setClass, startChallenge, endChallenge,
     hurtPlayer, respawnPlayer, hitDummy, setMouse, step, updateCamera, updateHud, TUNE, applyTune, resetTuning, rankOf, startTrial, unlockAll, resetProgress, setHitSrc, DOJO, dojo, enterDojo, leaveDojo, setupTrial, clearTrial, totalDmg: () => totalDmg,
     get T() { return T; }, get CL() { return CL; } };
-  Object.assign(window.SB, { DISTRICTS, campaign, mission, startMission, districtList, missionLine, resetCampaign, campaignHp });
+  Object.assign(window.SB, { DISTRICTS, campaign, mission, startMission, jumpToStage, districtList, missionLine, resetCampaign, campaignHp, things, fire, sayCount });
   Object.assign(window.SB, { MOUNTS, mount, toggleMount, mountFor });
   Object.assign(window.SB, { dashForm: form, dashSoft: soft, dashBright: bright, dashBolts: bolts, dashRibbons: ribbons, formScale });
   Object.assign(window.SB, { POWERS, zoneCount, pendingCount, skillAlt, blinkPower });
@@ -98,6 +99,8 @@ if (DEBUG !== null) {
   // ?debug=mission:docks goes straight to a district, locked or not, to look at its layout. &stage=3 jumps to a stage.
   if (DEBUG.startsWith('mission:')) {
     startMission(DEBUG.slice(8), true);
+    const wantStage = Number(new URLSearchParams(location.search).get('stage'));
+    if (wantStage > 1) jumpToStage(wantStage - 1);
     flash(0);
   }
   // ?debug=hall:blade-r1 goes straight to the training hall dressed for that trial, to look at a layout.

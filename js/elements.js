@@ -8,7 +8,8 @@
 // this file what the element changes: blinkPower, spinSpeed, spinSteer, spinTick, spinHit, spinPull, slamPower,
 // slamLanded, risingPower, risingCast, risingHit.
 // Owns: POWERS, the patches of fire left on the ground ("zones"), and things set to happen a moment later.
-// Used by: classes/blade.js, update.js, dummies.js (SOAK), hud.js (skillAlt names the skills), player.js (clearElements).
+// Used by: classes/blade.js, update.js, dummies.js (SOAK), hud.js (skillAlt names the skills), player.js (clearElements),
+// setpieces.js (addZone: a powder keg leaves fire behind).
 
 import * as THREE from 'three';
 import { V3, _fx } from './util.js';
@@ -102,7 +103,8 @@ for (let i = 0; i < 16; i++) {
   zones.push({ m, pos: new V3(), rad: 1, life: 0, max: 1, dps: 0, seed: i * 1.7 });
 }
 let zoneIdx = 0;
-function addZone(pos, rad, time, dps) {
+// pos = centre, rad = radius, time = seconds it burns, dps = damage per second to whatever stands in it.
+export function addZone(pos, rad, time, dps) {
   const z = zones[zoneIdx = (zoneIdx + 1) % zones.length];    // when all are in use the oldest is replaced
   z.pos.copy(pos);
   z.rad = rad;

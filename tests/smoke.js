@@ -1004,12 +1004,24 @@ check('story: the chapter ends, and a reset starts it again', () => {
 // the campaign: districts are taken in order, a mission runs in stages, falling loses it, winning frees the district
 const mission = SB.mission, campaign = SB.campaign, DOCKS = SB.DISTRICTS[0].area;
 const chapterOne = SB.QUESTS.filter(q => q.chapter === 1).map(q => q.id);
+let solidsBefore = 0;
 // A fresh campaign with the story far enough along for the docks to be open.
 function readyForDocks() {
   reset(); SB.resetStory(); SB.resetCampaign(); SB.unlockAll(); SB.setClass('blade');
   story.done.push(...chapterOne);
+  solidsBefore = SB.solids.length;
 }
 const foes = () => mission.spawned.filter(d => !d.dead);
+// The things of the district that react (setpieces.js): those of one kind still standing, and how many of them
+// are dummies underneath (kegs, levers, cages).
+const standing = kind => SB.things.filter(t => t.kind === kind && !t.done);
+const propCount = () => SB.things.filter(t => t.d && !t.done).length;
+// Break a thing outright, the way a good sword hit would.
+function smash(thing) { SB.setHitSrc('atk'); SB.hitDummy(thing.d, 999, 0, 0, 0, true, null, P.pos, true); }
+// Stand somewhere in the docks, still and (unless told otherwise) not able to be hit.
+function inDocks(x, y, z, safe = true) { P.pos.set(DOCKS.cx + x, y, DOCKS.cz + z); P.vel.set(0, 0, 0); P.iframes = safe ? 99 : 0; }
+// True once the mission is over and nothing of it is left in the world.
+const cleanHome = () => mission.cur === null && near(0, 14) && dummies.length === arenaDummies && SB.things.length === 0 && SB.solids.length === solidsBefore;
 // Knock out everything the stage spawned and wait for the next stage to begin.
 function clearStage() { for (const d of foes()) d.ko(1, 0); run(140); }
 check('campaign: the docks are locked until Sen has finished with you, and later districts until the docks are free', () => {
@@ -1025,7 +1037,9 @@ check('campaign: Sen shows the city map, and a card starts the mission', () => {
   if (dlg.page !== 'map' || dlg.opts.length !== 6) return false;    // five districts and Back
   press('Digit1', 2);                                    // the docks
   const there = !dlg.open && mission.cur && Math.hypot(P.pos.x - DOCKS.cx, P.pos.z - (DOCKS.cz + 34)) < 2;
-  return there && foes().length === 5 && dummies.length === arenaDummies + 5 && SB.missionLine().includes('Break through the gate');
+  // three thugs, two runners and a lookout; and somebody has something to say about it
+  return there && foes().length === 6 && propCount() > 0 && dummies.length === arenaDummies + 6 + propCount()
+    && SB.missionLine().includes('Break through the gate yard') && SB.sayCount() > 0;
 });
 check('campaign: an enemy with a weakness shrugs off the wrong element and falls to the right one', () => {
   const runner = foes().find(d => d.weak === 'thunder');
@@ -1037,65 +1051,123 @@ check('campaign: an enemy with a weakness shrugs off the wrong element and falls
   SB.clearStyle();
   return plain <= 7 && weak >= 14;
 });
-check('campaign: stage 2 is reached with the hook: standing on the crane clears it', () => {
+check('docks: a broken keg waits a moment, then blows up, leaves fire and hurts whoever is near', () => {
+  SB.TUNE.fightersAttack = false;                         // so that only the keg can be what hurts
+  const [first, second] = standing('keg');
+  inDocks(0, 0, 34, false); run(2);
+  const zones = SB.zoneCount(), hp = P.hp;
+  smash(first); run(10);
+  if (first.done || !first.d.dead) return false;          // the fuse is burning
+  run(40);
+  if (!first.done || SB.zoneCount() <= zones || P.hp < hp) return false;    // it went off, far from the player
+  inDocks(second.spec.at[0] + 1.5, 0, second.spec.at[2], false); run(2);
+  smash(second); run(50);
+  SB.TUNE.fightersAttack = true;
+  return second.done && P.hp < hp;
+});
+check('docks: a lookout stays where it is and throws from far off', () => {
+  const lookout = foes().find(d => d.ranged);
+  if (!lookout) return false;
+  for (const d of foes()) if (d !== lookout) d.ko(1, 0);
+  const x = lookout.pos.x, z = lookout.pos.z;
+  inDocks(0, 0, 34, false); P.hp = P.maxHp; run(3);
+  lookout.aiCd = 0;
+  const hp = P.hp; run(100);
+  return P.hp < hp && Math.hypot(lookout.pos.x - x, lookout.pos.z - z) < 0.5 && mission.stage === 0;
+});
+check('docks: the bell on the crane drops the load, which crushes the guards and breaks the gate open', () => {
   clearStage();
-  if (mission.stage !== 1 || foes().length !== 0) return false;
-  run(60); if (mission.stage !== 1) return false;         // nothing to fight: it waits for the player to get up there
-  P.pos.set(DOCKS.cx + 26, 17, DOCKS.cz + 8); P.vel.set(0, 0, 0); run(10);
+  if (mission.stage !== 1 || foes().length !== 2) return false;
+  inDocks(12, 17, 9); run(10);
   if (!P.grounded) return false;                          // the top of the tower is solid
-  run(130);
+  run(40); if (mission.stage !== 1) return false;         // being up there is not enough: the bell has to be rung
+  const lever = standing('lever')[0], gate = standing('door').find(t => t.spec.opens === 'load:crane');
+  if (!lever || !gate || standing('load').length !== 1) return false;
+  for (const d of foes()) { d.pos.set(DOCKS.cx, 0, DOCKS.cz + 8); d.stun(3); }    // the guards, under the load
+  smash(lever); run(60);
+  if (!gate.done || foes().length !== 0 || !SB.things.some(t => t.kind === 'load' && t.state === 'down')) return false;
+  run(100);
   return mission.stage === 2;
 });
-check('campaign: a barricade ignores the sword and breaks to a mount', () => {
-  const wall = foes().find(d => d.ramOnly);
-  if (foes().filter(d => d.ramOnly).length !== 3) return false;
-  const hp = wall.hp;
-  if (skillHit('atk', wall) !== false || wall.hp !== hp) return false;
-  SB.setHitSrc('ram'); SB.hitDummy(wall, 28, 0, 0, 0, true);    // what the elephant does
-  return wall.dead;
+check('campaign: a barricade ignores the sword, and breaks to one ram from any mount or to a keg', () => {
+  const walls = foes().filter(d => d.ramOnly);
+  if (walls.length !== 3) return false;
+  const hp = walls[0].hp;
+  if (skillHit('atk', walls[0]) !== false || walls[0].hp !== hp) return false;
+  SB.setHitSrc('ram'); SB.hitDummy(walls[0], SB.MOUNTS.car.ram, 0, 0, 0, false);    // the weakest mount there is
+  if (!walls[0].dead) return false;
+  // the keg standing beside another one
+  const keg = standing('keg').sort((a, b) => a.pos.distanceTo(walls[1].pos) - b.pos.distanceTo(walls[1].pos))[0];
+  inDocks(0, 0, 34); smash(keg); run(60);
+  return walls[1].dead && !walls[2].dead;
 });
-check('campaign: the boss calls for help at half health, and beating him frees the district', () => {
+check('campaign: the boss wears armour a blast breaks, calls for help at half health, and beating him frees the district', () => {
   clearStage(); clearStage();
   if (mission.stage !== 4) return false;
   const boss = foes().find(d => d.boss);
-  if (!boss || foes().length !== 3) return false;
+  if (!boss || foes().length !== 3 || standing('door').some(t => t.spec.opens === 'stage:5')) return false;
+  let hp = boss.hp; skillHit('atk', boss);
+  const armoured = hp - boss.hp;                          // 10, give or take 10%, times 0.6: at most 7
+  SB.setHitSrc('blast'); SB.hitDummy(boss, 10, 0, 0, 0, true);
+  hp = boss.hp; skillHit('atk', boss);
+  if (armoured > 7 || hp - boss.hp < 9 || boss.bareT <= 0) return false;
   boss.hp = boss.maxHp * 0.4; run(3);
-  if (foes().length !== 6) return false;
+  if (foes().length !== 6 || !mission.limit || !SB.missionLine().includes(' s</span>')) return false;    // and the fuse is lit
   SB.acceptQuest();                                       // chapter 2's task: free the docks
   for (const d of foes()) d.ko(1, 0);
   run(5);
   if (!mission.won || !campaign.free.includes('docks') || P.maxHp !== 120) return false;
   run(60 * 4);
-  const home = mission.cur === null && near(0, 14) && dummies.length === arenaDummies;
-  return home && phase() === 'ready' && SB.districtList()[0].free;
+  return cleanHome() && phase() === 'ready' && SB.districtList()[0].free;
 });
 check('campaign: falling loses the mission and sends you home', () => {
   readyForDocks();
   if (!SB.startMission('docks')) return false;
   run(5); P.iframes = 0; SB.hurtPlayer(9999, P.pos, null); run(5);
-  return mission.cur === null && near(0, 14) && dummies.length === arenaDummies && campaign.free.length === 0 && P.maxHp === 100;
+  return cleanHome() && campaign.free.length === 0 && P.maxHp === 100;
+});
+check('docks: once the fuse is lit, running out of time loses the mission', () => {
+  if (!SB.startMission('docks')) return false;
+  run(5); SB.jumpToStage(4); run(5);
+  const boss = foes().find(d => d.boss);
+  if (mission.stage !== 4 || !boss || mission.limit) return false;
+  P.iframes = 99; boss.hp = boss.maxHp * 0.4; run(3);
+  mission.clock = mission.limit - 0.05; run(20);
+  return cleanHome() && campaign.free.length === 0;
+});
+check('docks: freeing a docker heals, and the whole ledger is kept and gives health', () => {
+  if (!SB.startMission('docks')) return false;
+  run(5); P.iframes = 99; P.hp = 40;
+  smash(standing('cage')[0]); run(3);
+  if (P.hp < 55 || standing('cage').length !== 1) return false;
+  const pages = standing('page');
+  if (pages.length !== 3 || !SB.missionLine().includes('Ledger 0 / 3')) return false;
+  for (const page of pages) { P.pos.copy(page.pos); P.pos.y -= 1; P.vel.set(0, 0, 0); run(3); }
+  if (campaign.pages.docks.length !== 3 || P.maxHp !== 110 || SB.districtList()[0].pages !== 3) return false;
+  press('KeyP', 3);
+  if (!cleanHome() || !SB.startMission('docks')) return false;
+  run(5);
+  return standing('page').length === 0;                   // found pages are not put out again
 });
 check('campaign: P gives up, and a reset gives every district back', () => {
-  if (!SB.startMission('docks')) return false;
-  run(5); press('KeyP', 3);
-  if (mission.cur !== null || !near(0, 14) || dummies.length !== arenaDummies) return false;
+  press('KeyP', 3);
+  if (!cleanHome()) return false;
   campaign.free.push('docks'); SB.applyTune();
-  if (P.maxHp !== 120) return false;
+  if (P.maxHp !== 130) return false;                      // one district and one whole ledger
   SB.resetCampaign();
   return campaign.free.length === 0 && P.maxHp === 100;
 });
 // the Old Market: a different kind of district. One long street against the clock, shut by curtains only a dash
-// passes, barricades only a mount breaks, and a prisoner to reach at the far end
+// passes and barricades a mount or a keg breaks, with a high road along the rooftops and a prisoner at the far end
 const MARKET = SB.DISTRICTS[1].area;
-let solidsBefore = 0;
-function readyForMarket() { readyForDocks(); campaign.free.push('docks'); SB.applyTune(); solidsBefore = SB.solids.length; }
+function readyForMarket() { readyForDocks(); campaign.free.push('docks'); SB.applyTune(); }
 // Stand in the middle of the street at a distance along it, facing down it, and not able to be hit.
 function onStreet(z) { P.pos.set(MARKET.cx, 0, MARKET.cz + z); P.vel.set(0, 0, 0); P.iframes = 99; SB.setCamYaw(0); run(2); }
 check('market: it opens once the docks are free, and starts the clock', () => {
   readyForDocks(); if (SB.startMission('market')) return false;
   readyForMarket(); if (!SB.startMission('market')) return false;
   run(5);
-  return mission.cur.id === 'market' && SB.missionLine().includes(' s</span>') && foes().filter(d => d.ramOnly).length === 2;
+  return mission.cur.id === 'market' && SB.missionLine().includes(' s</span>') && foes().filter(d => d.ramOnly).length === 2 && foes().filter(d => d.ranged).length === 2;
 });
 check('market: a curtain of light stops you walking, and a dash goes straight through', () => {
   onStreet(116);
@@ -1109,25 +1181,62 @@ check('market: a barricade shuts the way until a mount breaks it', () => {
   SB.keys.add('KeyW'); run(60);
   const stopped = P.pos.z > MARKET.cz + 82.4;
   const wall = foes().find(d => d.ramOnly && Math.abs(d.pos.z - (MARKET.cz + 82)) < 1);
-  SB.setHitSrc('ram'); SB.hitDummy(wall, 28, 0, 0, 0, true);    // what the elephant does
+  SB.setHitSrc('ram'); SB.hitDummy(wall, SB.MOUNTS.car.ram, 0, 0, 0, false);    // one ram from the weakest mount
   run(90); SB.keys.delete('KeyW');
   return stopped && wall.dead && P.pos.z < MARKET.cz + 80;
 });
-check('market: running out of time loses the mission, and nothing of it is left behind', () => {
-  mission.clock = 74.9; run(20);
-  return mission.cur === null && near(0, 14) && !campaign.free.includes('market') && dummies.length === arenaDummies && SB.solids.length === solidsBefore;
+check('market: the keg beside a barricade opens the way too', () => {
+  const wall = foes().find(d => d.ramOnly);
+  const keg = standing('keg').sort((a, b) => a.pos.distanceTo(wall.pos) - b.pos.distanceTo(wall.pos))[0];
+  onStreet(10); smash(keg); run(60);
+  onStreet(-17); SB.keys.add('KeyW'); run(90); SB.keys.delete('KeyW');
+  return wall.dead && P.pos.z < MARKET.cz - 24;
 });
-check('market: reaching the prisoner in time brings the Twins, and beating them frees the district', () => {
+check('market: an awning throws you up onto the rooftops', () => {
+  const pad = standing('pad')[0];
+  P.pos.set(pad.pos.x, pad.pos.y + pad.size.y, pad.pos.z); P.vel.set(0, 0, 0); P.iframes = 99; run(3);
+  if (P.vel.y < 15) return false;
+  run(90);
+  return P.grounded && Math.abs(P.pos.y - 11) < 0.1;      // standing on the ledge, 11 up
+});
+check('market: an hourglass adds time, a burning stall hurts, and a dash under Water puts it out', () => {
+  const glass = standing('hourglass')[0], limit = mission.limit;
+  P.pos.copy(glass.pos); P.pos.y -= 1; P.vel.set(0, 0, 0); run(3);
+  if (mission.limit !== limit + 4 || standing('hourglass').length !== 4) return false;
+  const stall = standing('trap')[0];
+  onStreet(stall.spec.at[2]); P.iframes = 0; P.hp = P.maxHp;
+  run(210);                                               // a whole cycle of it
+  if (P.hp >= P.maxHp) return false;
+  SB.giveStyle('water'); onStreet(stall.spec.at[2] + 2.5);
+  SB.keys.add('KeyW'); press('ShiftLeft', 12); SB.keys.delete('KeyW');
+  SB.clearStyle();
+  return stall.done && standing('trap').length === 1;
+});
+check('market: running out of time loses the mission, and nothing of it is left behind', () => {
+  mission.clock = mission.limit - 0.1; run(20);
+  return cleanHome() && !campaign.free.includes('market');
+});
+check('market: the Twins do not stay down alone, and cutting Tam down frees the district', () => {
   if (!SB.startMission('market')) return false;
   run(5); onStreet(-126); run(135);
   if (mission.stage !== 1 || foes().length !== 2) return false;
   const [ember, tide] = foes();
   if (ember.weak !== 'flame' || tide.weak !== 'water' || !ember.boss) return false;
+  ember.ko(1, 0); run(30);
+  if (!(mission.revive > 0) || !SB.missionLine().includes('Ember gets back up')) return false;
+  mission.revive = 0.05; run(5);
+  const back = foes().find(d => d !== tide);
+  if (foes().length !== 2 || !back || back.hp > back.maxHp * 0.4 || mission.stage !== 1) return false;
   for (const d of foes()) d.ko(1, 0);
-  run(5);
+  run(140);
+  if (mission.stage !== 2 || mission.won) return false;
+  for (const d of foes()) d.ko(1, 0);
+  run(30);
+  if (mission.won) return false;                          // beating the rest is not what ends it
+  smash(standing('lever')[0]); run(5);
   if (!mission.won || !campaign.free.includes('market') || P.maxHp !== 140) return false;
   run(60 * 4);
-  return mission.cur === null && near(0, 14) && dummies.length === arenaDummies && SB.solids.length === solidsBefore;
+  return cleanHome();
 });
 reset();
 SB.resetStory();

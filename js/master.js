@@ -498,18 +498,19 @@ export function renderDlg(text) {
       text = 'Well?';
       opts = [{ label: 'It is done', sub: `<b>Done:</b> ${quest.goal}`, icon: 'flag', tag: 'REPORT', tone: 'gold', act: reportQuest }];
     } else {
-      text = text || 'That is all I ask of you for now. Train. The docks are next, and the Hand will not be gentle there.';
+      text = text || 'That is all I ask of you for now. Train. Two pieces of the key are still out there, and the Hand will not hand them over.';
     }
     opts.push(backOption());
   } else if (dlg.page === 'map') {
     // The campaign: one card per district, in the order they have to be taken.
     text = campaign.free.length === DISTRICTS.length ? 'The city is ours. I did not think I would live to say it.'
       : 'Five districts, and the Hand holds them. Each has a keeper. Take a district and its people are with us. Fall there, and you start it again.';
-    opts = districtList().map(({ d, free, open, why }) => {
-      const card = { label: d.name, icon: 'map', sub: `${d.blurb}<br><b>Held by:</b> ${d.boss}` };
+    opts = districtList().map(({ d, free, open, why, pages, pageTotal }) => {
+      const ledger = pageTotal ? `<br><b>Ledger pages:</b> ${pages} of ${pageTotal}` : '';
+      const card = { label: d.name, icon: 'map', sub: `${d.blurb}<br><b>Held by:</b> ${d.boss}${ledger}` };
       if (!open) return { ...card, sub: `${card.sub}<br><b>${why}</b>`, tag: 'LOCKED', tone: 'grey', cur: true, act: () => renderDlg() };
       const go = () => { closeDlg(); startMission(d.id); };
-      if (free) return { ...card, sub: `${d.blurb}<br>Taken from ${d.boss}. You can fight for it again`, tag: 'FREE', tone: 'gold', act: go };
+      if (free) return { ...card, sub: `${d.blurb}<br>Taken from ${d.boss}. You can fight for it again${ledger}`, tag: 'FREE', tone: 'gold', act: go };
       return { ...card, tag: 'HELD', tone: 'red', act: go };
     });
     opts.push(backOption());

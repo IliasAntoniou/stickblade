@@ -175,10 +175,25 @@ All of them are the same stick figure underneath. Colour and shape say what each
 | Runner (missions) | Dull yellow, **yellow band** | Small and quick | Fights like a scout but moves at 8.5, nearly your running speed. **Weak to Thunder** | 170 |
 | Ironclad (missions) | Dark steel, **orange band** | Bigger and heavier | Slow (3.6) and very tough. **Weak to Flame** | 420 |
 | Dock rat (missions) | Blue-grey, **blue band** | Small | Weak alone, but they come seven at a time. **Weak to Water** | 95 |
-| Barricade (missions) | Wood | A wall of planks with spikes on top | Does not move or fight. Swords and skills do nothing to it: only a mount running into it breaks it. The elephant does it in one go, the others in two or three | 60 |
-| The Twins (missions) | One dark red with an **orange band**, one dark blue with a **blue band** | Two smaller bosses with spiked shoulders | The keepers of the Old Market, fought together. One is **weak to Flame** and one **weak to Water**, so the fight asks for both | 800 each |
-| Marrow (missions) | Dark | As big as Rook, with spiked shoulders | The boss of the docks. At half health he calls in two runners and an ironclad | 1500 |
+| Lookout (missions) | Brown, red band | A little smaller than a scout, standing somewhere high | Does not come after you. From up to 46 away it aims a thin red line at you for 0.8 s, then throws along it for 10. The line stops following you a quarter of a second before the throw, so a sidestep or a dash dodges it. It cannot see straight down from its perch. Up close it slams like the others | 130 |
+| Barricade (missions) | Wood | A wall of planks with spikes on top | Does not move or fight. Swords and skills do nothing to it. One ram from any mount breaks it, and so does a powder keg going off beside it | 60 |
+| The Twins (missions) | One dark red with an **orange band**, one dark blue with a **blue band** | Two smaller bosses with spiked shoulders | Ember and Tide, the keepers of the Old Market, fought together. Ember is **weak to Flame** and Tide **weak to Water**, so the fight asks for both. They do not stay down alone: when one falls the other must follow within 12 seconds, or the first gets back up with 35% of their health | 800 each |
+| Marrow (missions) | Dark | As big as Rook, with spiked shoulders | The boss of the docks. He wears armour: every hit counts for 60% (the number says ARMOUR) until a powder keg going off beside him breaks it open for 6 seconds and staggers him. At half health he calls in two runners and an ironclad and has the fuse lit: 40 seconds to finish him | 1500 |
 | Rook (story only) | Dark ash | The same headband and mask on a much bigger body with spiked shoulders | The first boss. The same slam and lunge, with far more health | 800 |
+
+**Things in a district that react (missions).**
+
+| Thing | Looks like | What it does |
+|---|---|---|
+| Powder keg | A dark barrel with a glowing orange band and a fuse | 30 health, so one or two hits break it. 0.6 seconds later it blows up: up to 140 to every enemy within 5.5 (half that at the edge), 18 to you if you are still within 4.4, and a patch of fire for 5 seconds. It breaks barricades and cracked walls, strips armour, and sets off other kegs in reach. Fire sets it off too |
+| Lever | A post with a glowing gold handle | Hit it once and something happens: the crane lets its load go, Tam is cut down |
+| Falling load | A crate hanging from the crane | When let go it drops, does 500 to enemies under it and 25 to you, and breaks the gate it lands against. A low pile is left to step over |
+| Cage | A ring of bars with a gold lock; someone kneels inside | 40 health. Break it open and you get 20% of your health back |
+| Cracked wall | A wall the colour of crates | A powder keg going off beside it brings it down |
+| Awning | A red block, 1.6 high | Land on it and it throws you 10 up and forward, onto the rooftop ledge beyond |
+| Trap | A strip across the ground: white for steam, orange for a burning stall | Brightens for 0.9 s as a warning, then burns for about a second: 10 or 12 to you if you stand in it. A dash passes through unhurt. A burning stall is put out for good by a dash under Water |
+| Hourglass | A blue light in the air | 4 more seconds on the clock |
+| Ledger page | A pale gold light in the air | A piece of the story. Three in each district; all three add 10 to your maximum health |
 
 **Curtains of light (missions).** A pale blue see-through wall across a gap. It stops you, your mount and every enemy. Dash (Shift) and you pass straight through it.
 
@@ -190,7 +205,7 @@ All of them are the same stick figure underneath. Colour and shape say what each
 
 Press X to get on and X again to get off (you hop off keeping your speed). Every class can ride. Which mount comes depends on the sword style in use, and it changes under you if the style changes or runs out.
 
-While riding: the movement keys steer, Space jumps. Running into an enemy at a fair pace hits it and throws it aside (the same enemy at most every 0.7 s), and the sword style's effect applies to that hit. Attacking, using a skill, dashing, being hit or being defeated all take you off the mount.
+While riding: the movement keys steer, Space jumps. Running into an enemy at a fair pace hits it and throws it aside (the same enemy at most every 0.7 s), and the sword style's effect applies to that hit. One ram from any mount breaks a barricade. Attacking, using a skill, dashing, being hit or being defeated all take you off the mount.
 
 | Mount | Comes with | Looks like | Top speed | Turning | Jump | Ramming |
 |---|---|---|---|---|---|---|
