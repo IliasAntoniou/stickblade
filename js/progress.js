@@ -1,7 +1,11 @@
 // progress.js: learning skills and making them stronger. The only way to do either is to pass a trial.
 // A skill with progression has a rank: 0 = locked, 1 to 3 = learned, stronger each time. Ranks are kept per class.
 // Which skills have ranks, what each rank gives and what the trials are is data in the class file (see classes/blade.js).
-// A class without that data simply has every skill available, which is how the other three classes work for now.
+// Every class has that data now. A class without it would simply have every skill available.
+// A trial says how it is counted either with its own onHit function (the Blademaster's do) or in plain data
+// (count, by, only, when, under: see countHit below), which is how the Mage's trials are written.
+// Sword styles are unlocked once, for every class. A class whose file lists no style trials is given the three
+// common ones (commonStyleTrials below), worded with its own skill names.
 //
 // How a trial runs: Master Sen starts it in the training hall (startTrial; dojo.js builds the layout the trial
 // asks for), challenges.js does the countdown and the clock, every hit that
@@ -15,7 +19,7 @@ import { T, P, CL, CLASSES, chal, hitSrc } from './state.js';
 import { startChallenge, endChallenge, chalEl } from './challenges.js';
 import { isTuned } from './tuning.js';
 import { dojo, enterDojo, setupTrial } from './dojo.js';
-import { STYLES } from './styles.js';
+import { STYLES, style, styleHow } from './styles.js';
 
 const STORE_KEY = 'stickblade.progress.v1';
 // The smoke test starts from nothing and never writes, so running it cannot touch real progress.
@@ -132,7 +136,41 @@ export function hitAllowed() {
 // Told by hitDummy about every hit that landed. ev = { d, dmg, src, ko, targetAir, interrupted }.
 export function onHit(ev) {
   const t = chal.cur;
-  if (t && t.trial && chal.phase === 'run' && t.onHit) t.onHit(chal.st, ev);
+  if (!t || !t.trial || chal.phase !== 'run') return;
+  if (t.onHit) t.onHit(chal.st, ev);
+  else if (t.count) countHit(t, chal.st, ev);
+}
+// A trial written as data. First the hit has to pass the trial's filters:
+//   by    = the hit source it must come from ('q' 'e' 'r' 'f' = that skill, 'chain' = Thunder's jump).
+//   only  = the type of dummy it must land on ('flying', 'fighter'...).
+//   when  = 'interrupt': it must have broken a fighter's wind-up.
+//   under = the sword style that must be in use.
+// Then `count` says what a hit that passes adds to the progress (st.n):
+//   'hits'    = 1.                         'damage' = the damage it did.
+//   'kos'     = 1 if it knocked the dummy out.
+//   'biggest' = the progress is the biggest single hit so far.
+//   'targets' = the progress is how many different dummies have been hit during the trial.
+//   'most'    = the progress is the most different dummies hit by ONE use of the skill (P.castN tells uses apart).
+function countHit(t, st, ev) {
+  if (t.by && ev.src !== t.by) return;
+  if (t.only && ev.d.type !== t.only) return;
+  if (t.when === 'interrupt' && !ev.interrupted) return;
+  if (t.under && !(style.cur && style.cur.id === t.under)) return;
+  if (t.count === 'hits') st.n++;
+  else if (t.count === 'damage') st.n += ev.dmg;
+  else if (t.count === 'kos') st.n += ev.ko ? 1 : 0;
+  else if (t.count === 'biggest') st.n = Math.max(st.n, ev.dmg);
+  else if (t.count === 'targets') {
+    st.seen.add(ev.d);
+    st.n = st.seen.size;
+  } else if (t.count === 'most') {
+    if (st.cast !== P.castN) {
+      st.cast = P.castN;
+      st.seen = new Set();
+    }
+    st.seen.add(ev.d);
+    st.n = Math.max(st.n, st.seen.size);
+  }
 }
 
 function failTrial(why) {
@@ -147,7 +185,7 @@ function passTrial(t) {
     store();
     endChallenge();
     const st = STYLES[t.style];
-    centerMsg(`${st.name} style unlocked<small>${st.how} to take it</small>`, 4);
+    centerMsg(`${st.name} style unlocked<small>${styleHow(st.id)} to take it</small>`, 4);
   } else {
     const skill = cls.skills[t.slot];
     if (!prog[cls.id]) prog[cls.id] = {};
@@ -165,6 +203,7 @@ function passTrial(t) {
 export function updateTrial(t, dt) {
   const st = chal.st;
   if (t.tick) t.tick(st, dt);
+  if (t.count === 'burning') st.n = dojo.spawned.filter(d => d.burnT > 0 && !d.dead).length;    // how many are on fire right now
   const left = t.time - chal.t;
   const shown = Math.min(Math.floor(st.n), t.goal);
   chalEl.innerHTML = `${t.name}<div class="tm">${Math.max(0, left).toFixed(1)}</div><small>${t.desc}<br>${shown} / ${t.goal}</small>`;
@@ -195,6 +234,24 @@ export function resetProgress() {
   store();
 }
 
+// The three sword style trials of a class that does not list its own. They ask for the same things whatever
+// the class, because what they test is the style itself: Water's hits, Flame's burning, Thunder's jumps. Each
+// needs the skill that takes the style to be learned first (R in a pool, Q into a fire, E in a storm).
+function commonStyleTrials(cls) {
+  const S = cls.skills;
+  return [
+    { id: cls.id + '-water', style: 'water', needs: { r: 1 }, name: 'Trial: Water style', time: 60, goal: 12, count: 'hits', under: 'water',
+      desc: `Use ${S.r.n} while standing in the pool to take Water, then land 12 hits before it runs out`,
+      arena: { sources: [['water', 0, 9]], spawn: [['basic', -2.5, 0, -3], ['basic', 0, 0, -3], ['basic', 2.5, 0, -3]] } },
+    { id: cls.id + '-flame', style: 'flame', needs: { q: 1 }, name: 'Trial: Flame style', time: 60, goal: 3, count: 'burning',
+      desc: `Lock on to the fire and use ${S.q.n} to take Flame, then have 3 dummies burning at the same time`,
+      arena: { sources: [['flame', 0, 12]], spawn: [['basic', -5, 0, -3], ['basic', 0, 0, -6], ['basic', 5, 0, -3]] } },
+    { id: cls.id + '-thunder', style: 'thunder', needs: { e: 1 }, name: 'Trial: Thunder style', time: 60, goal: 6, count: 'hits', by: 'chain',
+      desc: `Use ${S.e.n} inside the storm to take Thunder, then make lightning jump between enemies 6 times`,
+      arena: { sources: [['thunder', 0, 10]], spawn: [['basic', -2, 0, -3], ['basic', 2, 0, -3], ['basic', -2, 0, -7], ['basic', 2, 0, -7]] } },
+  ];
+}
+
 // Called once from main.js after the class files have loaded, and before the tuning panel reads the class numbers.
 export function initProgress() {
   if (!SMOKE) {
@@ -205,6 +262,8 @@ export function initProgress() {
   }
   for (const id in CLASSES) {
     const cls = CLASSES[id];
+    const ranked = Object.values(cls.skills).some(skill => skill.lv);
+    if (ranked && !(cls.trials || []).some(t => t.style)) cls.trials = [...commonStyleTrials(cls), ...(cls.trials || [])];
     for (const t of cls.trials || []) { t.cls = id; t.trial = true; }
     applyRanks(cls);
   }

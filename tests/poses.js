@@ -5,7 +5,7 @@
 // dash (with &style=; &frames=<n> picks how far into it to stop: the dash lasts 10).
 // Add &view=<angle> to turn the camera (radians), &style=water, flame or thunder to see a sword style,
 // &lit=1 to show the pool, fire and storm as unlocked, &cutin=water, flame or thunder to hold the eye close-up on screen,
-// &dist=<units> to pull the camera back,
+// &dist=<units> to pull the camera back, &class=mage to look at the Mage (cast = the Arcane Crossbow at full draw, gun = the Arcane Barrage's machine gun firing, aim = the sniping scope closing in),
 // and &menu=main, classes, chal, train or tips to open that page of Master Sen's menu.
 const SB = window.SB;
 const { P, pressed, keys } = SB;
@@ -21,6 +21,7 @@ function swing(frames) {
   run(frames);
 }
 
+if (params.get('class')) { SB.unlockAll(); SB.setClass(params.get('class'), false); }    // &class=mage: look at another class, with every skill usable
 run(20);    // settle into the idle stance first
 if (params.get('style')) SB.forceStyle(params.get('style'));
 // stand next to something to look at it
@@ -28,6 +29,12 @@ const beside = { grab: SB.master.pos, master: SB.master.pos, pool: SB.sources[0]
   cloud: SB.sources[2].pos, storm: SB.sources[2].pos }[name];
 if (beside) { P.pos.set(beside.x + 1.2, beside.y, beside.z - 4.2); run(30); }
 const skills = SB.CL.skills;
+// the Mage's conjured crossbow: at full draw, an instant before its arrow goes
+if (name === 'cast') { pressed.add('KeyQ'); run(16); }
+// the Mage's machine gun, part way through a Barrage
+if (name === 'gun') { pressed.add('KeyE'); run(30); }
+// the Mage taking aim: the right mouse button held, the scope two thirds closed
+if (name === 'aim') { SB.setMouse(false, true); pressed.add('M2'); run(48); }
 // the two scenes, stopped partway: standing in the fire, and halfway under the water
 if (name === 'ignite' || name === 'submerge') { SB.startTake(SB.sources[name === 'ignite' ? 1 : 0]); run(name === 'ignite' ? 12 : 6); }
 // spinning in the storm while the lightning comes down

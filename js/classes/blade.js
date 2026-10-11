@@ -259,10 +259,14 @@ CLASSES.blade.trials = [
       props: [[0, 0, -8, 3, 16, 3, 'pillar']] } },
 
   { id: 'blade-e1', slot: 'e', rank: 1, name: 'Trial: Cyclone', desc: 'Hit 3 dummies with a single Cyclone', time: 45, goal: 3, allow: ['e'], onHit: mostInOneCyclone,
-    arena: { spawn: [['basic', -3, 0, -2], ['basic', 0, 0, -2], ['basic', 3, 0, -2]] } },
-  { id: 'blade-e2', slot: 'e', rank: 2, name: 'Cyclone II', desc: 'Deal 600 damage using only Cyclone', time: 30, goal: 600, allow: ['e'], onHit: cycloneDamage,
+    // Three in a row across the hall, 2 apart. The spin reaches 2.9, so going straight through the middle one
+    // catches all three. (They used to stand 3 apart: just out of reach, so it could only be done from the side.)
+    arena: { spawn: [['basic', -2, 0, -2], ['basic', 0, 0, -2], ['basic', 2, 0, -2]] } },
+  // At rank I one spin does at most about 48 to each dummy it stays on, and there is one spin every 5 s: the
+  // goal leaves room for spins that only catch two.
+  { id: 'blade-e2', slot: 'e', rank: 2, name: 'Cyclone II', desc: 'Deal 400 damage using only Cyclone', time: 45, goal: 400, allow: ['e'], onHit: cycloneDamage,
     arena: { spawn: [['basic', -3, 0, 2], ['basic', 0, 0, 2], ['basic', 3, 0, 2], ['basic', -3, 0, -12], ['basic', 0, 0, -12], ['basic', 3, 0, -12]] } },
-  { id: 'blade-e3', slot: 'e', rank: 3, name: 'Cyclone III', desc: 'Deal 800 damage using only Cyclone. The shield blocks from the front', time: 30, goal: 800, allow: ['e'], onHit: cycloneDamage,
+  { id: 'blade-e3', slot: 'e', rank: 3, name: 'Cyclone III', desc: 'Deal 600 damage using only Cyclone. The shield blocks from the front', time: 45, goal: 600, allow: ['e'], onHit: cycloneDamage,
     arena: { spawn: [['basic', -5, 0, -2], ['basic', -2.5, 0, -2], ['shield', 0, 0, -2], ['basic', 2.5, 0, -2], ['basic', 5, 0, -2]] } },
 
   { id: 'blade-r1', slot: 'r', rank: 1, name: 'Trial: Meteor Slam', desc: 'Start a slam at least 5 high and hit 3 dummies with it', time: 75, goal: 3, allow: ['r'],
@@ -275,8 +279,8 @@ CLASSES.blade.trials = [
   { id: 'blade-r3', slot: 'r', rank: 3, name: 'Meteor Slam III', desc: 'Hit all 3 dummies and both fighters with one slam', time: 120, goal: 5, allow: ['r'], onHit: mostInOneSlam,
     arena: { spawn: [['basic', 0, 0, -8], ['basic', -5.2, 0, 1], ['basic', 5.2, 0, 1], ['fighter', -10, 0, -13], ['fighter', 10, 0, -13]] } },
 
-  { id: 'blade-f2', slot: 'f', rank: 2, name: 'Rising Slash II', desc: 'Launch the dummy, then hit it 6 more times before it lands', time: 90, goal: 6, onHit: airCombo, tick: airComboTick,
+  { id: 'blade-f2', slot: 'f', rank: 2, name: 'Rising Slash II', desc: 'Launch the dummy, then hit it 4 more times before it lands', time: 90, goal: 4, onHit: airCombo, tick: airComboTick,
     arena: { spawn: [['basic', 0, 0, 0]] } },
-  { id: 'blade-f3', slot: 'f', rank: 3, name: 'Rising Slash III', desc: 'Launch the fighter, then hit it 8 more times before it lands', time: 120, goal: 8, onHit: airCombo, tick: airComboTick,
+  { id: 'blade-f3', slot: 'f', rank: 3, name: 'Rising Slash III', desc: 'Launch the fighter, then hit it 5 more times before it lands', time: 120, goal: 5, onHit: airCombo, tick: airComboTick,
     arena: { spawn: [['fighter', 0, 0, -2]] } },
 ];

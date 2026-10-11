@@ -9,10 +9,10 @@ import { solids, area, makeShadow } from './world.js';
 import { makeStickman, setWeapon, BASE, addRim, castShadows } from './stickman.js';
 import { glowTex, spawnSwirl, spawnArc, ringGeo, spawnRing, burst, spawnGhost, beamGeo, spawnBeam, spawnText, centerMsg, shake, addHitstop, flashHurt } from './fx.js';
 import { T, P, CL, dlg, chal, SPAWN, combo, TUNE, setHitSrc } from './state.js';
-import { dummies, hitDummy, hitArea } from './dummies.js';
-import { killProj } from './projectiles.js';
-import { camDir, facing, camFacingYaw, setCamYaw, setCamPitch } from './camera.js';
-import { removeClone } from './classes/ninja.js';
+import { dummies, hitDummy, hitArea, juggle } from './dummies.js';
+import { clearProjs } from './projectiles.js';
+import { mageBolt, clearMage } from './classes/mage.js';
+import { camDir, facing, camFacingYaw, setCamYaw, setCamPitch, setScope } from './camera.js';
 import { endChallenge } from './challenges.js';
 import { reach, slashColor, clearStyle, slamSources } from './styles.js';
 import { strikeMaster } from './master.js';
@@ -34,12 +34,6 @@ bladeGlow.position.set(0, 0, 0.55);
 bladeGlow.scale.setScalar(0.9);
 player.wrist.add(bladeGlow);
 export const playerShadow = makeShadow();
-// ninja shadow clone
-export const cloneMat = new THREE.MeshBasicMaterial({ color: 0x4b2a80, transparent: true, opacity: 0.75 });
-export const cloneSm = makeStickman(cloneMat, cloneMat, true); cloneSm.root.visible = false; scene.add(cloneSm.root);
-// lancer dive marker
-export const diveMark = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x3ddc84, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }));
-diveMark.visible = false; scene.add(diveMark);
 
 // Everything about the player. The main ones:
 // pos, vel = position and speed.  yaw = facing angle (yawT = the angle being turned towards).
@@ -48,21 +42,37 @@ diveMark.visible = false; scene.add(diveMark);
 Object.assign(P, {
   pos: SPAWN.clone(), vel: new V3(), yaw: Math.PI, yawT: Math.PI, grounded: false, justLanded: false,
   airJumps: 1, airJumpsMax: 1, run: 9.5, dashCharges: 2, dashRecharge: 0, state: 'normal', st: 0, grav: 0,
-  coyote: 0, jumpBuf: 0, wallN: new V3(), wallT: 0, wallrunCd: 0, flip: 0, spin: 0, runPhase: 0, ghostT: 0,
-  dashDir: new V3(), skDir: new V3(), gPoint: new V3(), gTarget: null, tick: 0, skHit: new Set(), dragged: [], dTarget: new V3(),
+  coyote: 0, jumpBuf: 0, wallN: new V3(), wallT: 0, flip: 0, spin: 0, runPhase: 0, ghostT: 0,
+  dashDir: new V3(), skDir: new V3(), gPoint: new V3(), gTarget: null, tick: 0, shots: 0,    // tick and shots time the hits of a skill that repeats (Cyclone, the Mage's Barrage)
   cd: { m2: 0, q: 0, e: 0, r: 0, f: 0, x: 0 },
   atk: { on: false, t: 0, combo: 0, hit: new Set(), queued: false, lastEnd: -9, lastCombo: 0, vfx: false },
-  hp: 100, maxHp: 100, hurtT: 99, iframes: 0, blocking: false, blockStart: -9,
+  hp: 100, maxHp: 100, hurtT: 99, iframes: 0,
   sink: 0,    // how far the body is drawn below where it stands (going under the water of a pool, see styles.js)
   seat: 0,    // how far the body is drawn above where it stands (sitting on a mount, see mounts.js)
   castN: 0, castY: 0,    // castN counts skill uses, castY is the height the last slam started from (trials read these)
-  smokeT: 0, dmgMult: 1, floatT: 0, clone: null, mark: null, jav: null, lmbHeld: 0, kunaiT: 0, chargeK: 0,
+  floatT: 0,    // seconds left of hanging in the air (the Mage's hover)
+  aimK: 0,      // how far the Mage's sniping shot is charged, 0..1
+  airHits: 0,   // swings that have landed since the player left the ground (see AIR_HITS)
+  hangT: 0,     // seconds of slow fall left from the last of them
 });
+// Fighting in the air. A sword hit that LANDS while the player is off the ground holds them up for a moment:
+// a small hop, then a short slow fall. Each one after the first does less (the first counts fully, the one
+// numbered AIR_HITS + 1 does nothing), and the count only starts again on landing. So a combo in the air
+// lasts a few hits and then comes down, and swinging at nothing does not hold anyone up at all: it cannot be
+// used to fly. Only swung weapons do this, not the Mage's missiles.
+export const AIR_HITS = 4;       // how many landed hits in the air still hold the player up
+const AIR_HOP = 6;               // upward speed of the first one's hop (the same as an enemy's juggle lift, to stay level with it)
+const AIR_HANG = 0.3;            // seconds of slow fall after the first one
+const AIR_LUNGE = 0.2;           // share of a swing's step forward that is kept in the air
+const AIR_REACH = 1.2;           // how much further up a swing reaches when the player is in the air
+const AIR_KNOCK = 0.3;           // share of a hit's knockback an enemy in the air takes, so it is not batted out of reach
+// How much the next landed hit in the air will hold the player up: 1 for the first, down to 0.
+export const airShare = () => Math.max(0, 1 - P.airHits / AIR_HITS);
 // Jump, gravity, dash and health numbers are in TUNE (state.js) so the tuning panel can change them.
 // PR, PH = the player's collision radius and height.  FLIP_T = length of a somersault.
 export const PR = 0.32, PH = 1.75, FLIP_T = 0.42;
 // States that other actions cannot cancel.
-export const LOCKED = new Set(['slamUp', 'slamDown', 'dragoonUp', 'dragoonDown', 'submerge', 'ignite', 'storm', 'grabbed']);
+export const LOCKED = new Set(['slamUp', 'slamDown', 'submerge', 'ignite', 'storm', 'grabbed']);
 // pose = what the player looks like now. tp = the pose being blended towards (see anim.js).
 export const pose = { ...BASE }, tp = { ...BASE };
 
@@ -116,7 +126,7 @@ export function integrate(dt) {
   const lim = area.half - PR - 0.05;
   P.pos.x = clamp(P.pos.x, area.cx - lim, area.cx + lim); P.pos.z = clamp(P.pos.z, area.cz - lim, area.cz + lim);
   if (P.grounded) {
-    P.coyote = 0.1; P.airJumps = P.airJumpsMax;
+    P.coyote = 0.1; P.airJumps = P.airJumpsMax; P.airHits = 0; P.hangT = 0;
     if (!was) { P.justLanded = true; spawnRing(_fx.copy(P.pos).setY(P.pos.y + 0.05), 0.2, 1.1, 0.22, 0xffffff); }
   }
 }
@@ -127,62 +137,34 @@ ropeMesh.visible = false; scene.add(ropeMesh);
 export const hookMesh = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), new THREE.MeshBasicMaterial({ color: 0x00e5ff }));
 hookMesh.visible = false; scene.add(hookMesh);
 
-// Lancer charge: let go of the dummies being pushed. full = the charge ran its course, so launch them.
-export function releaseDrag(full) {
-  for (const d of P.dragged) {
-    d.pinned = false;
-    if (full) hitDummy(d, 18, P.skDir.x * 16, P.skDir.z * 16, 7, true, 0.06, P.pos, true); else d.vel.set(0, 0, 0);
-  }
-  P.dragged.length = 0;
-}
 // Switch state. The ifs tidy up after the state being left (hide the rope, start a cooldown...).
 export function setState(s) {
   const o = P.state;
   if (o === 'grapple' && s !== 'grapple') { ropeMesh.visible = hookMesh.visible = false; P.cd.m2 = CL.skills.m2.cd; }
-  if (o === 'wallrun') P.wallrunCd = 0.35;
   if (o === 'dash') depenetrate();    // a dash that ends inside a curtain of light is pushed out of it
-  if (o === 'pcharge') releaseDrag(P.st >= 0.5);
-  if (o === 'charge') { P.chargeK = 0; playerMat.emissive.setHex(0); }
-  if (o === 'dragoonUp' || o === 'dragoonDown') diveMark.visible = s === 'dragoonDown';
   if (o === 'mounted' && s !== 'mounted') stowMount();    // any other state means the player is off the mount
-  if (s !== 'cyclone' && s !== 'sweep') P.spin = 0;
+  if (o === 'aim') setScope(0);    // the Mage stops aiming, for whatever reason: the scope opens again
+  if (s !== 'cyclone') P.spin = 0;
   P.state = s; P.st = 0;
 }
 
 // ---------- taking damage ----------
 // Hits pass through the player while this is true.
-export function isInvuln() { return P.iframes > 0 || P.state === 'dash' || P.state === 'blinkStrike' || P.state === 'dragonKick' || P.state === 'submerge' || P.state === 'ignite' || P.state === 'storm' || P.state === 'grabbed'; }
-// The player is hit for dmg from position src. attacker (optional) is the dummy, needed for the monk's parry.
-export function hurtPlayer(dmg, src, attacker) {
+export function isInvuln() { return P.iframes > 0 || P.state === 'dash' || P.state === 'blinkStrike' || P.state === 'submerge' || P.state === 'ignite' || P.state === 'storm' || P.state === 'grabbed'; }
+// The player is hit for dmg from position src.
+export function hurtPlayer(dmg, src) {
   if (dlg.open || chal.phase === 'count') return;
   if (TUNE.god) return;
   _hp.copy(P.pos); _hp.y += 1.5;
   if (isInvuln()) { spawnText(_hp, 'DODGE', 'dodge'); return; }
-  if (P.blocking) {
-    if (T - P.blockStart < 0.3 && attacker) { parry(attacker); return; }
-    dmg *= 0.2; spawnText(_hp, 'BLOCK', 'block');
-  }
   dmg = Math.round(dmg * TUNE.dmgTaken);
   P.hp -= dmg; P.hurtT = 0; flashHurt(); shake(0.45);
   _hp.y += 0.3; spawnText(_hp, '-' + dmg, 'hurt');
   const dx = P.pos.x - src.x, dz = P.pos.z - src.z, l = Math.hypot(dx, dz) || 1;
-  const kb = P.blocking ? 3 : 9;
-  P.vel.x = dx / l * kb; P.vel.z = dz / l * kb; if (!P.blocking) P.vel.y = Math.max(P.vel.y, 7);
-  if (!LOCKED.has(P.state) && !P.blocking) setState('normal');
+  P.vel.x = dx / l * 9; P.vel.z = dz / l * 9; P.vel.y = Math.max(P.vel.y, 7);
+  if (!LOCKED.has(P.state)) setState('normal');
   P.atk.on = false;
   if (P.hp <= 0) playerDefeated();
-}
-// Monk blocked at the last moment: appear behind the attacker, stun it and hit back.
-export function parry(d) {
-  P.iframes = 0.6;
-  const fx = Math.sin(d.yaw), fz = Math.cos(d.yaw);
-  spawnGhost(player, CL.color, null, 0.35);
-  P.pos.set(d.pos.x - fx * 1.5, d.pos.y, d.pos.z - fz * 1.5); depenetrate(); P.vel.set(0, 0, 0);
-  P.yaw = P.yawT = d.yaw; setCamYaw(P.yaw + Math.PI);
-  d.stun(1.8);
-  _hp.copy(P.pos); _hp.y += 2; spawnText(_hp, 'PARRY!', 'gold');
-  spawnRing(_fx.copy(P.pos).setY(P.pos.y + 1), 0.3, 2.5, 0.3, 0xffd23f);
-  hitDummy(d, 25, fx * 4, fz * 4, 4, true, 0.16);
 }
 // Health ran out: end any challenge and go back to the start.
 export function playerDefeated() {
@@ -207,17 +189,20 @@ export function startAttack(force = -1) {
   let c = 0; if (T - a.lastEnd < 0.4 && a.lastCombo < n - 1) c = a.lastCombo + 1;
   if (force >= 0) c = force;
   a.on = true; a.t = 0; a.combo = c; a.hit.clear(); a.queued = false; a.vfx = false;
+  a.held = false;    // this swing has not yet held the player up in the air
   a.src = null;    // a skill that starts a swing (Blink Strike) sets this so the swing counts as that skill
   a.n = (a.n || 0) + 1;    // counts swings, so a trial can tell one swing from the next
   P.yaw = P.yawT = camFacingYaw(); facing(_a);
-  const lunge = CL.atk[c].lunge ?? 6;
+  // the step forward that comes with a swing. In the air there is almost none: it would carry the player
+  // straight past an enemy they are trying to stay beside
+  const lunge = (CL.atk[c].lunge ?? 6) * (P.grounded ? 1 : AIR_LUNGE);
   const along = P.vel.x * _a.x + P.vel.z * _a.z;
   if (along < lunge) { P.vel.x += _a.x * (lunge - along); P.vel.z += _a.z * (lunge - along); }
-  if (!P.grounded) P.vel.y = Math.max(P.vel.y, 3);
   if (P.state === 'dash' || P.state === 'slide' || P.state === 'mounted') setState('normal');    // attacking gets off a mount
 }
 // Runs every frame of the hit window. Each dummy can be hit once per swing (a.hit remembers who).
 export function attackHits() {
+  if (CL.style === 'cast') return;    // the Mage swings nothing: its bolt does the hitting (attackVfx below)
   const a = P.atk, A = CL.atk[a.combo]; facing(_a);
   setHitSrc(a.src || 'atk');
   const cx = P.pos.x + _a.x * A.off, cz = P.pos.z + _a.z * A.off;
@@ -226,31 +211,38 @@ export function attackHits() {
   for (const d of dummies) {
     if (d.dead || a.hit.has(d)) continue;
     const dx = d.pos.x - cx, dz = d.pos.z - cz, dy = d.pos.y - P.pos.y;
-    if (dx * dx + dz * dz < rad * rad && dy > -1.8 && dy < 2.2) {
+    if (dx * dx + dz * dz < rad * rad && dy > -1.8 && dy < 2.2 + (P.grounded ? 0 : AIR_REACH)) {
       a.hit.add(d);
-      const up = !P.grounded ? 6 : (A.heavy ? 3 : 0);
-      hitDummy(d, A.dmg, _a.x * A.kb, _a.z * A.kb, up, !!A.heavy);
+      // the finisher lifts what it hits a little; an enemy already in the air is held up by the hit (juggle, dummies.js)
+      const up = Math.max(A.heavy ? 3 : 0, juggle(d));
+      const inAir = !d.grounded;
+      const kb = A.kb * (inAir ? AIR_KNOCK : 1);
+      if (!hitDummy(d, A.dmg, _a.x * kb, _a.z * kb, up, !!A.heavy)) continue;
+      // An enemy in the air is not just lifted: its climb or fall is REPLACED by the small pop of the juggle,
+      // and it stops drifting. Otherwise one launched fast keeps climbing out of reach while it is being hit.
+      if (inAir && up > 0 && !d.dead) d.vel.set(d.vel.x * 0.3, up, d.vel.z * 0.3);
+      // the first enemy this swing lands on, with the player in the air: the hop and the slow fall (see AIR_HITS)
+      if (!P.grounded && !a.held) {
+        a.held = true;
+        const share = airShare();
+        P.airHits++;
+        if (share > 0) {
+          // the hop REPLACES whatever climb or fall the player had, as the juggle does for the enemy, so the two
+          // stay level. The player also stops drifting sideways, to stay beside it.
+          P.vel.y = AIR_HOP * share;
+          P.vel.x *= 0.3;
+          P.vel.z *= 0.3;
+          P.hangT = AIR_HANG * share;
+        }
+      }
     }
   }
 }
-// The swing's visual, chosen by the class's style.
+// What a swing sends out at the moment it would land, chosen by the class's style.
 export function attackVfx() {
-  const a = P.atk, c = a.combo, last = c === CL.atk.length - 1; facing(_a);
-  _b.copy(P.pos).addScaledVector(_a, 0.2).setY(P.pos.y + 1.15);
-  switch (CL.style) {
-    // Swords and daggers get no ready-made shape here: their slash is the ribbon drawn from the blade's real path
-    // (updateTrail in fx.js, fed from anim.js), so it can never be out of line with the weapon.
-    case 'slash': break;
-    case 'dagger': break;
-    case 'punch': spawnArc(last ? 2 : c % 2, _b, P.yaw, CL.color, last ? 0.75 : 0.5); break;
-    case 'thrust': {
-      const A = CL.atk[c];
-      _b.copy(P.pos).addScaledVector(_a, 0.6).setY(P.pos.y + 1.3);
-      _c.copy(P.pos).addScaledVector(_a, A.off + A.rad).setY(P.pos.y + 1.3);
-      spawnBeam(_b, _c, CL.color, 0.14, last ? 5 : 3);
-      break;
-    }
-  }
+  // A sword gets no ready-made shape here: its slash is the ribbon drawn from the blade's real path
+  // (updateTrail in fx.js, fed from anim.js), so it can never be out of line with the weapon.
+  if (CL.style === 'cast') mageBolt();    // the Mage's attack is a bolt from the staff (classes/mage.js)
 }
 // Dash towards the movement keys, or where the camera looks if none are held (so looking up dashes upward).
 export function startDash() {
@@ -275,7 +267,7 @@ export function startSlide() {
 export function teleTrail(from, to, n = 6) {
   for (let i = 1; i <= n; i++) { player.root.position.lerpVectors(from, to, i / (n + 1)); spawnGhost(player, CL.color, player.root.position, 0.35); }
 }
-// Shared landing blast for Meteor Slam and Dragoon Dive. stun = seconds everything in the blast is stunned (0 = none).
+// The landing blast of Meteor Slam. stun = seconds everything in the blast is stunned (0 = none).
 export function groundImpact(rad, dmg, color, stun = 0, knock = 9) {
   rad *= reach();
   color = slashColor();
@@ -293,12 +285,11 @@ export function groundImpact(rad, dmg, color, stun = 0, knock = 9) {
   setState('normal'); P.vel.set(0, 0, 0);
   slamSources();    // landing in a pool starts the Water scene (after this slam, so the slam itself is still plain)
 }
-// Remove whatever a class left in the world (clone, kunai, javelin) when changing class or respawning.
+// Remove whatever a class left in the world (missiles in the air, a comet on its way) when changing class or respawning.
 export function cleanupClassObjects() {
-  if (P.clone) removeClone();
-  if (P.mark) { killProj(P.mark); P.mark = null; }
-  if (P.jav) { killProj(P.jav); P.jav = null; }
-  P.smokeT = 0; P.dmgMult = 1; P.floatT = 0; P.blocking = false;
+  clearProjs();
+  clearMage();
+  P.floatT = 0;
   clearStyle();    // a sword style does not survive a respawn, a teleport, a class change or the start of a trial
   clearElements(); // nor does fire left on the ground, or a bolt still on its way
   if (CL) setWeapon(player, CL.weapon);

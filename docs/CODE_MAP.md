@@ -8,9 +8,28 @@ Where everything is, what the short names mean, and how to add things. If this f
 
 | I want to change... | Go to |
 |---|---|
-| A class's damage, combo speed, reach, cooldowns, run speed | The `CLASSES.<name> = {` table at the bottom of `js/classes/blade.js`, `js/classes/ninja.js`, `js/classes/monk.js` or `js/classes/lancer.js` |
-| Which Blademaster skills start locked, and what each rank gives (damage, cooldown, perks) | The `start`, `lv` and `perks` of each skill in the `CLASSES.blade = {` table in `js/classes/blade.js` |
-| A trial's goal, time limit or difficulty | `CLASSES.blade.trials` at the bottom of `js/classes/blade.js` |
+| A class's damage, combo speed, reach, cooldowns, run speed | The `CLASSES.<name> = {` table at the bottom of `js/classes/blade.js` or `js/classes/mage.js` |
+| Which skills start locked, and what each rank gives (damage, cooldown, perks) | The `start`, `lv` and `perks` of each skill in the class table: `CLASSES.blade = {` in `js/classes/blade.js`, `CLASSES.mage = {` in `js/classes/mage.js` |
+| A trial's goal, time limit or difficulty | The `trials` list at the bottom of the class file, for example `CLASSES.blade.trials` in `js/classes/blade.js` |
+| How a trial written as data is counted (`count`, `by`, `only`, `when`, `under`) | `countHit()` in `js/progress.js` |
+| The Mage's three sword style trials | `commonStyleTrials()` in `js/progress.js` |
+| What a sword style adds to the Mage's skills where they land (fire left behind, the bolt and its stun, the pull and the healing) | `STRIKES` and `skillStrike()` in `js/elements.js` |
+| How the Mage's missiles fly under each style (speed, size, going through enemies, bursting), and how long a comet takes to land | `BOLTS` in `js/classes/mage.js` |
+| The Mage's sniping shot: its damage, how long it takes to charge, the headshot bonus, the cooldown | `min`, `max`, `charge`, `head` and `cd` on `m2` in `CLASSES.mage` in `js/classes/mage.js` |
+| How far the sniping shot reaches, how wide a body counts, where the head starts | `SNIPE_RANGE`, `SNIPE_WIDTH` and `HEAD_HEIGHT` in `js/classes/mage.js`; the shot itself is `mageSnipe()`. `SEN_WIDTH` and `SEN_HEIGHT` are Master Sen's size for it |
+| How far the scope zooms in, how close the camera comes, and how soon it gets there (the body is hidden from then on) | `SCOPE_FOV`, `SCOPE_DIST` and `SCOPE_IN` in `js/camera.js` |
+| The ring that closes round the crosshair while aiming | `SCOPE_OPEN` and `SCOPE_CLOSED` in `js/hud.js`; its look is the `#scope` CSS in `index.html` |
+| Whether Q conjures an archer or a crossbow | `CONJURE` in `js/classes/mage.js`: one word to change |
+| The conjured machine gun (E): its shape, size, where it hangs, how long it fades | `gunModel`, `GUN_SIZE`, `GUN_AHEAD`, `GUN_SIDE`, `GUN_UP` and `GUN_FADE` in `js/classes/mage.js`; `placeGun()` and `updateGun()` work it |
+| The conjured archer: where it stands, its poses, its longbow, how long it draws and fades | `ARCHER_SIDE`, `ARCHER_AHEAD`, the `ARCHER_...` poses, `longbow`, `BOW_DRAW` and `BOW_FADE` in `js/classes/mage.js`; `placeArcher()` and `updateBow()` work it |
+| The conjured crossbow (Q): its shape, size and where it hangs | `bowModel`, `BOW_SIZE`, `BOW_AHEAD` and `BOW_UP` in `js/classes/mage.js`; `placeCrossbow()` |
+| The arrow: its shape and size, and the wisps round it | `initProjs()` and `ARROW_LENGTH` in `js/projectiles.js`; the wisps are `wispMat` from `js/styles.js` |
+| Force Nova: how hard it throws, how far it reaches, the stun (per rank), the lift, and what each style changes | `knock`, `rad`, `stun` in the `f` rows of `CLASSES.mage`; `NOVA_LIFT` and `NOVA` in `js/classes/mage.js` |
+| How fast a Barrage fires, how long the hover lasts | `SHOT_GAP` in `js/classes/mage.js`; `hover` in `CLASSES.mage` |
+| The Mage's robes and hat, and the heads the staff grows | The "Mage's robes" and "staff's head" parts of `attachOutfit()` in `js/styles.js`; the staff itself is `SG.staff` in `js/stickman.js` |
+| How the Mage stands, casts and carries the staff | The `id === 'mage'` line, the `cast` and `invoke` branches and `staffUp` in `animatePlayer()` in `js/anim.js` |
+| What a Mage skill is called under a style | `el` on the skill in `js/classes/mage.js` |
+| How the Mage takes a style, and the words that explain it | `takeWith()` and `styleHow()` in `js/styles.js` |
 | What the training hall looks like for a trial (platforms, which enemies, where they stand) | The `arena` of that trial in `CLASSES.blade.trials` in `js/classes/blade.js` |
 | The training hall itself (size, place, walls, the teleport) | `js/dojo.js` |
 | How trials and ranks work in general | `js/progress.js` |
@@ -20,15 +39,17 @@ Where everything is, what the short names mean, and how to add things. If this f
 | Try out a number while playing (speed, jump, damage, health...) | Pause with Tab or Esc and use the tuning panel. Nothing to edit |
 | Jump height, gravity, dash, player health, damage and cooldown multipliers (the permanent defaults) | `TUNE_DEFAULTS` in `js/state.js` |
 | Which sliders the tuning panel shows, and their ranges | `GROUPS` and `classRows()` in `js/tuning.js` |
+| Fighting in the air: how many landed sword hits hold you up, the hop, the slow fall, how far a swing reaches upwards there | `AIR_HITS`, `AIR_HOP`, `AIR_HANG`, `AIR_REACH`, `AIR_LUNGE` and `AIR_KNOCK` in `js/player.js`, used in `attackHits()` |
+| Juggling: how many sword hits hold an enemy up, the lift, the slow fall | `JUGGLE_HITS`, `JUGGLE_LIFT`, `JUGGLE_HANG` and `HANG_PULL` in `js/dummies.js`; `juggle()` |
 | Running, air control, wall jump, slide feel | The `normal` and `slide` cases in `update()` in `js/update.js` |
-| Player health, getting hit, block, parry | `hurtPlayer()` and `parry()` in `js/player.js` |
+| Player health, getting hit | `hurtPlayer()` in `js/player.js` |
 | Collision with walls and floors | `moveAxis()` and `integrate()` in `js/player.js` |
 | A dummy type's health or colour | `DTYPE` in `js/dummies.js` |
 | Where dummies stand | The `dummies` list in `js/dummies.js` |
 | How the fighter attacks | `fighterAI()` in `js/dummies.js` |
 | How hits work (damage, knockback, shield block) | `hitDummy()` and `dealDamage()` in `js/dummies.js` |
 | The map (boxes, platforms, walls) | The `addBox()` lines in `js/world.js` |
-| Kunai and javelin | `js/projectiles.js` |
+| How a missile moves, bends and hits | `updateProjs()` and `fireBolt()` in `js/projectiles.js` |
 | The story: what Sen says, what each task asks for, how many it takes, which enemies it brings and where | `QUESTS` in `js/quests.js` |
 | The campaign: the districts, their layout, their stages, which enemies each stage brings and where | `DISTRICTS` in `js/missions.js` |
 | The kinds of enemy in missions (health, speed, size, which element they are weak to) | `THUG`, `RUNNER`, `IRON`, `RAT`, `LOOKOUT`, `BARRICADE`, `BLOCKADE`, `MARROW`, `TWIN_EMBER` and `TWIN_TIDE` in `js/missions.js` |
@@ -61,7 +82,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | The pictures on the menu cards | `ICONS` in `js/master.js` |
 | What happens when he is hit: the warning and how long it lasts | `strikeMaster()`, `warnPlayer()` and `WARNING_TIME` in `js/master.js` |
 | The grab, then the slam or the throw: timing, how high he leaps, how much health each takes | `grabPlayer()`, `updateGrab()` and the `GRAB_...`, `SLAM_...`, `THROW_...` and `JUMP_HEIGHT` numbers in `js/master.js` |
-| Which rocks he can throw you at, and where on them you hit | `pickWall()` in `js/master.js` |
+| Which rocks he can throw you at (tall, in range, and in his sight), and where on them you hit | `throwTargets()`, `wallBetween()` and `wallSpot()` in `js/master.js`; `pickWall()` chooses one |
 | How long you stay stuck to the rock, and how fast and flat the throw is | `STUCK_TIME`, and `throwTime` and `throwArc` in `updateGrab()`, in `js/master.js` |
 | How his head and eyes follow the player | `updateMaster()` in `js/master.js` |
 | Camera distance, shake, zoom with speed, lock-on | `updateCamera()` in `js/camera.js` |
@@ -72,7 +93,7 @@ Where everything is, what the short names mean, and how to add things. If this f
 | How a mount's legs, wheels and flames move | `animateMount()` in `js/mounts.js` |
 | How the rider sits | The `mounted` branch of `animatePlayer()` in `js/anim.js` |
 | Which key does what | The "actions" block in `update()` in `js/update.js`; raw key handling is in `js/input.js` |
-| Mouse sensitivity | `sens` in `js/input.js` |
+| Mouse sensitivity, and how much it drops while the Mage looks down its scope | `sens` and `SCOPE_SENS` in `js/input.js` |
 | Skill bar, health bar, stats line | `js/hud.js`; their look is the CSS at the top of `index.html` |
 | The start / pause menu text | The `#overlay` block in `index.html` |
 | Slash arcs, rings, sparks, damage numbers, hitstop | `js/fx.js` |
@@ -110,11 +131,10 @@ Where everything is, what the short names mean, and how to add things. If this f
 | How a style's slash is painted (foam, tongues of fire) | The `edge` part of `paintCrescent()` and `TRAIL_PAINTS` in `js/fx.js` |
 | The trial that unlocks a style | The entries with `style:` in `CLASSES.blade.trials` in `js/classes/blade.js` |
 | How Master Sen looks (build, hair, eyes, poses) | The `master` block and the `POSE_...` tables at the top of `js/master.js` |
-| A sword or dagger slash: how long it hangs in the air | `TRAIL_LIFE` in `js/fx.js`. The slash is built from the blade's real positions by `updateTrail()`, so its path is the sword's path |
+| A sword slash: how long it hangs in the air | `TRAIL_LIFE` in `js/fx.js`. The slash is built from the blade's real positions by `updateTrail()`, so its path is the sword's path |
 | A slash's width and how far it reaches past the blade | `WEAPON_REACH` in `js/anim.js` |
 | When a slash is drawn (which moves, how fast the blade must be moving) | `TRAIL_STATES` and `SLASH_SPEED` in `js/anim.js` |
 | How a slash is painted (shape, ink outline, foam) | `paintCrescent()` and the `trailOuter` / `trailInner` shape functions in `js/fx.js` |
-| The Monk's punch and kick arcs (ready-made shapes, since fists have no blade) | The `arcs` part of `js/fx.js`, called from `attackVfx()` in `js/player.js` |
 | How snappy or bouncy the character's movement is | `SPRING_ACTION` and `SPRING_CALM` in `js/anim.js` |
 | Breathing, leaning into turns, the landing dip | The idle block and the "weight" block in `animatePlayer()` in `js/anim.js` |
 | The Cyclone whirlpool and the Meteor Slam wave | `spawnSwirl()` in `js/fx.js`, called from `bmCyclone()` and `groundImpact()` |
@@ -159,12 +179,12 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `js/fx.js` | Effects, messages, screen shake, hitstop |
 | `js/dummies.js` | The `Dummy` class, the list of dummies, the damage functions |
 | `js/skins.js` | What each kind of enemy looks like |
-| `js/projectiles.js` | Kunai and javelin |
+| `js/projectiles.js` | The Mage's missiles |
 | `js/player.js` | Player body, collision, taking damage, basic attack, dash, slide |
 | `js/mounts.js` | The mount called with X: car, fire horse, lightning lion, war elephant |
 | `js/camera.js` | Camera and aiming |
 | `js/classes/index.js` | Loads the class files; `setClass()` |
-| `js/classes/blade.js`, `ninja.js`, `monk.js`, `lancer.js` | One class each: skill functions and the class table |
+| `js/classes/blade.js`, `mage.js` | One class each: skill functions and the class table |
 | `js/master.js` | Master Sen and the dialog menu |
 | `js/challenges.js` | Timed challenges |
 | `js/missions.js` | The campaign: the districts of the city, and running a mission through its stages |
@@ -240,7 +260,19 @@ Where everything is, what the short names mean, and how to add things. If this f
 | `P.splat` | True while the player is stuck flat against a rock after Master Sen's throw |
 | `P.sink` | How far the body is drawn below where it stands, for going under the water. 0 the rest of the time |
 | `reach()` | How much further sword attacks reach under the current style (1 = normal) |
-| power, `POWERS` | What a sword style changes about the skills. `power()` gives the entry for the style in use, or null with a plain sword |
+| strike, `STRIKES` | What a sword style adds to every Mage skill, at the place where the skill lands. `skillStrike()` in `js/elements.js` |
+| missile, bolt | One of the Mage's glowing projectiles. `projs` in `js/projectiles.js` holds all 24 |
+| `BOLTS` | How a missile flies under each sword style. In `js/classes/mage.js` |
+| `P.floatT` | Seconds left of hanging in the air (the Mage's hover) |
+| `P.airHits`, `P.hangT` | Sword swings that have landed since the player left the ground, and the seconds of slow fall left from the last one |
+| juggle, `d.lifts`, `d.hangT` | Holding an enemy up in the air by hitting it with the sword. `d.lifts` counts those hits since it last landed; `d.hangT` is its seconds of slow fall left |
+| `P.shots` | How many missiles of the running Barrage have gone |
+| `P.aimK` | How far the Mage's sniping shot is charged, 0 to 1. The player state while charging is `aim` |
+| `scope` | How far the sniping scope has closed in, 0 to 1. In `js/camera.js`; set with `setScope()` |
+| `staffUp` | In `animatePlayer()`: the staff is being carried, so the wrist keeps it upright whatever the arm does |
+| `el` | On a Mage skill: its name under each sword style |
+| `count`, `by`, `only`, `when`, `under` | A trial written as data: what a hit adds to the progress, and which hits pass. Read by `countHit()` in `js/progress.js` |
+| power, `POWERS` | What a sword style changes about the Blademaster's skills. `power()` gives the entry for the style in use, or null with a plain sword |
 | zone | A round patch of fire on the ground that sets burning whatever stands in it. Left by Flame's Cyclone and Meteor Slam |
 | soaked, `d.soakT` | Seconds an enemy stays soaked (Water's Blink Strike): it takes more damage and a fighter is slowed |
 | share | A power's number given as a part of the skill's own (0.6 = 60%), so it grows with the skill's rank |
@@ -302,15 +334,17 @@ Where everything is, what the short names mean, and how to add things. If this f
 
 ### Give a skill ranks and trials
 
-The Blademaster is the worked example; copy from `js/classes/blade.js`.
+Both classes have them. The Blademaster in `js/classes/blade.js` is the worked example for trials with their own counting functions; `js/classes/mage.js` for trials written as data.
 
 1. In the class table, replace the skill's `cd` with `start` (0 = locked for a new player, 1 = known), `lv` (three rows of numbers, every row listing every key, `cd` included) and `perks` (one line per rank).
 2. Make the skill's code read those numbers, for example `CL.skills.q.dmg`, in place of fixed values.
 3. Just before the skill deals damage, call `setHitSrc()` with its slot (`'q'`, `'e'`, `'r'` or `'f'`), so trials know which skill hit.
-4. Add its trials to `CLASSES.<id>.trials`: `slot`, `rank`, `name`, `desc`, `time`, `goal`, optionally `allow`, an `onHit` that raises `st.n`, and an `arena` listing the boxes (`props`) and dummies (`spawn`) the training hall should build. To look at a layout without playing the trial, open `http://localhost:8000/?debug=hall:<trial id>`.
-5. Add checks to the progression part of `tests/smoke.js`.
+4. Add its trials to `CLASSES.<id>.trials`: `slot`, `rank`, `name`, `desc`, `time`, `goal`, optionally `allow`, a way of counting, and an `arena` listing the boxes (`props`) and dummies (`spawn`) the training hall should build. To look at a layout without playing the trial, open `http://localhost:8000/?debug=hall:<trial id>`.
+   The way of counting is either an `onHit` function that raises `st.n`, or plain data: `count` (`hits`, `damage`, `kos`, `biggest`, `targets` or `most`) with the filters `by`, `only`, `when` and `under`. For `most` to work the skill has to raise `P.castN` each time it is used.
+5. Give it an `el` (its name under each style) and call `skillStrike()` where it lands, so the sword styles do something to it. The Blademaster's skills have their own powers instead (`POWERS`).
+6. Add checks to the progression part of `tests/smoke.js`.
 
-A class with no `lv` on any skill has no progression: everything is usable from the start.
+A class with no `lv` on any skill has no progression: everything is usable from the start. A class that lists no trial with `style` is given the three common style trials by `initProgress()`.
 
 ### Add a sword style
 
@@ -373,8 +407,8 @@ The four in `js/mounts.js` are the worked examples.
 
 1. Copy `js/classes/blade.js` to a new file and rename the table to `CLASSES.<id> = {`. All five slots (`m2`, `q`, `e`, `r`, `f`) must exist.
 2. In `js/classes/index.js`: import the file and add the id to `CLASS_ORDER`.
-3. `style` must be `slash`, `dagger`, `punch` or `thrust`, or add a new case to `attackVfx()` in `js/player.js` and to the attack part of `animatePlayer()`.
-4. `weapon` must be `sword`, `daggers`, `spear` or `none`, or add a new one in `makeStickman()` and `setWeapon()` in `js/stickman.js`.
+3. `style` must be `slash` (a blade that is swung) or `cast` (a missile is fired), or add a new one to `attackVfx()` and `attackHits()` in `js/player.js` and to the attack part of `animatePlayer()`.
+4. `weapon` must be `sword`, `staff` or `none`, or add a new one in `makeStickman()` and `setWeapon()` in `js/stickman.js`.
 5. Run the smoke test: it loops over `CLASS_ORDER`.
 
 ### Add a dummy type
@@ -436,13 +470,25 @@ Until maps become data files, the map is spread over: the `addBox()` lines in `j
 - **Nothing new may come out of a dash once it has ended.** After the dash the ribbons keep waving and fading (that is what keeps the ending alive), and their front end stays on the player, but `recordPath()` adds no more to them. Do not freeze them or pull them in either: that was tried and made the ending feel dead.
 - **A dash effect has to be one continuous shape from the player backwards.** Puffs left along the path read as a trail behind the player, not as the player. The lightning's bolt and the ribbons are what make it read as being the element: keep that when changing them.
 - **Colours for particles are not what they look like.** They are brightened on the way to the screen: orange needs very little green, dark smoke is almost black.
-- **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireProj()` and friends.
+- **Pools.** Effects and projectiles are never created during play. Use `spawnRing()`, `burst()`, `fireBolt()` and friends.
 - **`dt` or `rdt`.** Gameplay uses `dt` so it slows down during hitstop. Camera and on-screen display use `rdt`.
 - **Only boxes.** Collision assumes every solid is an upright box (however rocky it is drawn). A slope or rotated wall will not collide correctly.
 - **A style ends whenever the player respawns.** That covers death, teleports, class changes and the start of a trial (`clearStyle()` is called from `cleanupClassObjects()`), which is what keeps styles from being carried into a trial.
 - **Use `slashColor()` and `reach()` in sword code,** not `CL.color` and a bare radius, or the effect ignores the style.
 - **The menu frees the mouse.** Opening Master Sen's menu releases the mouse so cards can be clicked, which also pauses the game; closing it captures the mouse again. If the browser refuses, the pause screen shows and one click resumes.
 - **New area attacks should call `strikeMaster()`.** Sword swings, `hitArea()`, Cyclone and Rising Slash already do. An attack that loops over dummies by hand will pass straight through Master Sen unless it calls it too.
+- **A Mage skill must call `setHitSrc()` with its slot before it deals damage, and raise `P.castN` when it starts.** Its trials are counted from the hit source and the use number; a skill that forgets either cannot pass its own trial. A missile carries its source as `src`.
+- **The sniping shot is not a missile and is not guided.** It is a straight line worked out in one go by `mageSnipe()`, from the camera through the crosshair. It never reads `lockTarget`. The line starts at the camera, which is behind the player, so anything nearer than the player is skipped.
+- **Leaving the `aim` state is what opens the scope again.** `setState()` calls `setScope(0)` whenever the player leaves it, for any reason, so nothing else has to remember to.
+- **Every Mage shot reaches Master Sen by its own route.** Missiles check for him in `updateProjs()`, the sniping shot in `mageSnipe()`, and the Comet, the Nova and a fireball's burst through `strikeMaster()` like any area attack. A new kind of shot has to do one of these, or it will pass through him.
+- **The arrows are built in `initProjs()`, not at the top of `js/projectiles.js`,** because their wisps come from `js/styles.js`, which is not a base file.
+- **The crossbow's arrow leaves a moment after Q is pressed** (`BOW_DRAW`). Leaving the `bow` state before then (a hit, a dash) cancels it: no arrow, and the cooldown is spent.
+- **A missile's look is fixed when it is fired.** `missile()` in `js/classes/mage.js` reads `BOLTS` once, at the cast; a style taken or lost while it is in the air does not change it.
+- **The Mage's basic attack hits nothing by itself.** `attackHits()` returns at once for the `cast` style; the bolt fired by `attackVfx()` does the damage when it arrives.
+- **The Mage's robes are not in `outfit.parts`.** `parts` is what every class wears under a style; the robes are in `outfit.cloth` and the plate in `outfit.plates`, and `applyLook()` shows one or the other.
+- **Q, E and R can be swallowed by a source.** For the Mage `takeWith()` runs before the skill: at a fire, in a storm or in a pool the style is taken and the skill does not happen. The Blademaster is left out, because its own skills do the taking.
+- **Sword styles are unlocked once, for every class.** Passing either class's style trial unlocks it for both.
+- **Only a sword swing that lands holds anyone up.** The hop, the slow fall and the juggle all happen in `attackHits()` in `js/player.js`, and only when `hitDummy()` says the hit landed. Do not add them to `startAttack()` or to `hitDummy()`: the first lets the player fly by swinging at nothing, the second lets missiles juggle. Both counts must fall to nothing (`AIR_HITS`, `JUGGLE_HITS`) and only start again on landing, or the fight in the air never ends.
 - **Trials and tuning.** A trial will not start, and fails if running, while any tuning value differs from default. That is deliberate: it stops tuned numbers being used to pass.
 - **Stale files.** Always serve the game with `serve.py` (or `play.bat`). A plain web server lets the browser keep running old copies of changed files.
 - **Saved tuning.** Slider changes are stored in the browser and come back next time. If the game feels wrong, press "Reset all" in the panel before looking for a bug. The smoke test always runs on defaults.

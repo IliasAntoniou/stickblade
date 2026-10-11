@@ -1,4 +1,4 @@
-// stickman.js: builds a stick figure and poses it. Used for the player, dummies, Master Sen, afterimages and the ninja clone.
+// stickman.js: builds a stick figure and poses it. Used for the player, dummies, Master Sen and afterimages.
 // A pose is a plain object of joint angles in radians (see POSE_KEYS). Animating = blending the current pose towards a target pose.
 
 import * as THREE from 'three';
@@ -11,13 +11,13 @@ export const SG = {
   head: new THREE.SphereGeometry(0.17, 14, 10),
   blade: new THREE.BoxGeometry(0.04, 0.1, 1.05).translate(0, 0, 0.62),
   guard: new THREE.BoxGeometry(0.26, 0.05, 0.05),
-  dagger: new THREE.BoxGeometry(0.035, 0.08, 0.5).translate(0, 0, 0.3),
-  shaft: new THREE.BoxGeometry(0.05, 0.05, 2.6).translate(0, 0, 0.4),
-  spearHead: new THREE.BoxGeometry(0.04, 0.14, 0.36).translate(0, 0, 1.86),
-  kunai: new THREE.BoxGeometry(0.05, 0.05, 0.45),
+  // the Mage's staff: a long shaft held a third of the way up, a collar near the top, and the orb it carries
+  staff: new THREE.BoxGeometry(0.05, 0.05, 2.1).translate(0, 0, 0.35),
+  staffCollar: new THREE.BoxGeometry(0.11, 0.11, 0.07).translate(0, 0, 1.36),
+  staffOrb: new THREE.SphereGeometry(0.1, 10, 8).translate(0, 0, 1.5),
 };
 
-// Build one stickman. mat = body material, accentMat = blade material, weapons = true to attach all three weapons
+// Build one stickman. mat = body material, accentMat = blade material, weapons = true to attach both weapons
 // (only one shows at a time, see setWeapon). Returns the joints so they can be turned:
 // body > spine > chest > head; shoulders (shL, shR) > elbows (elL, elR) > hands; hips > knees.
 export function makeStickman(mat, accentMat, weapons) {
@@ -47,18 +47,22 @@ export function makeStickman(mat, accentMat, weapons) {
     wristL = new THREE.Group(); handL.add(wristL);
     const sword = new THREE.Group(); sword.add(new THREE.Mesh(SG.blade, accentMat));
     const guard = new THREE.Mesh(SG.guard, mat); guard.position.z = 0.08; sword.add(guard); wrist.add(sword);
-    const dagR = new THREE.Mesh(SG.dagger, accentMat); wrist.add(dagR);
-    const dagL = new THREE.Mesh(SG.dagger, accentMat); wristL.add(dagL);
-    const spear = new THREE.Group(); spear.add(new THREE.Mesh(SG.shaft, mat)); spear.add(new THREE.Mesh(SG.spearHead, accentMat)); wrist.add(spear);
-    W = { sword, dagR, dagL, spear };
+    // the staff: its orb is drawn in the blade material, so it takes the class's colour and a sword style's
+    const staff = new THREE.Group();
+    staff.add(new THREE.Mesh(SG.staff, mat));
+    staff.add(new THREE.Mesh(SG.staffCollar, mat));
+    staff.add(new THREE.Mesh(SG.staffOrb, accentMat));
+    wrist.add(staff);
+    W = { sword, staff };
   }
   const nodes = []; root.traverse(o => nodes.push(o));
   return { root, body, spine, chest, head, shL, elL, handL, shR, elR, handR, wrist, wristL, W, hipL, kneeL, hipR, kneeR, nodes };
 }
-// Show one weapon and hide the rest. w = 'sword' | 'daggers' | 'spear' | 'none'.
+// Show one weapon and hide the rest. w = 'sword' | 'staff' | 'none'.
 export function setWeapon(sm, w) {
   if (!sm.W) return;
-  sm.W.sword.visible = w === 'sword'; sm.W.dagR.visible = sm.W.dagL.visible = w === 'daggers'; sm.W.spear.visible = w === 'spear';
+  sm.W.sword.visible = w === 'sword';
+  sm.W.staff.visible = w === 'staff';
 }
 
 // Every number in a pose. X / Y / Z = the axis the joint turns around; L / R = left / right.
@@ -69,7 +73,7 @@ export const BASE = { bodyY: 0.93, bodyPitch: 0, bodyRoll: 0, spineX: 0.08, spin
   shLX: 0.1, shLZ: 0.28, elL: -0.3, shRX: -0.35, shRY: 0, shRZ: -0.25, elR: -0.7, wrist: 0.5, wristL: 0.5 };
 // Arms straight out, for practice dummies.
 export const DUMMY_POSE = { ...BASE, bodyY: 0.94, spineX: 0, hipLX: 0, hipRX: 0, hipLZ: 0.07, hipRZ: -0.07, kneeL: 0, kneeR: 0, shLX: 0, shLZ: 1.35, elL: 0, shRX: 0, shRZ: -1.35, elR: 0 };
-// GUARD = fists up (monk, fighter). F_* = fighter dummy poses: idle, slam wind-up, lunge wind-up, lunge, stunned.
+// GUARD = fists up (the fighter dummy). F_* = fighter dummy poses: idle, slam wind-up, lunge wind-up, lunge, stunned.
 export const GUARD = { shLX: -0.9, shLZ: 0.25, elL: -2.0, shRX: -0.7, shRZ: -0.25, elR: -2.0, spineX: 0.12 };
 export const F_IDLE = { ...BASE, ...GUARD, hipLX: -0.25, hipRX: 0.15, kneeL: 0.25, kneeR: 0.25 };
 export const F_SLAM = { ...BASE, shLX: -2.9, shLZ: 0.1, elL: -0.1, shRX: -2.9, shRZ: -0.1, elR: -0.1, spineX: -0.25, kneeL: 0.5, kneeR: 0.5, bodyY: 0.85 };
@@ -88,7 +92,7 @@ export function applyPose(sm, p, xp = 0, xs = 0) {
   sm.shR.rotation.set(p.shRX, p.shRY, p.shRZ); sm.elR.rotation.x = p.elR;
   if (sm.wrist) { sm.wrist.rotation.x = p.wrist; sm.wristL.rotation.x = p.wristL; }
 }
-// Make dst look exactly like src right now (afterimages, the ninja clone).
+// Make dst look exactly like src right now (afterimages).
 export function copyPose(src, dst) {
   const n = src.nodes, d = dst.nodes;
   for (let i = 0; i < n.length; i++) { d[i].position.copy(n[i].position); d[i].quaternion.copy(n[i].quaternion); d[i].scale.copy(n[i].scale); d[i].visible = n[i].visible; }

@@ -2,10 +2,10 @@
 // keys = held down right now.  pressed = went down this frame (emptied after every update).
 // Mouse buttons show up in pressed as 'M0' (left) and 'M2' (right).
 
-import { clamp, $ } from './util.js';
+import { clamp, lerp, $ } from './util.js';
 import { renderer } from './core.js';
 import { toast } from './fx.js';
-import { camYaw, camPitch, camDist, setCamYaw, setCamPitch, setCamDist, CAM_NEAR, CAM_FAR } from './camera.js';
+import { camYaw, camPitch, camDist, setCamYaw, setCamPitch, setCamDist, CAM_NEAR, CAM_FAR, scope } from './camera.js';
 
 // ================= input =================
 export const keys = new Set(), pressed = new Set();
@@ -27,9 +27,14 @@ addEventListener('mousedown', e => {
 });
 addEventListener('mouseup', e => { if (e.button === 0) mouseL = false; if (e.button === 2) mouseR = false; });
 addEventListener('contextmenu', e => e.preventDefault());
+// While the Mage looks down its scope the view is narrow, so the same turn of the wrist would throw the
+// crosshair much further across the screen. The mouse is slowed to match: SCOPE_SENS is its share of the
+// normal sensitivity when the scope is fully closed in (the view is then about 0.4 as wide).
+const SCOPE_SENS = 0.4;
+export const aimSens = () => lerp(1, SCOPE_SENS, scope);
 addEventListener('mousemove', e => {
   if (!locked) return;
-  const s = 0.0022 * sens;
+  const s = 0.0022 * sens * aimSens();
   setCamYaw(camYaw - e.movementX * s); setCamPitch(clamp(camPitch - e.movementY * s, -1.3, 1.15));
 });
 addEventListener('wheel', e => { setCamDist(clamp(camDist + Math.sign(e.deltaY) * 0.6, CAM_NEAR, CAM_FAR)); });

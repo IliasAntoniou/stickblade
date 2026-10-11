@@ -47,6 +47,23 @@ const THROW_DAMAGE = 10;
 const BARE_TIME = 6;       // seconds an armoured enemy stays without its armour after a blast strips it
 const YARD = { cx: 0, cz: 0, half: ARENA };    // the main arena, where gang members are kept unless told otherwise
 const GANG_SPEED = 5.2;    // how fast it walks, units per second. A training fighter does 3.4; the player runs at about 9.5
+// Juggling. A sword hit on an enemy that is already in the air lifts it a little and slows its fall for a
+// moment, so a launch can be followed by a few more hits. Each one after the first does less (the first counts
+// fully, the one numbered JUGGLE_HITS + 1 does nothing), and the count only starts again when it lands: it
+// always comes down. Only swung weapons do this (attackHits in player.js asks for it), not the Mage's missiles.
+const JUGGLE_HITS = 5;      // how many hits in the air still hold an enemy up
+const JUGGLE_LIFT = 6;      // upward speed the first one gives it
+const JUGGLE_HANG = 0.35;   // seconds of slow fall after the first one
+const HANG_PULL = 12;       // the pull downwards during that slow fall (normally 32)
+// Called for a sword hit about to land on d. Returns the upward speed the hit should give it (0 if it is on
+// the ground or has been held up as often as it can be), and starts its slow fall.
+export function juggle(d) {
+  if (d.grounded || d.fixed) return 0;
+  const share = Math.max(0, 1 - d.lifts / JUGGLE_HITS);
+  d.lifts++;
+  d.hangT = JUGGLE_HANG * share;
+  return JUGGLE_LIFT * share;
+}
 // True if a dummy standing at p would be inside a wall.
 export function dummyBlocked(p) {
   for (const s of solids) if (p.x + 0.3 > s.min.x && p.x - 0.3 < s.max.x && p.z + 0.3 > s.min.z && p.z - 0.3 < s.max.z && p.y + 1.8 > s.min.y && p.y + 0.4 < s.max.y) return true;
@@ -94,6 +111,7 @@ export class Dummy {
     this.sinceHit = 99; this.flash = 0; this.rage = 0; this.tx = 0; this.tz = 0; this.tvx = 0; this.tvz = 0;
     this.yaw = 0; this.dead = false; this.deadT = 0; this.spin = 0; this.grounded = true;
     this.floatT = 0; this.stunT = 0; this.pinned = false; this.engaged = false;
+    this.lifts = 0; this.hangT = 0;    // juggling: sword hits taken in the air since it last landed, and seconds of slow fall left
     // Burning (Flame style): burnT = seconds left, burnDps = damage per second, burnTick = time to the next tick.
     this.burnT = 0; this.burnDps = 0; this.burnTick = 0;
     // Soaked (Water's Blink Strike, elements.js): seconds left. A soaked enemy takes more damage and a fighter is slowed.
@@ -125,7 +143,7 @@ export class Dummy {
   }
   // Take this dummy out of the world for good (trial dummies, when their trial ends). Does not touch the dummies list.
   dispose() {
-    this.dead = true;    // anything still holding on to it (grapple, a stuck kunai) lets go of dead dummies
+    this.dead = true;    // anything still holding on to it (the grapple) lets go of dead dummies
     scene.remove(this.sm.root);
     scene.remove(this.bar);
     scene.remove(this.shadow);
@@ -225,7 +243,10 @@ export class Dummy {
         const f = Math.exp(-3 * dt); this.vel.x *= f; this.vel.z *= f;
       } else if (flying && this.sinceHit >= 0.9) {
         this.path(_dv); this.pos.lerp(_dv, 1 - Math.exp(-2.5 * dt)); this.vel.multiplyScalar(Math.exp(-4 * dt));
-      } else this.vel.y -= (this.sinceHit < 0.6 ? 15 : 32) * dt;
+      } else {
+        this.hangT = Math.max(0, this.hangT - dt);
+        this.vel.y -= (this.hangT > 0 ? HANG_PULL : 32) * dt;    // a slow fall only while a juggle holds it (see juggle)
+      }
       if (this.fixed) { this.vel.x = 0; this.vel.z = 0; }    // a barricade is not pushed about
       const ox = this.pos.x, oz = this.pos.z;
       this.pos.addScaledVector(this.vel, dt);
@@ -236,7 +257,7 @@ export class Dummy {
       }
       if (this.pos.y <= gy) {
         this.pos.y = gy; if (this.vel.y < 0) this.vel.y = 0;
-        const f = Math.exp(-9 * dt); this.vel.x *= f; this.vel.z *= f; this.grounded = true;
+        const f = Math.exp(-9 * dt); this.vel.x *= f; this.vel.z *= f; this.grounded = true; this.lifts = 0; this.hangT = 0;
       } else { const f = Math.exp(-1.2 * dt); this.vel.x *= f; this.vel.z *= f; this.grounded = false; }
       if (!this.dead && !flying && !this.gang && this.grounded && this.sinceHit > 1 && !(ty === 'fighter' && this.engaged)) {
         if (Math.abs(gy - this.anchor.y) < 0.05) {
@@ -292,7 +313,7 @@ export class Dummy {
     // A training fighter guards its own patch. A gang member has come for the player: it sees right across the
     // arena, at any height, and has no home to stay near.
     const inSight = this.gang ? dist < GANG_SIGHT : dist < 14 && Math.abs(dy) < 4 && leash < 18;
-    const canSee = TUNE.fightersAttack && P.smokeT <= 0 && !dlg.open && chal.phase !== 'count' && inSight;
+    const canSee = TUNE.fightersAttack && !dlg.open && chal.phase !== 'count' && inSight;
     const pace = this.soakT > 0 ? SOAK.slow : 1;    // soaked: slower to walk and slower to ready an attack
     this.aiCd -= dt * pace; this.rage = 0;
     let tp = F_IDLE;
@@ -343,7 +364,7 @@ export class Dummy {
           this.warnRing.visible = false;
           spawnRing(_dv.set(this.pos.x, gy + 0.05, this.pos.z), 0.5, 3.9, 0.3, 0xff2244); shake(0.3);
           this.ai = 'recover'; this.aiT = 0.7; this.aiCd = 1.6;
-          if (dist < 3.7 && dy > -1.5 && dy < 2.5) hurtPlayer(15, this.pos, this);
+          if (dist < 3.7 && dy > -1.5 && dy < 2.5) hurtPlayer(15, this.pos);
         }
         break;
       }
@@ -361,7 +382,7 @@ export class Dummy {
         const ox = this.pos.x, oz = this.pos.z;
         this.pos.addScaledVector(this.lungeDir, 30 * dt);
         if (dummyBlocked(this.pos)) { this.pos.x = ox; this.pos.z = oz; this.aiT = 0; }
-        if (!this.lungeHit && Math.hypot(P.pos.x - this.pos.x, P.pos.z - this.pos.z) < 1.5 && Math.abs(dy) < 2) { this.lungeHit = true; hurtPlayer(12, this.pos, this); }
+        if (!this.lungeHit && Math.hypot(P.pos.x - this.pos.x, P.pos.z - this.pos.z) < 1.5 && Math.abs(dy) < 2) { this.lungeHit = true; hurtPlayer(12, this.pos); }
         if (this.aiT <= 0 && this.ai === 'lunge') { this.ai = 'recover'; this.aiT = 0.6; this.aiCd = 1.4; }
         break;
       }
@@ -384,7 +405,7 @@ export class Dummy {
           this.chest(_hv);
           _hv.y += 0.25;
           spawnBeam(_hv, _dv, 0xff5a4a, 0.18, 2.4);
-          if (this.throwHits(_dv)) hurtPlayer(THROW_DAMAGE, this.pos, this);
+          if (this.throwHits(_dv)) hurtPlayer(THROW_DAMAGE, this.pos);
           this.ai = 'recover';
           this.aiT = 0.5;
           this.aiCd = 2.2;
@@ -498,7 +519,6 @@ export function hitDummy(d, dmg, kx, kz, up, heavy = false, stop = null, src = P
     if (style.cur && style.cur.id === d.weak) { dmg = Math.round(dmg * WEAK_BONUS); label = 'WEAK'; }
     else dmg = Math.round(dmg * d.tough);
   }
-  if (P.dmgMult > 1) { dmg *= P.dmgMult; P.dmgMult = 1; P.smokeT = Math.min(P.smokeT, 0.01); label = 'AMBUSH'; heavy = true; }
   if (d.fixed) {
     // a barricade, a keg or a lever is not thrown about by a hit
     kx = 0;

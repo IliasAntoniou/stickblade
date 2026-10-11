@@ -16,6 +16,7 @@ import { CH, startChallenge } from './challenges.js';
 import { trainingList, styleList, startTrial, ROMAN } from './progress.js';
 import { isTuned, resetTuning } from './tuning.js';
 import { dojo, enterDojo, leaveDojo } from './dojo.js';
+import { styleHow } from './styles.js';
 import { CHAPTERS, questState, acceptQuest, turnInQuest } from './quests.js';
 import { DISTRICTS, campaign, districtList, startMission } from './missions.js';
 
@@ -201,28 +202,65 @@ const THROW_RELEASE = 0.9;    // throw: he lets go (between GRAB_HOLD and this h
 const THROW_DAMAGE = 0.4;     // throw: share of the player's full health hitting the rock takes
 const STUCK_TIME = 0.45;      // throw: seconds the player stays flat against the rock before dropping
 const NECK_HEIGHT = 1.5;      // how far above the player's feet their neck is
+const EYE_HEIGHT = 3;         // how far above his feet he holds the player, and so where a throw starts from
 const _hold = new V3();
-// Something to throw the player at: a tall rock standing on the ground, neither too close nor too far. Works out
-// which of its sides faces him, and the spot on that side the player will hit (master.throwTo), and which way that
-// side faces (master.wallN). Returns false if there is no such rock.
-function pickWall() {
+// True if something solid stands on the straight line between two points. skip = a solid to leave out (the
+// rock being aimed at, which the line ends on). Curtains of light are left out too: they are not rock.
+// Each solid is an upright box, so the line is cut down one axis at a time to the part of it inside the box
+// (enter and leave are how far along the line that part starts and ends, 0..1); if anything is left, it is hit.
+const _eye = new V3(), _spot = new V3(), _side = new V3();
+function wallBetween(from, to, skip) {
+  for (const solid of solids) {
+    if (solid === skip || solid.phase) continue;
+    let enter = 0, leave = 1;
+    for (const axis of ['x', 'y', 'z']) {
+      const start = from[axis], step = to[axis] - start;
+      if (Math.abs(step) < 1e-6) {
+        if (start < solid.min[axis] || start > solid.max[axis]) { enter = 2; break; }    // beside the box all the way
+        continue;
+      }
+      const one = (solid.min[axis] - start) / step, other = (solid.max[axis] - start) / step;
+      enter = Math.max(enter, Math.min(one, other));
+      leave = Math.min(leave, Math.max(one, other));
+    }
+    if (enter < leave) return true;
+  }
+  return false;
+}
+// Where on a rock the player would hit if thrown at it from where he stands, written into `spot`, and which way
+// that side of the rock faces, written into `side`.
+function wallSpot(rock, spot, side) {
   const ox = master.pos.x, oz = master.pos.z;
-  const good = solids.filter(r => {
-    const away = Math.hypot((r.min.x + r.max.x) / 2 - ox, (r.min.z + r.max.z) / 2 - oz);
-    return r.max.y - r.min.y >= 8 && r.min.y < master.pos.y + 1 && away > 7 && away < 60;
-  });
-  if (!good.length) return false;
-  const rock = pick(good);
   // Follow a straight line from him towards the middle of the rock. It meets the rock at one of its sides: the
   // one it reaches last, of the two it is heading for (one facing him along x, one along z).
   const dx = (rock.min.x + rock.max.x) / 2 - ox, dz = (rock.min.z + rock.max.z) / 2 - oz;
   const alongX = dx !== 0 ? ((dx > 0 ? rock.min.x : rock.max.x) - ox) / dx : -Infinity;
   const alongZ = dz !== 0 ? ((dz > 0 ? rock.min.z : rock.max.z) - oz) / dz : -Infinity;
   const k = Math.max(alongX, alongZ);
-  if (alongX > alongZ) master.wallN.set(-Math.sign(dx), 0, 0); else master.wallN.set(0, 0, -Math.sign(dz));
+  if (alongX > alongZ) side.set(-Math.sign(dx), 0, 0); else side.set(0, 0, -Math.sign(dz));
   // partway up the rock, and just clear of its surface so the player is against it, not inside it
   const height = clamp(master.pos.y + 5, rock.min.y + 1.5, rock.max.y - 1.5);
-  master.throwTo.set(ox + dx * k + master.wallN.x * 0.38, height - 0.9, oz + dz * k + master.wallN.z * 0.38);
+  spot.set(ox + dx * k + side.x * 0.38, height - 0.9, oz + dz * k + side.z * 0.38);
+}
+// The rocks he could throw the player at from where he stands: tall, standing on the ground, neither too close
+// nor too far, and in his sight: nothing else may stand between him and the spot on it the player would hit.
+export function throwTargets() {
+  const ox = master.pos.x, oz = master.pos.z;
+  _eye.set(ox, master.pos.y + EYE_HEIGHT, oz);
+  return solids.filter(r => {
+    const away = Math.hypot((r.min.x + r.max.x) / 2 - ox, (r.min.z + r.max.z) / 2 - oz);
+    if (r.phase || r.max.y - r.min.y < 8 || r.min.y >= master.pos.y + 1 || away <= 7 || away >= 60) return false;
+    wallSpot(r, _spot, _side);
+    _spot.y += 0.9;    // the middle of the body, where it would strike
+    return !wallBetween(_eye, _spot, r);
+  });
+}
+// Choose one of them. Sets the spot the player will hit (master.throwTo) and which way that side of the rock
+// faces (master.wallN). Returns false if there is no rock he can throw at.
+function pickWall() {
+  const good = throwTargets();
+  if (!good.length) return false;
+  wallSpot(pick(good), master.throwTo, master.wallN);
   return true;
 }
 function grabPlayer() {
@@ -358,19 +396,17 @@ export const TIPS = [
   'Slide, then jump. Chain them and the ground will never slow you.',
   'The grey ones raise a shield. Strike from behind them, or from above.',
   'The purple ones strike back. Watch the red marks on the ground. A dash cannot be hit.',
-  'A Monk who blocks at the very moment a blow lands will parry, and appear behind the attacker.',
+  'A Mage who holds the right mouse button takes aim. Wait for the ring to close, and put it on the head.',
   'Press X and something comes to carry you. What comes depends on the style your sword has taken.',
-  'A Ninja can climb. Hold right-click against a wall and look up.',
-  'A Lancer\'s javelin is also a door. Throw it, then press Q again.',
+  'A Mage in the air can hang there. Jump, then jump again, and cast from above.',
+  'A comet lands a moment after it is called. Aim where they will be, or hold them still first.',
   'Throw a dummy hard into a wall and it takes extra damage.',
   'Do not test my patience. I warn once. After that I use my hands.',
 ];
 // The little pictures on the cards. Each is the inside of a 24 x 24 drawing made of lines.
 const ICONS = {
   sword: '<path d="M5 19 L18 6 L20 4 L19 7 L7 20 Z"/><path d="M4 16 L8 20"/><path d="M3 21 L5.5 18.5"/>',
-  daggers: '<path d="M4 20 L13 11 L15 8 L12 10 L3.5 19"/><path d="M20 20 L11 11 L9 8 L12 10 L20.5 19"/>',
   fist: '<path d="M6 10 h11 a2 2 0 0 1 2 2 v4 a4 4 0 0 1 -4 4 H9 a3 3 0 0 1 -3 -3 Z"/><path d="M9 10 V7 M12 10 V6 M15 10 V7"/>',
-  spear: '<path d="M3 21 L17 7"/><path d="M15 9 L21 3 L20 9 L15 9 L15 4 Z"/>',
   swap: '<circle cx="12" cy="6" r="3"/><path d="M6 21 v-4 a6 6 0 0 1 12 0 v4"/>',
   hall: '<path d="M3 7 Q12 3 21 7"/><path d="M5 10 H19"/><path d="M7 7 V21 M17 7 V21"/>',
   trophy: '<path d="M7 4 H17 V9 a5 5 0 0 1 -10 0 Z"/><path d="M7 6 H4 a3 3 0 0 0 3 4 M17 6 h3 a3 3 0 0 1 -3 4"/><path d="M12 14 V18 M8 20 H16"/>',
@@ -392,11 +428,12 @@ const ICONS = {
   wrench: '<path d="M15 4 a4 4 0 0 0 -4 6 L4 17 L7 20 L14 13 a4 4 0 0 0 6 -4 L17 12 L15 10 L18 7 Z"/>',
   story: '<path d="M6 4 H17 a2 2 0 0 1 2 2 V20 H8 a2 2 0 0 1 -2 -2 Z"/><path d="M10 9 H15 M10 13 H15"/><path d="M6 18 a2 2 0 0 1 2 -2 H19"/>',
   map: '<path d="M3 6 L9 4 L15 6 L21 4 V18 L15 20 L9 18 L3 20 Z"/><path d="M9 4 V18 M15 6 V20"/>',
+  staff: '<path d="M5 21 L16 8"/><circle cx="18" cy="6" r="3"/><path d="M13 9 L15 11"/>',
   lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11 V8 a4 4 0 0 1 8 0 v3"/>',
   again: '<path d="M4 12 a8 8 0 1 0 3 -6.2"/><path d="M4 4 V9 H9"/>',
 };
 const SLOT_ICON = { m2: 'hook', q: 'blink', e: 'cyclone', r: 'slam', f: 'rising' };
-const WEAPON_ICON = { sword: 'sword', daggers: 'daggers', spear: 'spear', none: 'fist' };
+const WEAPON_ICON = { sword: 'sword', staff: 'staff', none: 'fist' };
 const CHALLENGE_ICON = { rings: 'rings', summit: 'flag', demo: 'smash', combo: 'combo' };
 const PAGE_TITLE = { main: 'What do you want?', classes: 'Choose how you fight', chal: 'Challenges', train: 'Training hall', tips: 'Advice', story: 'The story', map: 'The city' };
 const icon = name => `<svg viewBox="0 0 24 24">${ICONS[name] || ICONS.back}</svg>`;
@@ -435,7 +472,7 @@ export function renderDlg(text) {
     opts = [
       storyCard(),
       { label: 'The city', sub: `Take it back from the Ash Hand, district by district. <b>${campaign.free.length} of ${DISTRICTS.length}</b> free`, icon: 'map', act: () => { dlg.page = 'map'; renderDlg(); } },
-      { label: 'Change fighting style', sub: 'Blademaster, Ninja, Monk or Lancer', icon: 'swap', act: () => { dlg.page = 'classes'; renderDlg(); } },
+      { label: 'Change fighting style', sub: 'Blademaster or Mage', icon: 'swap', act: () => { dlg.page = 'classes'; renderDlg(); } },
       { label: 'Train my skills', sub: 'He takes you to the training hall, where skills and sword styles are earned', icon: 'hall', act: () => { closeDlg(); enterDojo(); } },
       { label: 'Take a challenge', sub: 'Timed tests in the arena. Your best times are kept', icon: 'trophy', act: () => { dlg.page = 'chal'; renderDlg(); } },
       { label: 'Ask for advice', sub: 'A tip about moving or fighting', icon: 'bulb', act: () => { dlg.page = 'tips'; renderDlg(); } },
@@ -476,7 +513,7 @@ export function renderDlg(text) {
       // Sword styles come after the skills: each is unlocked by its own trial.
       for (const { st, trial, unlocked, blocked } of styleList()) {
         const base = { label: st.name + ' style', icon: st.id };
-        if (unlocked) opts.push({ ...base, sub: `${st.how} to take it for a while`, tag: 'UNLOCKED', tone: 'gold', cur: true, act: () => renderDlg() });
+        if (unlocked) opts.push({ ...base, sub: `${styleHow(st.id)} to take it for a while`, tag: 'UNLOCKED', tone: 'gold', cur: true, act: () => renderDlg() });
         else if (blocked) opts.push({ ...base, sub: `${st.perk}.<br><b>First learn:</b> ${blocked}`, tag: 'LOCKED', tone: 'grey', cur: true, act: () => renderDlg() });
         else opts.push({ ...base, sub: `<b>Trial:</b> ${trial.desc} (${trial.time}s).<br><b>Reward:</b> ${st.perk}`, tag: 'LOCKED', tone: 'red', act: () => { if (!startTrial(trial)) renderDlg(); } });
       }

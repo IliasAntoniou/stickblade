@@ -3,7 +3,7 @@
 // camYaw, camPitch = where the camera looks, in radians; the mouse changes them in input.js. camDist = zoom.
 
 import * as THREE from 'three';
-import { V3, clamp, damp, _a, _b, _c, _d, _e, _pv } from './util.js';
+import { V3, clamp, lerp, damp, _a, _b, _c, _d, _e, _pv } from './util.js';
 import { camera } from './core.js';
 import { solidMeshes } from './world.js';
 import { shakeAmt, decayShake } from './fx.js';
@@ -18,6 +18,13 @@ export const CAM_NEAR = 2.5, CAM_FAR = 10;
 export let camYaw = 0, camPitch = -0.12, camDist = CAM_FAR;
 export const camPivot = new V3(0, 1.55, 14);
 export let camH = 1.55, fov = 72;
+// scope = how far the Mage's sniping scope has closed in, 0..1. It pulls the camera up to the shoulder and
+// narrows the view (SCOPE_FOV degrees narrower at 1), which is what makes far things big.
+export let scope = 0;
+// SCOPE_DIST is almost nothing on purpose: the scoped view is from the eye. SCOPE_IN = the share of the
+// charge by which the camera has got there.
+export const SCOPE_IN = 0.25;
+const SCOPE_DIST = 0.1, SCOPE_FOV = 44;
 // Direction helpers. camDir = where the camera looks. camFwdH, camRight = forward and right along the ground
 // (the movement keys use these). facing = the direction the player faces.
 export const camDir = out => { const cp = Math.cos(camPitch); return out.set(-Math.sin(camYaw) * cp, Math.sin(camPitch), -Math.cos(camYaw) * cp); };
@@ -48,7 +55,9 @@ export function updateCamera(rdt) {
   if (camPivot.distanceTo(_a) > 8) camPivot.copy(_a);
   camDir(_b); camRight(_c);
   _d.copy(camPivot).addScaledVector(_c, 0.6);
-  let dist = camDist;
+  // The camera comes to the shoulder over the first quarter of the charge (SCOPE_IN), while the view goes on
+  // narrowing for all of it. The body is hidden once it gets there (anim.js), or it would fill the narrowed view.
+  let dist = lerp(camDist, Math.min(camDist, SCOPE_DIST), Math.min(1, scope / SCOPE_IN));
   raycaster.set(_d, _e.copy(_b).negate()); raycaster.far = dist;
   const h = raycaster.intersectObjects(solidMeshes, false)[0];
   if (h) dist = Math.max(0.6, h.distance - 0.3);
@@ -63,9 +72,9 @@ export function updateCamera(rdt) {
   // its speed counts, or the view would be at its widest the whole ride.
   const moving = Math.hypot(P.vel.x, P.vel.z);
   let spd = moving;
-  if (P.state === 'dash' || P.state === 'dragonKick') spd = 30;
+  if (P.state === 'dash') spd = 30;
   else if (P.state === 'mounted') spd = 9.5 + moving * 0.35;
-  fov = damp(fov, 72 + clamp((spd - 9.5) * 0.7, 0, 16), 6, rdt);
+  fov = damp(fov, 72 + clamp((spd - 9.5) * 0.7, 0, 16) - SCOPE_FOV * scope, scope > 0 ? 14 : 6, rdt);
   camera.fov = fov; camera.updateProjectionMatrix();
 
   // what the crosshair is pointing at
@@ -94,3 +103,4 @@ export function updateCamera(rdt) {
 export function setCamYaw(v) { camYaw = v; }
 export function setCamPitch(v) { camPitch = v; }
 export function setCamDist(v) { camDist = v; }
+export function setScope(v) { scope = v; }

@@ -2,7 +2,7 @@
 // and the story's current task (top right).
 // The HTML and CSS for it are in index.html.
 
-import { clamp, $, DEBUG } from './util.js';
+import { clamp, lerp, $, DEBUG } from './util.js';
 import { camera, renderer } from './core.js';
 import { projV } from './fx.js';
 import { T, P, CL, dlg, combo, totalDmg, dmgLog, TUNE } from './state.js';
@@ -72,7 +72,16 @@ export function updateHud(rdt) {
   crossEl.className = (aimHit || lockTarget || lockFire) ? 'can' : '';
   // The lock-on ring: on the dummy nearest the crosshair, or on a fire (drawn in fire colours) when that is what
   // a Blink Strike would go to.
-  if (lockTarget || lockFire) {
+  // The Mage's sniping scope: a ring round the crosshair that closes in as the shot charges, and turns gold
+  // when it is full. While it is up the lock-on ring is hidden: this shot goes where it is pointed, not to a target.
+  const aiming = P.state === 'aim';
+  scopeEl.style.display = aiming ? 'block' : 'none';
+  if (aiming) {
+    const size = lerp(SCOPE_OPEN, SCOPE_CLOSED, P.aimK);
+    scopeEl.style.width = scopeEl.style.height = size + 'px';
+    scopeEl.classList.toggle('full', P.aimK >= 1);
+  }
+  if ((lockTarget || lockFire) && !aiming) {
     if (lockTarget) lockTarget.chest(projV);
     else projV.set(lockFire.pos.x, lockFire.pos.y + 1, lockFire.pos.z);
     projV.project(camera);
@@ -114,6 +123,8 @@ export function updateHud(rdt) {
     if (DEBUG !== null) statsEl.innerHTML += `<br>Draws <span>${renderer.info.render.calls}</span> &nbsp; Tris <span>${renderer.info.render.triangles}</span>`;
   }
 }
+const scopeEl = $('scope');
+const SCOPE_OPEN = 300, SCOPE_CLOSED = 44;    // the ring's width in pixels, uncharged and fully charged
 let lastHint = null;
 let lastTask = null;
 const questEl = $('quest');
